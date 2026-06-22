@@ -8,6 +8,7 @@ import {
   projectToEditorState,
 } from "@/lib/mock-projects";
 import {
+  getProjectByIdSnapshot,
   getStoredProjectById,
   subscribeProjects,
   upsertProject,
@@ -38,7 +39,7 @@ function useIsClient(): boolean {
 function useProjectLookup(projectId: string) {
   return useSyncExternalStore(
     subscribeProjects,
-    () => getStoredProjectById(projectId) ?? getProjectById(projectId),
+    () => getProjectByIdSnapshot(projectId),
     () => undefined,
   );
 }

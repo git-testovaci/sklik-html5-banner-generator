@@ -1,3 +1,5 @@
+"use client";
+
 interface DashboardHeaderProps {
   onNewBanner: () => void;
 }

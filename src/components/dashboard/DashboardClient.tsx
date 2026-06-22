@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { computeDashboardStats } from "@/lib/mock-projects";
 import {
   deleteProjectById,
+  getProjectsServerSnapshot,
   loadProjectsFromStorage,
   subscribeProjects,
 } from "@/lib/project-storage";
@@ -37,7 +38,7 @@ function useStoredProjects() {
   return useSyncExternalStore(
     subscribeProjects,
     loadProjectsFromStorage,
-    () => [],
+    getProjectsServerSnapshot,
   );
 }
 

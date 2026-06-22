@@ -3,12 +3,9 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { formatBannerSize } from "@/lib/banner-sizes";
+import { projectToEditorState } from "@/lib/mock-projects";
 import {
-  getProjectByShareId,
-  projectToEditorState,
-} from "@/lib/mock-projects";
-import {
-  getStoredProjectByShareId,
+  getProjectByShareIdSnapshot,
   subscribeProjects,
 } from "@/lib/project-storage";
 import type { BannerEditorState } from "@/types/editor";
@@ -29,7 +26,7 @@ function useIsClient(): boolean {
 function usePreviewProject(shareId: string) {
   return useSyncExternalStore(
     subscribeProjects,
-    () => getStoredProjectByShareId(shareId) ?? getProjectByShareId(shareId),
+    () => getProjectByShareIdSnapshot(shareId),
     () => undefined,
   );
 }
