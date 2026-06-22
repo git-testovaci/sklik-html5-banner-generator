@@ -1,16 +1,44 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { formatBannerSize } from "@/lib/banner-sizes";
+import {
+  getProjectByShareId,
+  projectToEditorState,
+} from "@/lib/mock-projects";
+import {
+  getStoredProjectByShareId,
+  subscribeProjects,
+} from "@/lib/project-storage";
 import type { BannerEditorState } from "@/types/editor";
 import { BannerPreview } from "@/components/editor/BannerPreview";
 
 interface PublicPreviewShellProps {
+  shareId: string;
+}
+
+function useIsClient(): boolean {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+}
+
+function usePreviewProject(shareId: string) {
+  return useSyncExternalStore(
+    subscribeProjects,
+    () => getStoredProjectByShareId(shareId) ?? getProjectByShareId(shareId),
+    () => undefined,
+  );
+}
+
+interface PreviewContentProps {
   state: BannerEditorState;
 }
 
-export function PublicPreviewShell({ state }: PublicPreviewShellProps) {
+function PreviewContent({ state }: PreviewContentProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const sizeLabel = formatBannerSize(state.width, state.height);
@@ -35,7 +63,7 @@ export function PublicPreviewShell({ state }: PublicPreviewShellProps) {
   }, [state.width, state.height]);
 
   return (
-    <div className="flex min-h-full flex-col">
+    <>
       <header className="border-b border-zinc-800/80 bg-zinc-950/80">
         <div className="mx-auto flex max-w-4xl flex-col gap-2 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div>
@@ -79,6 +107,42 @@ export function PublicPreviewShell({ state }: PublicPreviewShellProps) {
           </div>
         </div>
       </main>
+    </>
+  );
+}
+
+export function PublicPreviewShell({ shareId }: PublicPreviewShellProps) {
+  const isClient = useIsClient();
+  const project = usePreviewProject(shareId);
+
+  if (!isClient) {
+    return (
+      <div className="flex min-h-full items-center justify-center">
+        <p className="text-sm text-zinc-500">Loading preview…</p>
+      </div>
+    );
+  }
+
+  if (!project) {
+    return (
+      <div className="flex min-h-full flex-col items-center justify-center px-4 py-16 text-center">
+        <h1 className="text-xl font-semibold text-zinc-100">Preview not found</h1>
+        <p className="mt-2 max-w-md text-sm text-zinc-500">
+          This preview link is invalid or the banner project was removed.
+        </p>
+        <Link
+          href="/dashboard"
+          className="mt-6 inline-flex items-center rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-violet-500"
+        >
+          Back to dashboard
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-full flex-col">
+      <PreviewContent state={projectToEditorState(project)} />
     </div>
   );
 }

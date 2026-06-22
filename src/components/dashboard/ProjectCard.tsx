@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { formatBannerSize } from "@/lib/banner-sizes";
 import type { BannerProject } from "@/types/project";
@@ -5,6 +7,7 @@ import { ProjectStatusBadge } from "./ProjectStatusBadge";
 
 interface ProjectCardProps {
   project: BannerProject;
+  onDelete: (projectId: string) => void;
 }
 
 function formatUpdatedDate(isoDate: string): string {
@@ -17,10 +20,19 @@ function formatUpdatedDate(isoDate: string): string {
   }).format(new Date(isoDate));
 }
 
-export function ProjectCard({ project }: ProjectCardProps) {
+export function ProjectCard({ project, onDelete }: ProjectCardProps) {
   const canPreview =
-    project.status !== "draft" && project.shareId !== undefined;
+    project.status !== "draft" && project.shareId.length > 0;
   const sizeLabel = formatBannerSize(project.width, project.height);
+
+  function handleDelete() {
+    const confirmed = window.confirm(
+      `Delete "${project.name}"? This action cannot be undone.`,
+    );
+    if (confirmed) {
+      onDelete(project.id);
+    }
+  }
 
   return (
     <article className="group flex flex-col rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5 shadow-sm transition-colors hover:border-zinc-700/80 hover:bg-zinc-900/80">
@@ -70,12 +82,11 @@ export function ProjectCard({ project }: ProjectCardProps) {
           </span>
         )}
 
-        {/* Phase 10: wire to DELETE /api/projects/[id] */}
         <button
           type="button"
-          disabled
-          aria-label={`Delete project ${project.name} (coming soon)`}
-          className="ml-auto inline-flex cursor-not-allowed items-center rounded-lg px-3 py-2 text-sm font-medium text-red-900/60 transition-colors"
+          onClick={handleDelete}
+          aria-label={`Delete project ${project.name}`}
+          className="ml-auto inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-red-400 transition-colors hover:bg-red-950/30 hover:text-red-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
         >
           Delete
         </button>

@@ -2,14 +2,20 @@
 
 import Link from "next/link";
 import { useCallback, useState } from "react";
-import type { BannerEditorState, ValidationSummary } from "@/types/editor";
+import { getPreviewUrl } from "@/lib/share-links";
+import type { BannerEditorState } from "@/types/editor";
+import type { ValidationSummary } from "@/types/validation";
+import type { ValidationRowStatus } from "@/types/validation";
 
 interface ValidationExportPanelProps {
   state: BannerEditorState;
   validation: ValidationSummary;
 }
 
-const STATUS_STYLES = {
+const STATUS_STYLES: Record<
+  ValidationRowStatus,
+  { badge: string; icon: string }
+> = {
   pass: {
     badge: "bg-emerald-950/60 text-emerald-300 ring-emerald-800/50",
     icon: "✓",
@@ -22,12 +28,20 @@ const STATUS_STYLES = {
     badge: "bg-red-950/60 text-red-300 ring-red-800/50",
     icon: "✕",
   },
-} as const;
+  info: {
+    badge: "bg-zinc-800/80 text-zinc-400 ring-zinc-700/50",
+    icon: "i",
+  },
+  pending: {
+    badge: "bg-zinc-800/60 text-zinc-500 ring-zinc-700/50",
+    icon: "…",
+  },
+};
 
 const OVERALL_LABELS = {
-  pass: { text: "Ready to export", className: "text-emerald-400" },
-  warn: { text: "Export with warnings", className: "text-amber-400" },
-  fail: { text: "Not ready to export", className: "text-red-400" },
+  pass: { text: "Ready for export prep", className: "text-emerald-400" },
+  warn: { text: "Review warnings before export", className: "text-amber-400" },
+  fail: { text: "Fix issues before export", className: "text-red-400" },
 } as const;
 
 export function ValidationExportPanel({
@@ -35,12 +49,10 @@ export function ValidationExportPanel({
   validation,
 }: ValidationExportPanelProps) {
   const [copied, setCopied] = useState(false);
-  const canPreview = state.shareId !== undefined;
   const overall = OVERALL_LABELS[validation.overallStatus];
 
   const handleCopyLink = useCallback(async () => {
-    if (!state.shareId) return;
-    const url = `${window.location.origin}/preview/${state.shareId}`;
+    const url = getPreviewUrl(state.shareId);
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -99,43 +111,29 @@ export function ValidationExportPanel({
         <button
           type="button"
           disabled
-          aria-label="Generate ZIP (coming in Phase 8)"
+          aria-label="ZIP export coming in Phase 8"
           className="w-full cursor-not-allowed rounded-lg bg-violet-600/40 px-4 py-2.5 text-sm font-medium text-white/60"
         >
-          Generate ZIP — Phase 8
+          ZIP export coming in Phase 8
         </button>
 
         <button
           type="button"
           onClick={handleCopyLink}
-          disabled={!canPreview}
-          aria-label={
-            canPreview
-              ? "Copy preview link"
-              : "Copy preview link unavailable for drafts"
-          }
-          className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-4 py-2.5 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Copy preview link"
+          className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-4 py-2.5 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500"
         >
           {copied ? "Link copied" : "Copy preview link"}
         </button>
 
-        {canPreview ? (
-          <Link
-            href={`/preview/${state.shareId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex w-full items-center justify-center rounded-lg border border-zinc-700 px-4 py-2.5 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800"
-          >
-            Open public preview
-          </Link>
-        ) : (
-          <span
-            className="flex w-full cursor-not-allowed items-center justify-center rounded-lg border border-zinc-800 px-4 py-2.5 text-sm font-medium text-zinc-600"
-            aria-disabled="true"
-          >
-            Open public preview
-          </span>
-        )}
+        <Link
+          href={`/preview/${state.shareId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex w-full items-center justify-center rounded-lg border border-zinc-700 px-4 py-2.5 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500"
+        >
+          Open public preview
+        </Link>
       </div>
     </aside>
   );

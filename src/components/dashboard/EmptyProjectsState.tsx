@@ -1,4 +1,8 @@
-export function EmptyProjectsState() {
+interface EmptyProjectsStateProps {
+  onCreateClick: () => void;
+}
+
+export function EmptyProjectsState({ onCreateClick }: EmptyProjectsStateProps) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-800 bg-zinc-900/30 px-6 py-16 text-center">
       <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-zinc-800/80">
@@ -21,10 +25,9 @@ export function EmptyProjectsState() {
       <p className="mt-2 max-w-sm text-sm leading-relaxed text-zinc-500">
         Create your first HTML5 banner project and start building for Sklik.
       </p>
-      {/* Phase 3+: open new project modal with size picker */}
       <button
         type="button"
-        aria-label="Create first banner (coming soon)"
+        onClick={onCreateClick}
         className="mt-6 inline-flex items-center rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-violet-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500"
       >
         Create first banner

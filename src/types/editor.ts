@@ -19,22 +19,7 @@ export interface BannerEditorState {
   animation: BannerAnimation;
   logoLabel: string;
   productImageLabel: string;
-  shareId?: string;
-}
-
-export type ValidationRowStatus = "pass" | "warn" | "fail";
-
-export interface ValidationRow {
-  id: string;
-  label: string;
-  value: string;
-  status: ValidationRowStatus;
-}
-
-export interface ValidationSummary {
-  rows: ValidationRow[];
-  exportReady: boolean;
-  overallStatus: "pass" | "warn" | "fail";
+  shareId: string;
 }
 
 export const BANNER_ANIMATIONS: readonly {
@@ -50,3 +35,14 @@ export const BANNER_ANIMATIONS: readonly {
 export type BannerEditorStateUpdater = (
   patch: Partial<BannerEditorState>,
 ) => void;
+
+export function serializeEditorState(state: BannerEditorState): string {
+  return JSON.stringify(state);
+}
+
+export function editorStatesEqual(
+  a: BannerEditorState,
+  b: BannerEditorState,
+): boolean {
+  return serializeEditorState(a) === serializeEditorState(b);
+}

@@ -1,7 +1,7 @@
 import type { BannerEditorState } from "@/types/editor";
 import type { BannerProject, DashboardStats } from "@/types/project";
 
-const DEFAULT_COLORS = {
+export const DEFAULT_PROJECT_COLORS = {
   backgroundColor: "#0f172a",
   textColor: "#f8fafc",
   ctaBackgroundColor: "#7c3aed",
@@ -19,8 +19,10 @@ export const MOCK_PROJECTS: BannerProject[] = [
     headline: "Letní výprodej až −50 %",
     subheadline: "Jen do neděle na vybrané produkty",
     cta: "Nakupovat",
+    shareId: "share-summer-sale-2026",
+    createdAt: "2026-06-01T10:00:00.000Z",
     updatedAt: "2026-06-20T14:32:00.000Z",
-    ...DEFAULT_COLORS,
+    ...DEFAULT_PROJECT_COLORS,
     animation: "fade-in",
     logoLabel: "Brand Logo",
     productImageLabel: "Summer product",
@@ -34,8 +36,9 @@ export const MOCK_PROJECTS: BannerProject[] = [
     headline: "Objevte novou kolekci",
     subheadline: "Elegance pro každý den",
     cta: "Zjistit více",
-    updatedAt: "2026-06-18T09:15:00.000Z",
     shareId: "share-brand-q2",
+    createdAt: "2026-06-05T08:00:00.000Z",
+    updatedAt: "2026-06-18T09:15:00.000Z",
     backgroundColor: "#1e1b4b",
     textColor: "#e0e7ff",
     ctaBackgroundColor: "#6366f1",
@@ -54,8 +57,9 @@ export const MOCK_PROJECTS: BannerProject[] = [
     headline: "Nový Skyline Pro",
     subheadline: "Výkon, který mění pravidla",
     cta: "Předobjednat",
-    updatedAt: "2026-06-15T16:48:00.000Z",
     shareId: "share-skyline-pro",
+    createdAt: "2026-06-08T12:00:00.000Z",
+    updatedAt: "2026-06-15T16:48:00.000Z",
     backgroundColor: "#18181b",
     textColor: "#fafafa",
     ctaBackgroundColor: "#059669",
@@ -74,6 +78,8 @@ export const MOCK_PROJECTS: BannerProject[] = [
     headline: "Nezapomeňte dokončit objednávku",
     subheadline: "V košíku vás čeká sleva 10 %",
     cta: "Dokončit nákup",
+    shareId: "share-cart-abandoners",
+    createdAt: "2026-06-12T09:00:00.000Z",
     updatedAt: "2026-06-19T11:02:00.000Z",
     backgroundColor: "#450a0a",
     textColor: "#fef2f2",
@@ -93,8 +99,9 @@ export const MOCK_PROJECTS: BannerProject[] = [
     headline: "Vánoční nabídka",
     subheadline: "Dárky pro celou rodinu",
     cta: "Prohlédnout",
-    updatedAt: "2026-06-10T08:20:00.000Z",
     shareId: "share-holiday-2026",
+    createdAt: "2026-06-01T14:00:00.000Z",
+    updatedAt: "2026-06-10T08:20:00.000Z",
     backgroundColor: "#14532d",
     textColor: "#f0fdf4",
     ctaBackgroundColor: "#b91c1c",
@@ -113,8 +120,9 @@ export const MOCK_PROJECTS: BannerProject[] = [
     headline: "Stáhněte si naši aplikaci",
     subheadline: "Exkluzivní slevy v mobilu",
     cta: "Stáhnout",
-    updatedAt: "2026-06-17T13:55:00.000Z",
     shareId: "share-app-install",
+    createdAt: "2026-06-14T11:00:00.000Z",
+    updatedAt: "2026-06-17T13:55:00.000Z",
     backgroundColor: "#172554",
     textColor: "#eff6ff",
     ctaBackgroundColor: "#2563eb",
@@ -147,13 +155,6 @@ export function getProjectByShareId(
   return MOCK_PROJECTS.find((p) => p.shareId === shareId);
 }
 
-export function getFallbackPreviewProject(): BannerProject {
-  return (
-    MOCK_PROJECTS.find((p) => p.status === "shared" || p.status === "exported") ??
-    MOCK_PROJECTS[0]
-  );
-}
-
 export function projectToEditorState(
   project: BannerProject,
 ): BannerEditorState {
@@ -178,26 +179,31 @@ export function projectToEditorState(
   };
 }
 
-export function createDefaultEditorState(
-  projectId: string,
-): BannerEditorState {
-  const project = getProjectById(projectId);
-  if (project) {
-    return projectToEditorState(project);
-  }
+export function editorStateToProject(
+  state: BannerEditorState,
+  existing?: BannerProject,
+): BannerProject {
+  const now = new Date().toISOString();
 
   return {
-    projectId,
-    name: "Untitled banner",
-    status: "draft",
-    width: 300,
-    height: 250,
-    headline: "Your headline here",
-    subheadline: "Supporting message",
-    cta: "Learn more",
-    ...DEFAULT_COLORS,
-    animation: "none",
-    logoLabel: "Logo",
-    productImageLabel: "Product",
+    id: state.projectId,
+    name: state.name,
+    status: state.status,
+    width: state.width,
+    height: state.height,
+    headline: state.headline,
+    subheadline: state.subheadline,
+    cta: state.cta,
+    backgroundColor: state.backgroundColor,
+    textColor: state.textColor,
+    ctaBackgroundColor: state.ctaBackgroundColor,
+    ctaTextColor: state.ctaTextColor,
+    accentColor: state.accentColor,
+    animation: state.animation,
+    logoLabel: state.logoLabel,
+    productImageLabel: state.productImageLabel,
+    shareId: state.shareId || existing?.shareId || "share-unknown",
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
   };
 }

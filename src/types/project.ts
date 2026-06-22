@@ -11,8 +11,6 @@ export interface BannerProject {
   headline: string;
   subheadline: string;
   cta: string;
-  updatedAt: string;
-  shareId?: string;
   backgroundColor: string;
   textColor: string;
   ctaBackgroundColor: string;
@@ -21,6 +19,9 @@ export interface BannerProject {
   animation: BannerAnimation;
   logoLabel: string;
   productImageLabel: string;
+  shareId: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface DashboardStats {
