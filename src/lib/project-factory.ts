@@ -1,4 +1,5 @@
 import { generateShareId } from "@/lib/share-links";
+import type { BannerAnimation } from "@/types/editor";
 import type { BannerProject } from "@/types/project";
 
 export const DEFAULT_PROJECT_COLORS = {
@@ -16,6 +17,11 @@ export interface CreateBannerProjectInput {
   headline: string;
   subheadline: string;
   cta: string;
+  animation?: BannerAnimation;
+}
+
+export interface CreateBannerProjectFromImportInput extends CreateBannerProjectInput {
+  animation: BannerAnimation;
 }
 
 export function createBannerProject(
@@ -34,11 +40,17 @@ export function createBannerProject(
     subheadline: input.subheadline.trim() || "Supporting message",
     cta: input.cta.trim() || "Learn more",
     ...DEFAULT_PROJECT_COLORS,
-    animation: "fade-in",
+    animation: input.animation ?? "fade-in",
     logoLabel: "Logo",
     productImageLabel: "Product",
     shareId: generateShareId(),
     createdAt: now,
     updatedAt: now,
   };
+}
+
+export function createBannerProjectFromImport(
+  input: CreateBannerProjectFromImportInput,
+): BannerProject {
+  return createBannerProject(input);
 }
