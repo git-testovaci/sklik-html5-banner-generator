@@ -97,7 +97,11 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
         </div>
 
         <div className="order-3">
-          <ValidationExportPanel state={state} validation={validation} />
+          <ValidationExportPanel
+            state={state}
+            validation={validation}
+            hasUnsavedChanges={hasUnsavedChanges}
+          />
         </div>
       </div>
     </div>

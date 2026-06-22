@@ -143,20 +143,20 @@ export function getValidationSummary(
     {
       id: "zip-size",
       label: "ZIP size",
-      value: "Pending ZIP export",
-      status: "pending",
+      value: "Use Generate Sklik ZIP below",
+      status: "info",
     },
     {
       id: "file-count",
       label: "File count",
-      value: "Pending ZIP export",
-      status: "pending",
+      value: "Use Generate Sklik ZIP below",
+      status: "info",
     },
     {
       id: "html-file",
       label: "HTML file",
-      value: "Pending ZIP export",
-      status: "pending",
+      value: "Use Generate Sklik ZIP below",
+      status: "info",
     },
   ];
 
