@@ -1,0 +1,58 @@
+---
+description: UI/UX pravidla pro studio editor a dashboard
+globs: "**/*.{tsx,css}"
+alwaysApply: false
+---
+
+# UI/UX Rules
+
+## Layout editoru (3-panel)
+
+```
+┌─────────────┬──────────────────┬─────────────┐
+│  Nastavení  │   Živý náhled    │ Validace /  │
+│  ~280px     │   flex-1         │ Export ~320px│
+└─────────────┴──────────────────┴─────────────┘
+```
+
+## Design principy
+
+- Moderní studio UI — tmavé/světlé pozadí, čisté linie
+- Profesionální, rychlé ovládání — minimum kliknutí
+- Jasné vizuální stavy: loading, success, error
+
+## Validace UI
+
+- PASS: zelená (`text-green-600`, `bg-green-50`, ✅ ikona)
+- FAIL: červená (`text-red-600`, `bg-red-50`, ❌ ikona)
+- Seznam chyb s kódy (V001–V012) a popisem
+
+## Dashboard
+
+- Grid karet projektů (název, rozměr, status badge, datum)
+- Status badges: `draft` (šedá), `exported` (zelená)
+- Primární akce: „Nový projekt" — prominentní tlačítko
+
+## Preview
+
+- Read-only, bez editačních prvků
+- Banner vycentrovaný, správný rozměr
+- 404 stránka pro neexistující/smazané projekty
+
+## Responzivita
+
+- Desktop-first (editor je primárně desktop nástroj)
+- Dashboard: responzivní grid
+- Minimum breakpoint: 1024px pro 3-panel editor
+
+## Přístupnost
+
+- Sémantické HTML (`<main>`, `<nav>`, `<button>`)
+- Focus states na interaktivních prvcích
+- Alt text u nahraných obrázků
+
+## SEO
+
+- Interní app — SEO není priorita
+- `<title>` a meta description pro dashboard a preview stránky
+- `noindex` pro interní stránky (volitelně ve fázi deploy)

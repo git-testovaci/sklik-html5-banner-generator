@@ -1,0 +1,53 @@
+---
+description: Architektura a struktura projektu Sklik HTML5 Banner Generator
+alwaysApply: true
+---
+
+# Architektura projektu
+
+Interní Next.js app pro tvorbu Sklik HTML5 bannerů. Stack: Next.js 16 + TypeScript + Tailwind CSS 4 + Supabase + Vercel Blob + JSZip.
+
+## Struktura
+
+```
+src/app/          — routes (dashboard, editor, preview, api)
+src/components/   — React komponenty (dashboard/, editor/, preview/, ui/)
+src/lib/          — business logika (supabase/, blob/, validator/, zip/, banner-template/)
+src/types/        — TypeScript typy
+docs/             — projektová dokumentace
+```
+
+## MVP routes
+
+- `/dashboard` — seznam projektů
+- `/editor/[id]` — editor (3-panel layout)
+- `/preview/[shareId]` — sdílený read-only náhled
+
+## Datový model
+
+Tabulky: `projects`, `assets`, `exports`. Detail v `docs/ARCHITECTURE.md`.
+
+## Klíčové moduly
+
+- `lib/banner-template/` — generuje HTML/CSS/JS z projektových dat
+- `lib/zip/` — sestaví ZIP (JSZip)
+- `lib/validator/` — Sklik validace (PASS/FAIL)
+- `lib/supabase/` — server-side DB klient
+- `lib/blob/` — Vercel Blob operace
+
+## API routes
+
+```
+/api/projects          GET, POST
+/api/projects/[id]     GET, PATCH, DELETE
+/api/assets            POST
+/api/validate/[id]     POST
+/api/export/[id]       POST
+```
+
+## Zásady
+
+- Server Components pro načtení dat, Client Components pro interaktivní editor
+- Service role key pouze server-side
+- Next.js docs: `node_modules/next/dist/docs/` (breaking changes v Next.js 16)
+- Detailní spec: `docs/ARCHITECTURE.md`, `docs/SKLIK_HTML5_SPEC.md`

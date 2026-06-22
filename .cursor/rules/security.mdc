@@ -1,0 +1,38 @@
+---
+description: Bezpečnostní pravidla pro API, upload a generovaný HTML
+globs: "**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# Security Rules
+
+## Secrets
+
+- `SUPABASE_SERVICE_ROLE_KEY` a `BLOB_READ_WRITE_TOKEN` — **pouze server-side**
+- Nikdy v Client Components, git, nebo log output
+
+## Upload
+
+- Validovat MIME typ a velikost na serveru
+- Povolené: `gif, png, jpg, jpeg, svg, webp, avif`
+- Sanitizovat název souboru (odstranit `../`, speciální znaky)
+- Max 500 kB na soubor
+
+## Generovaný HTML
+
+- Escapovat user input (headline, subheadline, CTA) v banner template
+- Zakázat: `window.open()`, `Enabler.exit()`, `mraid.open()`
+- Externí zdroje pouze HTTPS + whitelist (viz `docs/SKLIK_HTML5_SPEC.md`)
+
+## API
+
+- Validovat všechny params a body
+- Generické error messages klientovi, detaily do server logu
+- Parametrizované DB dotazy
+
+## Preview
+
+- `share_id` = unikátní, nepředvídatelné (nanoid/uuid)
+- Read-only, 404 po smazání projektu
+
+Detail: `docs/SECURITY.md`

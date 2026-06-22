@@ -1,0 +1,56 @@
+---
+description: Coding standards pro TypeScript a React
+globs: "**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# Coding Standards
+
+## TypeScript
+
+- Strict mode, explicitní typy pro API responses a DB modely
+- Typy v `src/types/index.ts`, sdílené across app
+- Žádné `any` — použít `unknown` + type guard
+
+## React
+
+- Functional components, hooks
+- Server Components default, `"use client"` jen pro interaktivitu
+- Colocate komponenty: `src/components/{feature}/`
+
+## Pojmenování
+
+- Komponenty: PascalCase (`ProjectCard.tsx`)
+- Hooks: camelCase s `use` prefix (`useProject.ts`)
+- API routes: kebab-case složky
+- Lib moduly: camelCase soubory (`generateBanner.ts`)
+
+## Styling
+
+- Tailwind CSS utility classes
+- Žádné inline `style={{}}` pokud Tailwind stačí
+- Konzistentní spacing: `p-4`, `gap-4`, `rounded-lg`
+
+## Error handling
+
+```typescript
+// API route
+try {
+  const result = await operation();
+  return NextResponse.json(result);
+} catch (error) {
+  console.error('[api/projects]', error);
+  return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+}
+```
+
+## Importy
+
+- Absolute imports přes `@/` alias
+- Skupiny: react → next → externí → interní → typy
+
+## Minimální diff
+
+- Měnit pouze soubory v scope aktuálního úkolu
+- Nepřidávat abstrakce pro one-off operace
+- Nepřidávat komentáře k self-explanatory kódu

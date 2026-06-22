@@ -1,0 +1,47 @@
+---
+description: Workflow pravidla pro Cursor Agent
+alwaysApply: true
+---
+
+# Cursor Agent Workflow
+
+## Povinné
+
+1. Implementuj **malé přesné úkoly** — jedna feature/fáze
+2. **Nepoužívej `/multitask`**
+3. **Nepřidávej závislosti** bez povolení
+4. **Neměň `package.json`** bez povolení
+5. **Nedělej commit ani push**
+6. Po implementaci spusť:
+   ```bash
+   npm run lint
+   npm run build
+   ```
+
+## Dokumentace
+
+- Fáze 2+: čti pouze relevantní doc, ne celou složku `docs/`
+- Pravidla v `.cursor/rules/` jsou primární zdroj pro agenta
+- Detailní spec: `docs/CURSOR_WORKFLOW.md`
+
+## Report formát (A–F)
+
+```
+A) Změněné/vytvořené soubory
+B) Potvrzení: package.json a package-lock.json nezměněny
+C) npm run lint výsledek
+D) npm run build výsledek
+E) Rizika (max 3)
+F) Doporučený commit message
+```
+
+## Scope
+
+- Měň pouze soubory relevantní k aktuálnímu úkolu
+- Neměň UI/logiku mimo scope fáze
+- Minimální diff — neover-engineer
+
+## Next.js
+
+- Toto NENÍ standardní Next.js — breaking changes v16
+- Před psaním kódu čti `node_modules/next/dist/docs/`
