@@ -1,0 +1,85 @@
+import type { BannerProject, DashboardStats } from "@/types/project";
+
+export const MOCK_PROJECTS: BannerProject[] = [
+  {
+    id: "proj-001",
+    name: "Summer Sale 2026",
+    status: "draft",
+    width: 300,
+    height: 250,
+    headline: "Letní výprodej až −50 %",
+    subheadline: "Jen do neděle na vybrané produkty",
+    cta: "Nakupovat",
+    updatedAt: "2026-06-20T14:32:00.000Z",
+  },
+  {
+    id: "proj-002",
+    name: "Brand Awareness Q2",
+    status: "shared",
+    width: 728,
+    height: 90,
+    headline: "Objevte novou kolekci",
+    subheadline: "Elegance pro každý den",
+    cta: "Zjistit více",
+    updatedAt: "2026-06-18T09:15:00.000Z",
+    shareId: "share-brand-q2",
+  },
+  {
+    id: "proj-003",
+    name: "Product Launch — Skyline",
+    status: "exported",
+    width: 300,
+    height: 600,
+    headline: "Nový Skyline Pro",
+    subheadline: "Výkon, který mění pravidla",
+    cta: "Předobjednat",
+    updatedAt: "2026-06-15T16:48:00.000Z",
+    shareId: "share-skyline-pro",
+  },
+  {
+    id: "proj-004",
+    name: "Retargeting — Cart Abandoners",
+    status: "draft",
+    width: 320,
+    height: 100,
+    headline: "Nezapomeňte dokončit objednávku",
+    subheadline: "V košíku vás čeká sleva 10 %",
+    cta: "Dokončit nákup",
+    updatedAt: "2026-06-19T11:02:00.000Z",
+  },
+  {
+    id: "proj-005",
+    name: "Holiday Campaign",
+    status: "exported",
+    width: 970,
+    height: 310,
+    headline: "Vánoční nabídka",
+    subheadline: "Dárky pro celou rodinu",
+    cta: "Prohlédnout",
+    updatedAt: "2026-06-10T08:20:00.000Z",
+    shareId: "share-holiday-2026",
+  },
+  {
+    id: "proj-006",
+    name: "App Install — Mobile",
+    status: "shared",
+    width: 480,
+    height: 480,
+    headline: "Stáhněte si naši aplikaci",
+    subheadline: "Exkluzivní slevy v mobilu",
+    cta: "Stáhnout",
+    updatedAt: "2026-06-17T13:55:00.000Z",
+    shareId: "share-app-install",
+  },
+];
+
+export function computeDashboardStats(
+  projects: BannerProject[],
+): DashboardStats {
+  return {
+    total: projects.length,
+    drafts: projects.filter((p) => p.status === "draft").length,
+    shared: projects.filter((p) => p.status === "shared").length,
+    exported: projects.filter((p) => p.status === "exported").length,
+  };
+}
