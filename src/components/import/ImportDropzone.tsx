@@ -42,7 +42,9 @@ export function ImportDropzone({
         <p className="text-sm font-medium text-zinc-200">
           Drag & drop HTML5 ZIP here
         </p>
-        <p className="mt-1 text-sm text-zinc-500">or click to choose a .zip file</p>
+        <p className="mt-1 text-sm text-zinc-500">
+          Accepted: <span className="font-mono text-zinc-400">.zip</span> only
+        </p>
         <p className="mt-3 text-xs text-amber-400/90">
           Sklik single-banner limit: 250 kB
         </p>
@@ -56,7 +58,8 @@ export function ImportDropzone({
         onChange={(e) => handleFiles(e.target.files)}
       />
       <p className="mt-4 text-xs leading-relaxed text-zinc-500">
-        Preview runs in a sandboxed iframe. Files are processed locally in your browser.
+        Non-ZIP files and corrupted archives will show an error. Processing stays
+        on your device.
       </p>
       {error ? (
         <p className="mt-3 rounded-lg border border-red-900/50 bg-red-950/30 px-3 py-2 text-sm text-red-300" role="alert">

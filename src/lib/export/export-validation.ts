@@ -79,14 +79,17 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
     ),
   );
 
-  rows.push(
-    row(
-      "zip-size",
-      "ZIP size",
-      zipSize <= MAX_ZIP_SIZE ? "pass" : "fail",
-      `${Math.round(zipSize / 1024)} kB (limit 250 kB)`,
-    ),
-  );
+  const zipSizeKb = Math.round(zipSize / 1024);
+  const zipSizeStatus =
+    zipSize > MAX_ZIP_SIZE ? "fail" : zipSize > 200_000 ? "warn" : "pass";
+  const zipSizeMessage =
+    zipSize > MAX_ZIP_SIZE
+      ? `${zipSizeKb} kB — exceeds 250 kB Sklik limit`
+      : zipSize > 200_000
+        ? `${zipSizeKb} kB — approaching 250 kB limit`
+        : `${zipSizeKb} kB (limit 250 kB)`;
+
+  rows.push(row("zip-size", "ZIP size", zipSizeStatus, zipSizeMessage));
 
   rows.push(
     row(

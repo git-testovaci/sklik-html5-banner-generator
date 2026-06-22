@@ -7,6 +7,7 @@ import {
   deleteProjectById,
   getProjectsServerSnapshot,
   loadProjectsFromStorage,
+  resetProjectsToSeed,
   subscribeProjects,
 } from "@/lib/project-storage";
 import type { DashboardStats } from "@/types/project";
@@ -42,6 +43,20 @@ function useStoredProjects() {
   );
 }
 
+function LocalStorageNotice() {
+  return (
+    <aside
+      aria-label="Local storage notice"
+      className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 px-4 py-3 text-sm text-zinc-400"
+    >
+      <p>
+        Projects are stored locally in this browser. Team sharing and cloud
+        sync via Supabase will be added later.
+      </p>
+    </aside>
+  );
+}
+
 export function DashboardClient() {
   const router = useRouter();
   const isClient = useIsClient();
@@ -56,6 +71,15 @@ export function DashboardClient() {
 
   function handleCreated(projectId: string) {
     router.push(`/editor/${projectId}`);
+  }
+
+  function handleResetDemoData() {
+    const confirmed = window.confirm(
+      "Reset local demo data?\n\nThis clears all saved projects in this browser and restores the default demo set. Imported session data in this tab is not affected.",
+    );
+    if (confirmed) {
+      resetProjectsToSeed();
+    }
   }
 
   if (!isClient) {
@@ -83,7 +107,9 @@ export function DashboardClient() {
       <DashboardHeader onNewBanner={() => setDialogOpen(true)} />
 
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
-        <section aria-labelledby="stats-heading">
+        <LocalStorageNotice />
+
+        <section aria-labelledby="stats-heading" className="mt-6">
           <h2 id="stats-heading" className="sr-only">
             Project statistics
           </h2>
@@ -103,17 +129,26 @@ export function DashboardClient() {
         </section>
 
         <section className="mt-10" aria-labelledby="projects-heading">
-          <div className="mb-6 flex items-center justify-between">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <h2
               id="projects-heading"
               className="text-lg font-semibold text-zinc-200"
             >
               Projects
             </h2>
-            <p className="text-sm text-zinc-500">
-              {projects.length}{" "}
-              {projects.length === 1 ? "project" : "projects"}
-            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm text-zinc-500">
+                {projects.length}{" "}
+                {projects.length === 1 ? "project" : "projects"}
+              </p>
+              <button
+                type="button"
+                onClick={handleResetDemoData}
+                className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-400 transition-colors hover:border-zinc-600 hover:bg-zinc-900 hover:text-zinc-300"
+              >
+                Reset local demo data
+              </button>
+            </div>
           </div>
 
           {projects.length === 0 ? (

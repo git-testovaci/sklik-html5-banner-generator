@@ -17,6 +17,11 @@ import { ImportDropzone } from "./ImportDropzone";
 import { ImportedBannerPreview } from "./ImportedBannerPreview";
 import { ImportedFilesList } from "./ImportedFilesList";
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  return `${Math.round(bytes / 1024)} kB`;
+}
+
 export function ImportBannerClient() {
   const [analysis, setAnalysis] = useState<ImportedBannerAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
@@ -24,6 +29,11 @@ export function ImportBannerClient() {
   const [blobUrls, setBlobUrls] = useState<string[]>([]);
 
   const handleFile = useCallback(async (file: File) => {
+    if (!file.name.toLowerCase().endsWith(".zip")) {
+      setError("Please upload a .zip file containing an HTML5 banner.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     revokeBlobUrls(blobUrls);
@@ -64,6 +74,17 @@ export function ImportBannerClient() {
       </header>
 
       <main className="mx-auto w-full max-w-7xl flex-1 space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+        <aside
+          aria-label="Import security notice"
+          className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 px-4 py-3 text-sm text-zinc-400"
+        >
+          <p>
+            Files are processed locally in your browser and are not uploaded.
+            Preview runs in a sandboxed iframe. For production/team workflows,
+            cloud storage will be added later.
+          </p>
+        </aside>
+
         {!analysis ? (
           <ImportDropzone onFileSelected={handleFile} disabled={loading} error={error} />
         ) : null}
@@ -75,10 +96,12 @@ export function ImportBannerClient() {
         {analysis ? (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-800/80 bg-zinc-900/40 px-4 py-3">
-              <div>
-                <p className="font-medium text-zinc-200">{analysis.fileName}</p>
+              <div className="min-w-0">
+                <p className="truncate font-medium text-zinc-200">{analysis.fileName}</p>
                 <p className="text-xs text-zinc-500">
-                  {analysis.fileCount} files · {Math.round(analysis.compressedSize / 1024)} kB compressed
+                  {analysis.fileCount} files · {formatFileSize(analysis.compressedSize)} compressed
+                  {" · "}
+                  {formatFileSize(analysis.uncompressedSize)} uncompressed
                 </p>
               </div>
               <button
@@ -89,7 +112,7 @@ export function ImportBannerClient() {
                   setAnalysis(null);
                   setError(null);
                 }}
-                className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
+                className="shrink-0 rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
               >
                 Import another ZIP
               </button>

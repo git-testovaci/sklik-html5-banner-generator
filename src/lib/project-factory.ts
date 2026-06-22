@@ -54,3 +54,17 @@ export function createBannerProjectFromImport(
 ): BannerProject {
   return createBannerProject(input);
 }
+
+const IMPORT_PROJECT_ID_PATTERN = /^proj-\d{13,}-/;
+
+export function isImportCreatedProjectId(projectId: string): boolean {
+  return IMPORT_PROJECT_ID_PATTERN.test(projectId);
+}
+
+export function defaultNewProjectName(): string {
+  const formatted = new Intl.DateTimeFormat("cs-CZ", {
+    month: "short",
+    year: "numeric",
+  }).format(new Date());
+  return `Banner ${formatted}`;
+}

@@ -31,7 +31,11 @@ export default function ImportedPreviewPage() {
       <div className="flex min-h-full flex-col items-center justify-center px-4 py-16 text-center">
         <h1 className="text-xl font-semibold text-zinc-100">No imported banner in session</h1>
         <p className="mt-2 max-w-md text-sm text-zinc-500">
-          Import a ZIP on the import page first. Session data is stored temporarily in your browser.
+          Import a ZIP on the import page first. Session data is stored temporarily
+          in this browser tab and may be cleared when you close the tab.
+        </p>
+        <p className="mt-3 max-w-md text-xs text-zinc-600">
+          Files are never uploaded — processing stays on your device.
         </p>
         <Link
           href="/import"
@@ -47,11 +51,14 @@ export default function ImportedPreviewPage() {
   const height = analysis.dimensions?.height ?? 250;
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <Link href="/import" className="text-sm text-zinc-500 hover:text-zinc-300">
         ← Back to import
       </Link>
       <h1 className="mt-4 text-lg font-semibold text-zinc-100">{analysis.fileName}</h1>
+      <p className="mt-1 text-xs text-zinc-600">
+        Session preview only. Files processed locally, not uploaded.
+      </p>
       <div className="mt-6">
         <ImportedBannerPreview
           previewHtml={analysis.previewHtml}

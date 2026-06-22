@@ -8,6 +8,14 @@ const STATUS_STYLES = {
   pending: "bg-zinc-800/60 text-zinc-500 ring-zinc-700/50",
 } as const;
 
+const HIGHLIGHT_ROW_IDS = new Set([
+  "html-count",
+  "nested-zip",
+  "forbidden-js",
+  "video",
+  "external",
+]);
+
 interface ImportAnalysisPanelProps {
   rows: ValidationRow[];
   overallStatus: "pass" | "warn" | "fail";
@@ -25,6 +33,12 @@ export function ImportAnalysisPanel({
     "not-ready": "Fix blocking issues first",
   }[sklikReadiness];
 
+  const criticalRows = rows.filter(
+    (row) =>
+      row.status === "fail" ||
+      (row.status === "warn" && HIGHLIGHT_ROW_IDS.has(row.id)),
+  );
+
   return (
     <aside className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <div className="border-b border-zinc-800/60 px-4 py-3">
@@ -33,6 +47,22 @@ export function ImportAnalysisPanel({
           Overall: <span className="uppercase text-zinc-300">{overallStatus}</span>
         </p>
       </div>
+
+      {criticalRows.length > 0 ? (
+        <div className="border-b border-amber-900/30 bg-amber-950/15 px-4 py-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-amber-400">
+            Review these issues
+          </p>
+          <ul className="mt-2 space-y-1 text-xs text-amber-200/90">
+            {criticalRows.map((row) => (
+              <li key={row.id}>
+                <span className="font-medium">{row.label}:</span> {row.value}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <ul className="max-h-80 space-y-2 overflow-y-auto p-4">
         {rows.map((row) => (
           <li

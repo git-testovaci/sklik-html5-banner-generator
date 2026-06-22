@@ -9,6 +9,9 @@ export function AnimationInsightsPanel({ insights }: AnimationInsightsProps) {
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <div className="border-b border-zinc-800/60 px-4 py-3">
         <h2 className="text-sm font-medium text-zinc-300">Animation insights</h2>
+        <p className="mt-1 text-xs text-zinc-500">
+          Inspiration only — not an exact recreation of imported motion.
+        </p>
       </div>
       <div className="space-y-4 p-4 text-sm">
         <div>

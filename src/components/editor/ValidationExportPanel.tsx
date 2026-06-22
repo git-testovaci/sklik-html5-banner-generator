@@ -49,9 +49,9 @@ const OVERALL_LABELS = {
 } as const;
 
 const EXPORT_SUMMARY_LABELS = {
-  pass: { text: "ZIP passed export validation", className: "text-emerald-400" },
-  warn: { text: "ZIP exported with warnings", className: "text-amber-400" },
-  fail: { text: "ZIP failed export validation", className: "text-red-400" },
+  pass: { text: "PASS", className: "text-emerald-400" },
+  warn: { text: "WARN", className: "text-amber-400" },
+  fail: { text: "FAIL", className: "text-red-400" },
 } as const;
 
 function ExportRowItem({ row }: { row: ExportValidationRow }) {
@@ -71,6 +71,11 @@ function ExportRowItem({ row }: { row: ExportValidationRow }) {
   );
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  return `${Math.max(1, Math.round(bytes / 1024))} kB`;
+}
+
 export function ValidationExportPanel({
   state,
   validation,
@@ -79,6 +84,7 @@ export function ValidationExportPanel({
   const [copied, setCopied] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [downloadStarted, setDownloadStarted] = useState(false);
   const [exportResult, setExportResult] = useState<SklikZipExportResult | null>(
     null,
   );
@@ -87,6 +93,8 @@ export function ValidationExportPanel({
   const exportSummary = exportResult
     ? EXPORT_SUMMARY_LABELS[exportResult.validationReport.summaryStatus]
     : null;
+  const exportPassed =
+    exportResult?.validationReport.summaryStatus !== "fail";
 
   const handleCopyLink = useCallback(async () => {
     const url = getPreviewUrl(state.shareId);
@@ -102,6 +110,7 @@ export function ValidationExportPanel({
   async function handleGenerateZip() {
     setExporting(true);
     setExportError(null);
+    setDownloadStarted(false);
 
     try {
       const result = await generateSklikZip(state);
@@ -109,6 +118,7 @@ export function ValidationExportPanel({
 
       if (result.validationReport.summaryStatus !== "fail") {
         const downloaded = downloadBlob(result.zipBlob, result.fileName);
+        setDownloadStarted(downloaded);
         if (!downloaded) {
           setExportError("ZIP generated but download could not start.");
         }
@@ -124,6 +134,7 @@ export function ValidationExportPanel({
   function handleDownloadAgain() {
     if (!exportResult) return;
     const downloaded = downloadBlob(exportResult.zipBlob, exportResult.fileName);
+    setDownloadStarted(downloaded);
     if (!downloaded) {
       setExportError("Download could not start.");
     }
@@ -181,26 +192,53 @@ export function ValidationExportPanel({
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
               Export validation
             </p>
-            <ul className="space-y-2" aria-label="Export validation checks">
+            <ul className="max-h-48 space-y-2 overflow-y-auto" aria-label="Export validation checks">
               {exportResult.validationReport.rows.map((row) => (
                 <ExportRowItem key={row.id} row={row} />
               ))}
             </ul>
+
             {exportSummary ? (
-              <div className="mt-3 rounded-lg border border-zinc-800/60 bg-zinc-950/40 px-3 py-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                  Export result
-                </p>
-                <p className={`mt-1 text-sm font-semibold ${exportSummary.className}`}>
-                  {exportSummary.text}
-                </p>
-                <p className="mt-2 font-mono text-xs text-zinc-400">
+              <div className="mt-3 space-y-2 rounded-lg border border-zinc-800/60 bg-zinc-950/40 px-3 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                    Export result
+                  </p>
+                  <span className={`text-sm font-bold ${exportSummary.className}`}>
+                    {exportSummary.text}
+                  </span>
+                </div>
+
+                {exportPassed ? (
+                  <p className="text-xs text-zinc-400">
+                    {downloadStarted
+                      ? "ZIP downloaded. If it did not start, use Download again."
+                      : "ZIP ready. Use Download again if the file did not save."}
+                  </p>
+                ) : (
+                  <p className="text-xs text-red-400" role="alert">
+                    ZIP was not downloaded because export validation failed.
+                  </p>
+                )}
+
+                <p className="font-mono text-xs text-zinc-400 break-all">
                   {exportResult.fileName}
                 </p>
                 <p className="text-xs text-zinc-500">
-                  {Math.max(1, Math.round(exportResult.zipSize / 1024))} kB ·{" "}
-                  {exportResult.fileCount} files
+                  {formatFileSize(exportResult.zipSize)} · {exportResult.fileCount}{" "}
+                  {exportResult.fileCount === 1 ? "file" : "files"}
                 </p>
+
+                {exportResult.generatedFiles.length > 0 ? (
+                  <ul className="space-y-1 border-t border-zinc-800/60 pt-2 text-xs text-zinc-500">
+                    {exportResult.generatedFiles.map((file) => (
+                      <li key={file.path} className="flex justify-between gap-2">
+                        <span className="font-mono text-zinc-400">{file.path}</span>
+                        <span>{formatFileSize(file.size)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -210,8 +248,7 @@ export function ValidationExportPanel({
       <div className="space-y-2 border-t border-zinc-800/60 p-4">
         {hasUnsavedChanges ? (
           <p className="text-xs text-amber-400/90">
-            Export uses current editor values. Save the project if you want to
-            keep these changes.
+            ZIP export uses current visible values. Save to keep changes.
           </p>
         ) : null}
 
@@ -224,8 +261,7 @@ export function ValidationExportPanel({
           {exporting ? "Generating ZIP…" : "Generate Sklik ZIP"}
         </button>
 
-        {exportResult &&
-        exportResult.validationReport.summaryStatus !== "fail" ? (
+        {exportResult && exportPassed ? (
           <button
             type="button"
             onClick={handleDownloadAgain}

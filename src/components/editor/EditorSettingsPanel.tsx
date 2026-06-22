@@ -13,7 +13,7 @@ export function EditorSettingsPanel({ state, onUpdate }: EditorSettingsPanelProp
   return (
     <aside
       aria-labelledby="settings-heading"
-      className="w-full shrink-0 overflow-y-auto rounded-xl border border-zinc-800/80 bg-zinc-900/40 lg:w-[280px]"
+      className="w-full min-w-0 shrink-0 overflow-y-auto rounded-xl border border-zinc-800/80 bg-zinc-900/40 lg:w-[280px]"
     >
       <div className="border-b border-zinc-800/60 px-4 py-3">
         <h2 id="settings-heading" className="text-sm font-medium text-zinc-300">

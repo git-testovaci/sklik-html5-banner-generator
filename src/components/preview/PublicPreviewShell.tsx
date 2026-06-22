@@ -79,7 +79,7 @@ function PreviewContent({ state }: PreviewContentProps) {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-8 sm:px-6">
+      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-6 sm:px-6 sm:py-8">
         <p className="mb-6 text-center text-sm text-zinc-500">
           Preview only. Editing is disabled.
         </p>

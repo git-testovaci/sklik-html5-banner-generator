@@ -28,15 +28,19 @@ export function CreateProjectFromImportPanel({
   const [cta, setCta] = useState(defaults.cta);
   const [animation, setAnimation] = useState(defaults.animation);
 
+  const canCreate = name.trim().length > 0;
+
   function handleCreate() {
+    if (!canCreate) return;
+
     const [width, height] = sizeValue.split("x").map(Number);
     const project = createBannerProjectFromImport({
-      name,
+      name: name.trim(),
       width,
       height,
-      headline,
-      subheadline,
-      cta,
+      headline: headline.trim(),
+      subheadline: subheadline.trim(),
+      cta: cta.trim(),
       animation,
     });
     upsertProject(project);
@@ -46,9 +50,12 @@ export function CreateProjectFromImportPanel({
   return (
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <div className="border-b border-zinc-800/60 px-4 py-3">
-        <h2 className="text-sm font-medium text-zinc-300">Create editable project</h2>
+        <h2 className="text-sm font-medium text-zinc-300">
+          Create editable project from analysis
+        </h2>
         <p className="mt-1 text-xs text-zinc-500">
-          Starts a new clean studio project inspired by this import — not a full HTML conversion.
+          Starts a new studio project using extracted text and detected size.
+          This does not convert arbitrary HTML into editable layers.
         </p>
       </div>
       <div className="space-y-3 p-4">
@@ -115,7 +122,8 @@ export function CreateProjectFromImportPanel({
         <button
           type="button"
           onClick={handleCreate}
-          className="w-full rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-violet-500"
+          disabled={!canCreate}
+          className="w-full rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Create project & open editor
         </button>

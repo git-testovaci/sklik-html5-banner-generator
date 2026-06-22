@@ -15,7 +15,7 @@ export function DashboardHeader({ onNewBanner }: DashboardHeaderProps) {
             Sklik HTML5 Banner Generator
           </h1>
           <p className="mt-1 text-sm text-zinc-500">
-            Internal studio for HTML5 banner production
+            Internal studio for HTML5 banner creation, validation, preview, import, and ZIP export.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-3">

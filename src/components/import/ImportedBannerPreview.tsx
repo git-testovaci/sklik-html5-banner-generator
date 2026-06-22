@@ -39,9 +39,18 @@ export function ImportedBannerPreview({
       <div className="flex items-center justify-between border-b border-zinc-800/60 px-4 py-3">
         <div>
           <h2 className="text-sm font-medium text-zinc-300">Sandbox preview</h2>
-          <p className="text-xs text-zinc-500">Isolated iframe · no direct HTML injection</p>
+          <p className="text-xs text-zinc-500">Isolated iframe · scripts disabled</p>
         </div>
         <span className="font-mono text-xs text-zinc-500">{sizeLabel}</span>
+      </div>
+      <div className="space-y-0 border-b border-zinc-800/60 bg-zinc-950/30 px-4 py-2 text-xs leading-relaxed text-zinc-500">
+        <p>
+          JS animations do not run here because the sandbox disables scripts.
+          Layout and static styles may still appear.
+        </p>
+        <p className="mt-1 text-zinc-600">
+          Preview may differ from the original banner when opened in Sklik or a browser.
+        </p>
       </div>
       {warning ? (
         <p className="border-b border-amber-900/40 bg-amber-950/20 px-4 py-2 text-xs text-amber-300">
@@ -50,7 +59,7 @@ export function ImportedBannerPreview({
       ) : null}
       <div
         ref={containerRef}
-        className="flex flex-1 items-center justify-center p-6"
+        className="flex flex-1 items-center justify-center overflow-hidden p-4 sm:p-6"
         style={{
           backgroundImage:
             "radial-gradient(circle at 1px 1px, rgb(63 63 70 / 0.35) 1px, transparent 0)",

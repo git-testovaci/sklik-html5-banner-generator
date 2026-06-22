@@ -208,6 +208,17 @@ export function resetProjectsStorage(): void {
   invalidateCache();
 }
 
+export function resetProjectsToSeed(): BannerProject[] {
+  if (!isClient()) {
+    return SERVER_SNAPSHOT;
+  }
+
+  resetProjectsStorage();
+  const seeded = seedFromMock();
+  persistProjects(seeded, true);
+  return seeded;
+}
+
 export function upsertProject(project: BannerProject): BannerProject[] {
   const projects = loadProjectsFromStorage();
   const index = projects.findIndex((item) => item.id === project.id);

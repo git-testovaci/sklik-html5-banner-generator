@@ -14,7 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Sklik HTML5 Banner Generator",
-  description: "Internal studio for HTML5 banner production",
+  description:
+    "Internal studio for HTML5 banner creation, validation, preview, import, and ZIP export.",
 };
 
 export default function RootLayout({
