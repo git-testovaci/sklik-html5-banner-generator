@@ -1,5 +1,4 @@
 import type {
-  AnimationEasing,
   AnimationPreset,
   BannerLayer,
   BannerScene,
@@ -9,7 +8,6 @@ import type {
   LayerEffect,
   LayerKeyframe,
 } from "@/types/animation";
-import { presetDefaultEnterFrom } from "@/types/animation";
 import type { BannerAssetPlacement, TextLayerPlacement } from "@/types/assets";
 import type { BannerEditorState, SelectedLayer } from "@/types/editor";
 import type { BannerProject } from "@/types/project";
@@ -187,11 +185,14 @@ function animationPresetToEffect(preset: AnimationPreset): EffectPreset {
 }
 
 export function migrateToStoryboard(state: BannerEditorState): BannerEditorState {
-  if ((state.scenes ?? []).length > 0 && (state.bannerLayers ?? []).length > 0) {
-    return {
-      ...state,
-      activeSceneId: state.activeSceneId ?? state.scenes![0]!.id,
-    };
+  if ((state.scenes ?? []).length > 0) {
+    const activeSceneId = state.activeSceneId ?? state.scenes![0]!.id;
+    if ((state.bannerLayers ?? []).length > 0) {
+      return { ...state, activeSceneId };
+    }
+    const scene = getSceneById({ ...state, activeSceneId }, activeSceneId);
+    if (!scene) return { ...state, activeSceneId };
+    return rebuildLayersFromFlat(state, scene);
   }
 
   const scene = defaultScene("Scene 1", state.timeline?.durationMs ?? 3000);
@@ -225,19 +226,74 @@ export function migrateToStoryboard(state: BannerEditorState): BannerEditorState
   };
 }
 
-export function syncFlatFromActiveScene(state: BannerEditorState): BannerEditorState {
-  const scene = getActiveScene(state);
-  if (!scene) return state;
+function rebuildLayersFromFlat(
+  state: BannerEditorState,
+  scene: BannerScene,
+): BannerEditorState {
+  const layers: BannerLayer[] = [];
+  const effects: LayerEffect[] = [];
 
-  const sceneLayers = getLayersForScene(state, scene.id);
+  for (const pl of state.textPlacements ?? []) {
+    layers.push(textLayerFromPlacement(pl, state, scene.id, false));
+  }
+  for (const pl of state.assetPlacements ?? []) {
+    layers.push(imageLayerFromPlacement(pl, scene.id, pl.kind === "logo"));
+  }
+
+  const nextScene: BannerScene = {
+    ...scene,
+    layerIds: layers.filter((l) => !l.persistent).map((l) => l.id),
+  };
+
+  for (const anim of state.layerAnimations ?? []) {
+    if (!anim.enabled || anim.preset === "none") continue;
+    effects.push(layerEffectFromAnimation(anim, scene.id));
+  }
+
+  return {
+    ...state,
+    scenes: (state.scenes ?? []).map((s) => (s.id === scene.id ? nextScene : s)),
+    bannerLayers: layers,
+    layerEffects: effects.length > 0 ? effects : state.layerEffects ?? [],
+    activeSceneId: scene.id,
+  };
+}
+
+/** Flat editor slice for a specific scene — used by preview/export consistency */
+export function buildFlatSliceForScene(
+  state: BannerEditorState,
+  sceneId: string,
+): Pick<
+  BannerEditorState,
+  | "headline"
+  | "subheadline"
+  | "cta"
+  | "textPlacements"
+  | "assetPlacements"
+  | "layerAnimations"
+  | "timeline"
+> {
+  const scene = getSceneById(state, sceneId);
+  if (!scene) {
+    return {
+      headline: state.headline,
+      subheadline: state.subheadline,
+      cta: state.cta,
+      textPlacements: state.textPlacements ?? [],
+      assetPlacements: state.assetPlacements ?? [],
+      layerAnimations: state.layerAnimations ?? [],
+      timeline: state.timeline,
+    };
+  }
+
+  const sceneLayers = getLayersForScene(state, sceneId);
   const textPlacements: TextLayerPlacement[] = [];
   const assetPlacements: BannerAssetPlacement[] = [];
 
   for (const layer of sceneLayers) {
     if (layer.type === "text" && layer.legacyKey) {
-      const layerId = layer.legacyKey as TextLayerPlacement["layerId"];
       textPlacements.push({
-        layerId,
+        layerId: layer.legacyKey as TextLayerPlacement["layerId"],
         visible: layer.visible,
         x: layer.x,
         y: layer.y,
@@ -276,20 +332,15 @@ export function syncFlatFromActiveScene(state: BannerEditorState): BannerEditorS
     }
   }
 
-  const sceneEffects = getEffectsForScene(state, scene.id);
-  const layerAnimations: LayerAnimation[] = sceneEffects.map((e) =>
+  const layerAnimations = getEffectsForScene(state, sceneId).map((e) =>
     effectToLayerAnimation(e, layerTypeFromId(e.layerId, state)),
   );
 
-  const headline = sceneLayers.find((l) => l.legacyKey === "headline")?.text ?? state.headline;
-  const subheadline = sceneLayers.find((l) => l.legacyKey === "subheadline")?.text ?? state.subheadline;
-  const cta = sceneLayers.find((l) => l.legacyKey === "cta")?.text ?? state.cta;
-
   return {
-    ...state,
-    headline,
-    subheadline,
-    cta,
+    headline: sceneLayers.find((l) => l.legacyKey === "headline")?.text ?? state.headline,
+    subheadline:
+      sceneLayers.find((l) => l.legacyKey === "subheadline")?.text ?? state.subheadline,
+    cta: sceneLayers.find((l) => l.legacyKey === "cta")?.text ?? state.cta,
     textPlacements,
     assetPlacements,
     layerAnimations,
@@ -299,6 +350,14 @@ export function syncFlatFromActiveScene(state: BannerEditorState): BannerEditorS
       backgroundAnimation: state.timeline?.backgroundAnimation ?? "none",
     },
   };
+}
+
+export function syncFlatFromActiveScene(state: BannerEditorState): BannerEditorState {
+  const scene = getActiveScene(state);
+  if (!scene) return state;
+
+  const slice = buildFlatSliceForScene(state, scene.id);
+  return { ...state, ...slice };
 }
 
 function layerTypeFromId(
@@ -505,6 +564,15 @@ export function deleteLayerEffect(state: BannerEditorState, effectId: string): B
     layerEffects: (state.layerEffects ?? []).filter((e) => e.id !== effectId),
   };
   return syncFlatFromActiveScene(next);
+}
+
+export function clearSelectedEffectIfMissing(
+  state: BannerEditorState,
+  selectedEffectId: string | null,
+): string | null {
+  if (!selectedEffectId) return null;
+  const exists = (state.layerEffects ?? []).some((e) => e.id === selectedEffectId);
+  return exists ? selectedEffectId : null;
 }
 
 export function addParticleLayer(state: BannerEditorState): BannerEditorState {
@@ -739,6 +807,14 @@ export function transitionKeyframes(): string {
 @keyframes sceneSwipeRight {
   from { transform: translateX(-100%); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
+}
+@keyframes sceneSwipeUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes sceneSwipeDown {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 @keyframes scenePushLeft {
   from { transform: translateX(100%); }

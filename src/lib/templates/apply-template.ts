@@ -51,8 +51,9 @@ export function applyIonicCareSequence(state: BannerEditorState): BannerEditorSt
   const logoAsset = (state.assets ?? []).find((a) => a.kind === "logo");
   const productAsset = (state.assets ?? []).find((a) => a.kind === "product");
 
+  const logoLayerId = logoAsset?.id ?? "logo";
   const logoLayer: BannerLayer = {
-    id: logoAsset?.id ?? "logo",
+    id: logoLayerId,
     persistent: true,
     name: "Logo",
     type: "image",
@@ -346,9 +347,12 @@ export function applyIonicCareSequence(state: BannerEditorState): BannerEditorSt
 
   const scenes = [s1.scene, s2.scene, s3.scene];
   const bannerLayers = [...s1.layers, ...s2.layers, ...s3.layers];
-  const uniqueLayers = bannerLayers.filter(
-    (l, i, arr) => arr.findIndex((x) => x.id === l.id) === i,
-  );
+  const seenLayerIds = new Set<string>();
+  const uniqueLayers = bannerLayers.filter((l) => {
+    if (seenLayerIds.has(l.id)) return false;
+    seenLayerIds.add(l.id);
+    return true;
+  });
 
   let next = normalizeEditorState({
     ...state,
@@ -360,10 +364,13 @@ export function applyIonicCareSequence(state: BannerEditorState): BannerEditorSt
     layerKeyframes: [],
     activeSceneId: s1.scene.id,
     timeline: { durationMs: 3000, loop: true, backgroundAnimation: "none" },
+    textPlacements: undefined,
+    assetPlacements: undefined,
+    layerAnimations: undefined,
   });
 
   next = addLayerEffect(next, "headline", "slight-drop-in");
-  next = addLayerEffect(next, logoLayer.id, "fade-in");
+  next = addLayerEffect(next, logoLayerId, "fade-in");
   const badge = uniqueLayers.find((l) => l.name === "Badge");
   if (badge) next = addLayerEffect(next, badge.id, "flip-180");
   const circle = uniqueLayers.find((l) => l.name === "Circle label");

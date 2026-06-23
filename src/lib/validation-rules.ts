@@ -148,10 +148,19 @@ export function getValidationSummary(
       })(),
     },
     {
-      id: "assets",
-      label: "Image assets",
-      value: `${(state.assets ?? []).length} uploaded`,
-      status: (state.assets ?? []).length > 0 ? "pass" : "info",
+      id: "scene-count",
+      label: "Scene count",
+      value: `${(state.scenes ?? []).length || 1} scene(s)`,
+      status: (state.scenes ?? []).length > 5 ? "warn" : "pass",
+    },
+    {
+      id: "local-preview",
+      label: "Local asset preview",
+      value:
+        (state.assets ?? []).length > 0
+          ? "Uploaded images are browser-local — public preview may differ"
+          : "No uploaded assets",
+      status: (state.assets ?? []).length > 0 ? "info" : "pass",
     },
     {
       id: "external-sources",

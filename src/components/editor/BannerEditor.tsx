@@ -1,14 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   normalizeEditorState,
   projectToEditorState,
   editorStateToProject,
   resolveSelectedLayer,
 } from "@/lib/animation/timeline-utils";
-import { getActiveScene } from "@/lib/animation/storyboard-utils";
+import {
+  clearSelectedEffectIfMissing,
+  getActiveScene,
+  setActiveScene,
+} from "@/lib/animation/storyboard-utils";
 import {
   getProjectByIdSnapshot,
   getStoredProjectById,
@@ -87,11 +91,51 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
     setState((prev) => {
       const next = normalizeEditorState({ ...prev, ...patch });
       setSelectedLayer((sel) => resolveSelectedLayer(next, sel));
+      setSelectedEffectId((id) => clearSelectedEffectIfMissing(next, id));
       return next;
     });
     setSaveStatus("idle");
     setSaveError(null);
   };
+
+  const playAllTimerRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    return () => {
+      playAllTimerRef.current.forEach((t) => window.clearTimeout(t));
+      playAllTimerRef.current = [];
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!playAll) return;
+    const scenes = state.scenes ?? [];
+    if (scenes.length <= 1) return;
+
+    playAllTimerRef.current.forEach((t) => window.clearTimeout(t));
+    playAllTimerRef.current = [];
+
+    let offset = 0;
+    for (const scene of scenes) {
+      const at = offset;
+      const timer = window.setTimeout(() => {
+        setPlaybackSceneId(scene.id);
+      }, at);
+      playAllTimerRef.current.push(timer);
+      offset += scene.durationMs;
+    }
+
+    const endTimer = window.setTimeout(() => {
+      setPlayAll(false);
+      setPlaybackSceneId(null);
+    }, offset + 200);
+    playAllTimerRef.current.push(endTimer);
+
+    return () => {
+      playAllTimerRef.current.forEach((t) => window.clearTimeout(t));
+      playAllTimerRef.current = [];
+    };
+  }, [playAll, replayKey, state.scenes]);
 
   const hasUnsavedChanges = !editorStatesEqual(state, savedState);
   const validation = useMemo(() => getValidationSummary(state), [state]);
@@ -119,16 +163,19 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
 
   function handlePlayAll() {
     setPlayAll(true);
-    setPlaybackSceneId(null);
+    setPlaybackSceneId(state.scenes?.[0]?.id ?? null);
     setReplayKey((k) => k + 1);
-    const total = (state.scenes ?? []).reduce((s, sc) => s + sc.durationMs, 0);
-    window.setTimeout(() => setPlayAll(false), total + 500);
   }
 
   function handleReplayScene() {
     setPlayAll(false);
     setPlaybackSceneId(activeScene?.id ?? null);
     setReplayKey((k) => k + 1);
+  }
+
+  function handleSceneSelect(sceneId: string) {
+    onUpdate(setActiveScene(state, sceneId));
+    setSelectedEffectId(null);
   }
 
   return (
@@ -209,6 +256,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
           <SceneStrip
             state={state}
             onUpdate={onUpdate}
+            onSceneSelect={handleSceneSelect}
             playbackSceneId={playAll ? playbackSceneId : activeScene?.id}
           />
           <MotionPresetQuickActions

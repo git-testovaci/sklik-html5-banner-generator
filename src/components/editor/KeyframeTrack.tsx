@@ -26,20 +26,23 @@ export function KeyframeTrack({
   const leftPct = (effect.startMs / timelineDurationMs) * 100;
   const widthPct = (effect.durationMs / timelineDurationMs) * 100;
 
-  function onDragStart(clientX: number, mode: "move" | "resize") {
+  function onDragStart(clientX: number, mode: "move" | "resize-left" | "resize-right") {
     const startX = clientX;
     const origin = { startMs: effect.startMs, durationMs: effect.durationMs };
 
-    function onMove(e: PointerEvent) {
-      const dx = e.clientX - startX;
+    function onMove(ev: PointerEvent) {
+      const dx = ev.clientX - startX;
       const msPerPx = timelineDurationMs / 400;
       const dMs = Math.round(dx * msPerPx);
 
       if (mode === "move") {
         const timing = clampTiming(origin.startMs + dMs, origin.durationMs, timelineDurationMs);
         onChange({ startMs: timing.startMs, durationMs: timing.durationMs });
-      } else {
+      } else if (mode === "resize-right") {
         const timing = clampTiming(origin.startMs, origin.durationMs + dMs, timelineDurationMs);
+        onChange({ startMs: timing.startMs, durationMs: timing.durationMs });
+      } else {
+        const timing = clampTiming(origin.startMs + dMs, origin.durationMs - dMs, timelineDurationMs);
         onChange({ startMs: timing.startMs, durationMs: timing.durationMs });
       }
     }
@@ -47,10 +50,12 @@ export function KeyframeTrack({
     function onUp() {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
     }
 
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
   }
 
   return (
@@ -79,11 +84,20 @@ export function KeyframeTrack({
         </button>
         <span
           className="absolute top-0.5 h-6 w-1.5 cursor-ew-resize rounded bg-violet-400/80"
+          style={{ left: `calc(${leftPct}% - 3px)` }}
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDragStart(e.clientX, "resize-left");
+          }}
+        />
+        <span
+          className="absolute top-0.5 h-6 w-1.5 cursor-ew-resize rounded bg-violet-400/80"
           style={{ left: `calc(${leftPct + widthPct}% - 4px)` }}
           onPointerDown={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            onDragStart(e.clientX, "resize");
+            onDragStart(e.clientX, "resize-right");
           }}
         />
       </div>

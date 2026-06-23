@@ -1,11 +1,8 @@
 import type { ExportAssetFile } from "@/lib/assets/asset-export";
 import { presetClassName } from "@/lib/animation/animation-presets";
 import { clampParticleCount } from "@/lib/animation/keyframe-utils";
-import {
-  getLayersForScene,
-  totalStoryboardDurationMs,
-} from "@/lib/animation/storyboard-utils";
-import { getLayerAnimation, getTextPlacement } from "@/lib/animation/timeline-utils";
+import { getLayersForScene, totalStoryboardDurationMs } from "@/lib/animation/storyboard-utils";
+import { getLayerAnimation } from "@/lib/animation/timeline-utils";
 import type { BannerLayer } from "@/types/animation";
 import type { BannerEditorState } from "@/types/editor";
 import {

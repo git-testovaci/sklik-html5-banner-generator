@@ -8,10 +8,11 @@ import { SceneControls } from "./SceneControls";
 interface SceneStripProps {
   state: BannerEditorState;
   onUpdate: BannerEditorStateUpdater;
+  onSceneSelect?: (sceneId: string) => void;
   playbackSceneId?: string | null;
 }
 
-export function SceneStrip({ state, onUpdate, playbackSceneId }: SceneStripProps) {
+export function SceneStrip({ state, onUpdate, onSceneSelect, playbackSceneId }: SceneStripProps) {
   const scenes = state.scenes ?? [];
   const active = getActiveScene(state);
   const highlightId = playbackSceneId ?? active?.id;
@@ -33,7 +34,11 @@ export function SceneStrip({ state, onUpdate, playbackSceneId }: SceneStripProps
             scene={scene}
             index={i}
             active={scene.id === highlightId}
-            onSelect={() => onUpdate(setActiveScene(state, scene.id))}
+            onSelect={() =>
+              onSceneSelect
+                ? onSceneSelect(scene.id)
+                : onUpdate(setActiveScene(state, scene.id))
+            }
           />
         ))}
       </div>

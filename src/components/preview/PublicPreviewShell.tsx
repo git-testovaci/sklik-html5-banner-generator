@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { formatBannerSize } from "@/lib/banner-sizes";
 import { projectToEditorState } from "@/lib/animation/timeline-utils";
+import { totalStoryboardDurationMs } from "@/lib/animation/storyboard-utils";
 import { collectAssetWarnings } from "@/lib/assets/asset-validation";
 import {
   getProjectByShareIdSnapshot,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/project-storage";
 import type { BannerEditorState } from "@/types/editor";
 import { BannerPreview } from "@/components/editor/BannerPreview";
+import { PreviewPlaybackControls } from "@/components/editor/PreviewPlaybackControls";
 
 interface PublicPreviewShellProps {
   shareId: string;
@@ -39,8 +41,13 @@ interface PreviewContentProps {
 function PreviewContent({ state }: PreviewContentProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+  const [replayKey, setReplayKey] = useState(0);
+  const [playAll, setPlayAll] = useState(false);
+  const [playbackSceneId, setPlaybackSceneId] = useState<string | null>(null);
+  const timerRef = useRef<number[]>([]);
   const sizeLabel = formatBannerSize(state.width, state.height);
   const hasAssets = (state.assets ?? []).length > 0;
+  const hasStoryboard = (state.scenes ?? []).length > 1;
   const assetNoteKey = (state.assets ?? []).map((a) => a.id).join(",");
   const [assetNoteCache, setAssetNoteCache] = useState<Record<string, string>>({});
 
@@ -74,7 +81,50 @@ function PreviewContent({ state }: PreviewContentProps) {
     };
   }, [state, hasAssets, assetNoteKey]);
 
+  useEffect(() => {
+    return () => {
+      timerRef.current.forEach((t) => window.clearTimeout(t));
+      timerRef.current = [];
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!playAll || !hasStoryboard) return;
+    const scenes = state.scenes ?? [];
+    timerRef.current.forEach((t) => window.clearTimeout(t));
+    timerRef.current = [];
+
+    let offset = 0;
+    for (const scene of scenes) {
+      const at = offset;
+      const timer = window.setTimeout(() => setPlaybackSceneId(scene.id), at);
+      timerRef.current.push(timer);
+      offset += scene.durationMs;
+    }
+
+    const end = window.setTimeout(() => {
+      setPlayAll(false);
+      setPlaybackSceneId(null);
+    }, offset + 200);
+    timerRef.current.push(end);
+
+    return () => {
+      timerRef.current.forEach((t) => window.clearTimeout(t));
+      timerRef.current = [];
+    };
+  }, [playAll, replayKey, hasStoryboard, state.scenes]);
+
   const assetNote = hasAssets ? (assetNoteCache[assetNoteKey] ?? null) : null;
+  const activeScene = state.scenes?.find((s) => s.id === (playbackSceneId ?? state.activeSceneId));
+  const sceneLabel = activeScene
+    ? `${activeScene.name}${playAll ? " · playing" : ""}`
+    : undefined;
+
+  function handlePlayAll() {
+    setPlayAll(true);
+    setPlaybackSceneId(state.scenes?.[0]?.id ?? null);
+    setReplayKey((k) => k + 1);
+  }
 
   return (
     <>
@@ -96,6 +146,7 @@ function PreviewContent({ state }: PreviewContentProps) {
       <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-6 sm:px-6 sm:py-8">
         <p className="mb-3 text-center text-sm text-zinc-500">
           Preview only. Editing is disabled.
+          {hasStoryboard ? ` · ${state.scenes!.length} scenes` : ""}
         </p>
         {assetNote ? (
           <p className="mb-4 rounded-lg border border-amber-900/40 bg-amber-950/20 px-3 py-2 text-center text-xs text-amber-200">
@@ -114,9 +165,38 @@ function PreviewContent({ state }: PreviewContentProps) {
           }}
         >
           <div style={{ transform: `scale(${scale})`, transformOrigin: "center center" }}>
-            <BannerPreview state={state} />
+            <BannerPreview
+              state={state}
+              replayKey={replayKey}
+              loopPreview={state.timeline?.loop ?? false}
+              playAll={playAll && hasStoryboard}
+              playbackSceneId={playbackSceneId}
+              publicMode
+            />
           </div>
         </div>
+
+        {hasStoryboard ? (
+          <PreviewPlaybackControls
+            loop={state.timeline?.loop ?? false}
+            onReplay={() => {
+              setPlayAll(false);
+              setReplayKey((k) => k + 1);
+            }}
+            onReplayScene={() => {
+              setPlayAll(false);
+              setPlaybackSceneId(state.activeSceneId ?? state.scenes?.[0]?.id ?? null);
+              setReplayKey((k) => k + 1);
+            }}
+            onPlayAll={handlePlayAll}
+            onToggleLoop={() => {}}
+            sceneLabel={
+              playAll
+                ? `Playing all · ${totalStoryboardDurationMs(state)}ms`
+                : sceneLabel
+            }
+          />
+        ) : null}
       </main>
     </>
   );

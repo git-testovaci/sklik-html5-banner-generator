@@ -18,6 +18,7 @@ import {
 } from "@/lib/animation/animation-presets";
 import { clampParticleCount } from "@/lib/animation/keyframe-utils";
 import {
+  buildFlatSliceForScene,
   getActiveScene,
   getEffectsForScene,
   getLayersForScene,
@@ -59,6 +60,8 @@ interface BannerPreviewProps {
   ) => void;
   playAll?: boolean;
   playbackSceneId?: string | null;
+  /** When true, render read-only (public preview) with storyboard playback */
+  publicMode?: boolean;
 }
 
 interface AssetUrlSnapshot {
@@ -79,13 +82,18 @@ function useAssetUrls(metaKey: string) {
       if (!cancelled) setSnapshot({ metaKey, urls: result.urls, missing: result.missing });
     });
     const keepIds = new Set(
-      metaKey.split("|").map((part) => {
-        const colon = part.indexOf(":");
-        return colon > 0 ? part.slice(0, colon) : "";
-      }).filter(Boolean),
+      metaKey
+        .split("|")
+        .map((part) => {
+          const colon = part.indexOf(":");
+          return colon > 0 ? part.slice(0, colon) : "";
+        })
+        .filter(Boolean),
     );
     prunePreviewUrls(keepIds);
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [metaKey]);
 
   if (!metaKey) return EMPTY_SNAPSHOT;
@@ -93,7 +101,10 @@ function useAssetUrls(metaKey: string) {
   return snapshot;
 }
 
-function isLayerSelected(selected: SelectedLayer | null | undefined, layer: SelectedLayer): boolean {
+function isLayerSelected(
+  selected: SelectedLayer | null | undefined,
+  layer: SelectedLayer,
+): boolean {
   if (!selected) return false;
   return selected.type === layer.type && selected.id === layer.id;
 }
@@ -110,7 +121,7 @@ function buildSceneSequenceCss(
   const iter = loop ? "infinite" : 1;
   const rules: string[] = [transitionKeyframes()];
 
-  scenes.forEach((scene, i) => {
+  for (const scene of scenes) {
     const start = sceneStartOffsetMs(state, scene.id);
     const end = start + scene.durationMs;
     const startPct = (start / total) * 100;
@@ -126,7 +137,7 @@ function buildSceneSequenceCss(
 .${cls} {
   animation: ${cls} ${total}ms linear ${iter};
 }`);
-  });
+  }
 
   return rules.join("\n");
 }
@@ -177,56 +188,306 @@ function ParticleRender({ layer, replayKey }: { layer: BannerLayer; replayKey: n
   );
 }
 
-function UnderlineRender({
-  layer,
-  replayKey,
-  interactive,
-  selected,
-  onSelect,
-  onPlacementChange,
-  canvasScale,
-  state,
-}: {
-  layer: BannerLayer;
-  replayKey: number;
-  interactive: boolean;
-  selected: boolean;
-  onSelect: () => void;
-  onPlacementChange: (patch: Partial<BannerAssetPlacement>) => void;
-  canvasScale: number;
+interface CanvasContentProps {
   state: BannerEditorState;
-}) {
-  const cls = `underline-${layer.id}-${replayKey}`;
-  const dur = layer.drawDurationMs ?? 600;
-  const css = underlineDrawKeyframes(cls, dur);
+  sceneId: string;
+  replayKey: number;
+  loopPreview: boolean;
+  showSafeArea: boolean;
+  interactive: boolean;
+  canvasScale: number;
+  selectedLayer: SelectedLayer | null;
+  urls: Record<string, string>;
+  missing: string[];
+  urlsReady: boolean;
+  onSelectLayer?: (layer: SelectedLayer) => void;
+  onUpdateTextPlacement?: BannerPreviewProps["onUpdateTextPlacement"];
+  onUpdateAssetPlacement?: BannerPreviewProps["onUpdateAssetPlacement"];
+  onUpdateStoryboardLayer?: BannerPreviewProps["onUpdateStoryboardLayer"];
+}
+
+function CanvasContent({
+  state,
+  sceneId,
+  replayKey,
+  loopPreview,
+  showSafeArea,
+  interactive,
+  canvasScale,
+  selectedLayer,
+  urls,
+  missing,
+  urlsReady,
+  onSelectLayer,
+  onUpdateTextPlacement,
+  onUpdateAssetPlacement,
+  onUpdateStoryboardLayer,
+}: CanvasContentProps) {
+  const slice = buildFlatSliceForScene(state, sceneId);
+  const renderState: BannerEditorState = { ...state, ...slice };
+  const scene = state.scenes?.find((s) => s.id === sceneId);
+  const sceneBg = scene?.backgroundColor ?? state.backgroundColor;
+  const assets = state.assets ?? [];
+  const storyboardLayers = getLayersForScene(state, sceneId);
+  const extraLayers = storyboardLayers.filter(
+    (l) => l.type === "particle" || l.type === "underline" || l.type === "shape",
+  );
+  const missingSet = useMemo(() => new Set(missing), [missing]);
+  const bgColorOnly = !(renderState.assetPlacements ?? []).some(
+    (p) => p.visible && p.kind === "background",
+  );
+  const sortedAssets = [...(renderState.assetPlacements ?? [])].sort(
+    (a, b) => a.zIndex - b.zIndex,
+  );
+  const textLayerIds: TextLayerPlacement["layerId"][] = ["headline", "subheadline", "cta"];
+
+  const animationCss = useMemo(() => {
+    const slice = buildFlatSliceForScene(state, sceneId);
+    const anims = slice.layerAnimations ?? [];
+    const keyframes = collectLayerKeyframes(anims, false, replayKey);
+    const rules: string[] = keyframes ? [keyframes] : [];
+
+    for (const anim of anims) {
+      if (!anim.enabled || anim.preset === "none") continue;
+      const loop =
+        loopPreview ||
+        (anim.preset === "soft-pulse" && (slice.timeline?.loop ?? false));
+      const style = buildLayerAnimationStyle(anim, loop, false, replayKey);
+      if (style) rules.push(`.${presetClassName(anim.layerId, replayKey)} { ${style} }`);
+    }
+
+    for (const effect of getEffectsForScene(state, sceneId)) {
+      if (effect.preset === "flip-180" || effect.preset === "zoom-rotate-badge") {
+        const cls = `${effect.layerId}-fx-${replayKey}`;
+        rules.push(
+          effect.preset === "flip-180"
+            ? badgeFlipKeyframes(cls, effect.durationMs)
+            : zoomRotateKeyframes(cls, effect.durationMs),
+        );
+      }
+    }
+
+    return rules.join("\n");
+  }, [
+    state,
+    sceneId,
+    loopPreview,
+    replayKey,
+  ]);
 
   return (
     <>
-      <style>{css}</style>
-      <InteractiveCanvasLayer
-        selected={selected}
-        interactive={interactive}
-        placement={{ x: layer.x, y: layer.y, width: layer.width, height: layer.height }}
-        rotation={layer.rotation}
-        zIndex={layer.zIndex}
-        opacity={layer.opacity}
-        bannerWidth={state.width}
-        bannerHeight={state.height}
-        canvasScale={canvasScale}
-        replayKey={replayKey}
-        animClassName={cls}
-        onSelect={onSelect}
-        onPlacementChange={onPlacementChange}
-      >
-        <div
-          className="h-full w-full"
-          style={{
-            backgroundColor: layer.underlineColor ?? state.accentColor,
-            borderRadius: 2,
-            height: layer.thickness ?? 3,
-          }}
-        />
-      </InteractiveCanvasLayer>
+      <style>{animationCss}</style>
+      {bgColorOnly ? (
+        <div className="absolute inset-0" style={{ backgroundColor: sceneBg, zIndex: 0 }} />
+      ) : null}
+
+      {sortedAssets.map((placement) => {
+        if (!placement.visible) return null;
+        const asset = assets.find((a) => a.id === placement.assetId);
+        const url = urls[placement.assetId];
+        const isMissing = missingSet.has(placement.assetId);
+        const selected = isLayerSelected(selectedLayer, { type: "asset", id: placement.assetId });
+        const layerId =
+          placement.kind === "decoration" ? `decoration-${placement.assetId}` : placement.kind;
+        const anim = getLayerAnimation(renderState, layerId);
+        const fx = (state.layerEffects ?? []).find(
+          (e) => e.layerId === placement.assetId && e.sceneId === sceneId,
+        );
+        const animClass =
+          anim?.enabled && anim.preset !== "none"
+            ? presetClassName(layerId, replayKey)
+            : fx?.preset === "flip-180" || fx?.preset === "zoom-rotate-badge"
+              ? `${placement.assetId}-fx-${replayKey}`
+              : "";
+
+        return (
+          <InteractiveCanvasLayer
+            key={`${sceneId}-${placement.assetId}`}
+            selected={selected}
+            interactive={interactive}
+            placement={{
+              x: placement.x,
+              y: placement.y,
+              width: placement.width,
+              height: placement.height,
+            }}
+            rotation={placement.rotation}
+            zIndex={placement.zIndex}
+            opacity={placement.opacity}
+            bannerWidth={state.width}
+            bannerHeight={state.height}
+            canvasScale={canvasScale}
+            replayKey={replayKey}
+            animClassName={interactive ? "" : animClass}
+            onSelect={() => onSelectLayer?.({ type: "asset", id: placement.assetId })}
+            onPlacementChange={(patch) => onUpdateAssetPlacement?.(placement.assetId, patch)}
+          >
+            <div
+              className="h-full w-full overflow-hidden"
+              style={{
+                borderRadius: placement.borderRadius,
+                boxShadow: placement.shadow ? "0 4px 12px rgba(0,0,0,0.25)" : undefined,
+              }}
+            >
+              {url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={url}
+                  alt={asset?.kind ?? "asset"}
+                  className="pointer-events-none h-full w-full"
+                  style={{ objectFit: placement.fit }}
+                  draggable={false}
+                  loading="lazy"
+                  decoding="async"
+                />
+              ) : (
+                <div
+                  className="flex h-full w-full items-center justify-center border border-dashed text-[10px] uppercase"
+                  style={{ borderColor: `${state.accentColor}66`, color: state.accentColor }}
+                >
+                  {urlsReady && isMissing ? "Missing image" : "Loading…"}
+                </div>
+              )}
+            </div>
+          </InteractiveCanvasLayer>
+        );
+      })}
+
+      {extraLayers.map((layer) => {
+        if (!layer.visible) return null;
+        if (layer.type === "particle") {
+          return <ParticleRender key={`${sceneId}-${layer.id}`} layer={layer} replayKey={replayKey} />;
+        }
+        if (layer.type === "underline") {
+          const cls = `underline-${layer.id}-${replayKey}`;
+          const dur = layer.drawDurationMs ?? 600;
+          return (
+            <div key={`${sceneId}-${layer.id}`}>
+              <style>{underlineDrawKeyframes(cls, dur)}</style>
+              <InteractiveCanvasLayer
+                selected={selectedLayer?.type === "asset" && selectedLayer.id === layer.id}
+                interactive={interactive}
+                placement={{ x: layer.x, y: layer.y, width: layer.width, height: layer.height }}
+                rotation={layer.rotation}
+                zIndex={layer.zIndex}
+                opacity={layer.opacity}
+                bannerWidth={state.width}
+                bannerHeight={state.height}
+                canvasScale={canvasScale}
+                replayKey={replayKey}
+                animClassName={interactive ? "" : cls}
+                onSelect={() => onSelectLayer?.({ type: "asset", id: layer.id })}
+                onPlacementChange={(patch) => onUpdateStoryboardLayer?.(layer.id, patch)}
+              >
+                <div
+                  className="h-full w-full"
+                  style={{
+                    backgroundColor: layer.underlineColor ?? state.accentColor,
+                    borderRadius: 2,
+                    height: layer.thickness ?? 3,
+                  }}
+                />
+              </InteractiveCanvasLayer>
+            </div>
+          );
+        }
+        return null;
+      })}
+
+      {textLayerIds.map((layerId) => {
+        const pl = getTextPlacement(renderState, layerId);
+        if (!pl || pl.visible === false) return null;
+        const content =
+          layerId === "headline"
+            ? renderState.headline
+            : layerId === "subheadline"
+              ? renderState.subheadline
+              : renderState.cta;
+        const anim = getLayerAnimation(renderState, layerId);
+        const animClass =
+          anim?.enabled && anim.preset !== "none" ? presetClassName(layerId, replayKey) : "";
+        const selected = isLayerSelected(selectedLayer, { type: "text", id: layerId });
+        const isCta = layerId === "cta";
+        const fontSize =
+          pl.fontSize ??
+          (isCta
+            ? Math.max(8, Math.round(state.height * 0.055))
+            : layerId === "headline"
+              ? Math.max(10, Math.round(state.height * 0.08))
+              : Math.max(8, Math.round(state.height * 0.055)));
+        const fontWeight = pl.fontWeight ?? (isCta ? 600 : layerId === "headline" ? 700 : 400);
+        const lineHeight = pl.lineHeight ?? (isCta ? 1.2 : layerId === "headline" ? 1.15 : 1.25);
+        const textAlign = pl.textAlign ?? (isCta ? "center" : "left");
+        const sbLayer = storyboardLayers.find((l) => l.legacyKey === layerId);
+
+        return (
+          <InteractiveCanvasLayer
+            key={`${sceneId}-${layerId}`}
+            selected={selected}
+            interactive={interactive}
+            placement={{ x: pl.x, y: pl.y, width: pl.width, height: pl.height }}
+            rotation={pl.rotation}
+            zIndex={pl.zIndex}
+            opacity={pl.opacity}
+            bannerWidth={state.width}
+            bannerHeight={state.height}
+            canvasScale={canvasScale}
+            replayKey={replayKey}
+            animClassName={interactive ? "" : animClass}
+            onSelect={() => onSelectLayer?.({ type: "text", id: layerId })}
+            onPlacementChange={(patch) => onUpdateTextPlacement?.(layerId, patch)}
+          >
+            {isCta ? (
+              <span
+                className="flex h-full w-full items-center justify-center rounded px-2.5 py-1"
+                style={{
+                  backgroundColor: state.ctaBackgroundColor,
+                  color: state.ctaTextColor,
+                  fontSize,
+                  fontWeight,
+                  lineHeight,
+                  textAlign,
+                }}
+              >
+                {sbLayer?.highlightWord && content.includes(sbLayer.highlightWord) ? (
+                  <>
+                    {content.split(sbLayer.highlightWord)[0]}
+                    <mark style={{ background: `${state.accentColor}44` }}>
+                      {sbLayer.highlightWord}
+                    </mark>
+                    {content.split(sbLayer.highlightWord).slice(1).join(sbLayer.highlightWord)}
+                  </>
+                ) : (
+                  content
+                )}
+              </span>
+            ) : (
+              <span
+                className="flex h-full w-full items-center"
+                style={{
+                  margin: 0,
+                  color: state.textColor,
+                  fontSize,
+                  fontWeight,
+                  lineHeight,
+                  textAlign,
+                  justifyContent:
+                    textAlign === "center"
+                      ? "center"
+                      : textAlign === "right"
+                        ? "flex-end"
+                        : "flex-start",
+                }}
+              >
+                {content}
+              </span>
+            )}
+          </InteractiveCanvasLayer>
+        );
+      })}
+
+      <SafeAreaOverlay width={state.width} height={state.height} visible={showSafeArea} />
     </>
   );
 }
@@ -246,6 +507,7 @@ export function BannerPreview({
   onUpdateStoryboardLayer,
   playAll = false,
   playbackSceneId,
+  publicMode = false,
 }: BannerPreviewProps) {
   const assets = state.assets ?? [];
   const assetsMetaKey = buildAssetsMetaKey(assets);
@@ -253,285 +515,51 @@ export function BannerPreview({
   const urlsReady = assetsMetaKey === urlsMetaKey;
   const activeScene = getActiveScene(state);
   const sceneId = playbackSceneId ?? activeScene?.id;
-  const storyboardLayers = sceneId ? getLayersForScene(state, sceneId) : [];
-  const extraLayers = storyboardLayers.filter(
-    (l) => l.type === "particle" || l.type === "underline" || l.type === "shape",
-  );
+  const scenes = state.scenes ?? [];
 
-  const animationCss = useMemo(() => {
-    const anims = state.layerAnimations ?? [];
-    const keyframes = collectLayerKeyframes(anims, false, replayKey);
-    const rules: string[] = keyframes ? [keyframes] : [];
+  const sequenceCss = useMemo(() => {
+    if (!playAll || scenes.length <= 1) return "";
+    return buildSceneSequenceCss(state, replayKey, loopPreview);
+  }, [playAll, scenes.length, state, replayKey, loopPreview]);
 
-    for (const anim of anims) {
-      if (!anim.enabled || anim.preset === "none") continue;
-      const loop =
-        loopPreview ||
-        (anim.preset === "soft-pulse" && (state.timeline?.loop ?? false));
-      const style = buildLayerAnimationStyle(anim, loop, false, replayKey);
-      if (style) rules.push(`.${presetClassName(anim.layerId, replayKey)} { ${style} }`);
-    }
-
-    if (sceneId) {
-      for (const effect of getEffectsForScene(state, sceneId)) {
-        if (effect.preset === "flip-180" || effect.preset === "zoom-rotate-badge") {
-          const cls = `${effect.layerId}-fx-${replayKey}`;
-          rules.push(
-            effect.preset === "flip-180"
-              ? badgeFlipKeyframes(cls, effect.durationMs)
-              : zoomRotateKeyframes(cls, effect.durationMs),
-          );
-        }
-      }
-    }
-
-    if (playAll) rules.push(buildSceneSequenceCss(state, replayKey, loopPreview));
-
-    return rules.join("\n");
-  }, [
-    state.layerAnimations,
-    state.timeline?.loop,
-    state.scenes,
-    state.layerEffects,
-    loopPreview,
+  const canvasProps = {
     replayKey,
-    playAll,
-    sceneId,
-    state,
-  ]);
+    loopPreview,
+    showSafeArea: publicMode ? false : showSafeArea,
+    interactive: publicMode ? false : interactive,
+    canvasScale,
+    selectedLayer: selectedLayer ?? null,
+    urls,
+    missing,
+    urlsReady,
+    onSelectLayer,
+    onUpdateTextPlacement,
+    onUpdateAssetPlacement,
+    onUpdateStoryboardLayer,
+  };
 
-  const missingSet = useMemo(() => new Set(missing), [missing]);
-  const bgColorOnly = !(state.assetPlacements ?? []).some(
-    (p) => p.visible && p.kind === "background",
-  );
-  const sortedAssets = [...(state.assetPlacements ?? [])].sort((a, b) => a.zIndex - b.zIndex);
-  const textLayerIds: TextLayerPlacement["layerId"][] = ["headline", "subheadline", "cta"];
-
-  const sceneBg = activeScene?.backgroundColor ?? state.backgroundColor;
-
-  function renderCanvasContent() {
+  if (playAll && scenes.length > 1) {
     return (
       <>
-        {bgColorOnly ? (
-          <div className="absolute inset-0" style={{ backgroundColor: sceneBg, zIndex: 0 }} />
-        ) : null}
-
-        {sortedAssets.map((placement) => {
-          if (!placement.visible) return null;
-          const asset = assets.find((a) => a.id === placement.assetId);
-          const url = urls[placement.assetId];
-          const isMissing = missingSet.has(placement.assetId);
-          const selected = isLayerSelected(selectedLayer, { type: "asset", id: placement.assetId });
-          const layerId = placement.kind === "decoration" ? `decoration-${placement.assetId}` : placement.kind;
-          const anim = getLayerAnimation(state, layerId);
-          const fx = (state.layerEffects ?? []).find(
-            (e) => e.layerId === placement.assetId && e.sceneId === sceneId,
-          );
-          const animClass =
-            anim?.enabled && anim.preset !== "none"
-              ? presetClassName(layerId, replayKey)
-              : fx?.preset === "flip-180" || fx?.preset === "zoom-rotate-badge"
-                ? `${placement.assetId}-fx-${replayKey}`
-                : "";
-
-          return (
-            <InteractiveCanvasLayer
-              key={placement.assetId}
-              selected={selected}
-              interactive={interactive}
-              placement={{ x: placement.x, y: placement.y, width: placement.width, height: placement.height }}
-              rotation={placement.rotation}
-              zIndex={placement.zIndex}
-              opacity={placement.opacity}
-              bannerWidth={state.width}
-              bannerHeight={state.height}
-              canvasScale={canvasScale}
-              replayKey={replayKey}
-              animClassName={interactive ? "" : animClass}
-              onSelect={() => onSelectLayer?.({ type: "asset", id: placement.assetId })}
-              onPlacementChange={(patch) => onUpdateAssetPlacement?.(placement.assetId, patch)}
-            >
-              <div
-                className="h-full w-full overflow-hidden"
-                style={{
-                  borderRadius: placement.borderRadius,
-                  boxShadow: placement.shadow ? "0 4px 12px rgba(0,0,0,0.25)" : undefined,
-                }}
-              >
-                {url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={url}
-                    alt={asset?.kind ?? "asset"}
-                    className="pointer-events-none h-full w-full"
-                    style={{ objectFit: placement.fit }}
-                    draggable={false}
-                    loading="lazy"
-                    decoding="async"
-                  />
-                ) : (
-                  <div
-                    className="flex h-full w-full items-center justify-center border border-dashed text-[10px] uppercase"
-                    style={{ borderColor: `${state.accentColor}66`, color: state.accentColor }}
-                  >
-                    {urlsReady && isMissing ? "Missing image" : "Loading…"}
-                  </div>
-                )}
-              </div>
-            </InteractiveCanvasLayer>
-          );
-        })}
-
-        {extraLayers.map((layer) => {
-          if (!layer.visible) return null;
-          if (layer.type === "particle") {
-            return <ParticleRender key={layer.id} layer={layer} replayKey={replayKey} />;
-          }
-          if (layer.type === "underline") {
-            const sel =
-              selectedLayer?.type === "asset" && selectedLayer.id === layer.id;
-            return (
-              <UnderlineRender
-                key={layer.id}
-                layer={layer}
-                replayKey={replayKey}
-                interactive={interactive}
-                selected={!!sel}
-                state={state}
-                canvasScale={canvasScale}
-                onSelect={() => onSelectLayer?.({ type: "asset", id: layer.id })}
-                onPlacementChange={(patch) => onUpdateStoryboardLayer?.(layer.id, patch)}
-              />
-            );
-          }
-          return null;
-        })}
-
-        {textLayerIds.map((layerId) => {
-          const pl = getTextPlacement(state, layerId);
-          if (!pl || pl.visible === false) return null;
-          const content =
-            layerId === "headline"
-              ? state.headline
-              : layerId === "subheadline"
-                ? state.subheadline
-                : state.cta;
-          const anim = getLayerAnimation(state, layerId);
-          const animClass =
-            anim?.enabled && anim.preset !== "none"
-              ? presetClassName(layerId, replayKey)
-              : "";
-          const selected = isLayerSelected(selectedLayer, { type: "text", id: layerId });
-          const isCta = layerId === "cta";
-          const fontSize =
-            pl.fontSize ??
-            (isCta
-              ? Math.max(8, Math.round(state.height * 0.055))
-              : layerId === "headline"
-                ? Math.max(10, Math.round(state.height * 0.08))
-                : Math.max(8, Math.round(state.height * 0.055)));
-          const fontWeight = pl.fontWeight ?? (isCta ? 600 : layerId === "headline" ? 700 : 400);
-          const lineHeight = pl.lineHeight ?? (isCta ? 1.2 : layerId === "headline" ? 1.15 : 1.25);
-          const textAlign = pl.textAlign ?? (isCta ? "center" : "left");
-          const sbLayer = storyboardLayers.find((l) => l.legacyKey === layerId);
-          const highlightWord = sbLayer?.highlightWord;
-          const underlineWord = sbLayer?.underlineWord;
-
-          let textContent: React.ReactNode = content;
-          if (highlightWord && content.includes(highlightWord)) {
-            const parts = content.split(highlightWord);
-            textContent = (
-              <>
-                {parts[0]}
-                <mark style={{ background: `${state.accentColor}44` }}>{highlightWord}</mark>
-                {parts.slice(1).join(highlightWord)}
-              </>
-            );
-          } else if (underlineWord && content.includes(underlineWord)) {
-            const parts = content.split(underlineWord);
-            textContent = (
-              <>
-                {parts[0]}
-                <u>{underlineWord}</u>
-                {parts.slice(1).join(underlineWord)}
-              </>
-            );
-          }
-
-          return (
-            <InteractiveCanvasLayer
-              key={layerId}
-              selected={selected}
-              interactive={interactive}
-              placement={{ x: pl.x, y: pl.y, width: pl.width, height: pl.height }}
-              rotation={pl.rotation}
-              zIndex={pl.zIndex}
-              opacity={pl.opacity}
-              bannerWidth={state.width}
-              bannerHeight={state.height}
-              canvasScale={canvasScale}
-              replayKey={replayKey}
-              animClassName={interactive ? "" : animClass}
-              onSelect={() => onSelectLayer?.({ type: "text", id: layerId })}
-              onPlacementChange={(patch) => onUpdateTextPlacement?.(layerId, patch)}
-            >
-              {isCta ? (
-                <span
-                  className="flex h-full w-full items-center justify-center rounded px-2.5 py-1"
-                  style={{
-                    backgroundColor: state.ctaBackgroundColor,
-                    color: state.ctaTextColor,
-                    fontSize,
-                    fontWeight,
-                    lineHeight,
-                    textAlign,
-                  }}
-                >
-                  {textContent}
-                </span>
-              ) : (
-                <span
-                  className="flex h-full w-full items-center"
-                  style={{
-                    margin: 0,
-                    color: state.textColor,
-                    fontSize,
-                    fontWeight,
-                    lineHeight,
-                    textAlign,
-                    justifyContent:
-                      textAlign === "center" ? "center" : textAlign === "right" ? "flex-end" : "flex-start",
-                  }}
-                >
-                  {textContent}
-                </span>
-              )}
-            </InteractiveCanvasLayer>
-          );
-        })}
-
-        <SafeAreaOverlay width={state.width} height={state.height} visible={showSafeArea} />
-      </>
-    );
-  }
-
-  if (playAll && (state.scenes ?? []).length > 1) {
-    return (
-      <>
-        <style>{animationCss}</style>
+        <style>{sequenceCss}</style>
         <div
           className={`relative overflow-hidden shadow-2xl ${interactive ? "select-none" : ""} ${className}`}
-          style={{ width: state.width, height: state.height, backgroundColor: sceneBg, color: state.textColor }}
+          style={{
+            width: state.width,
+            height: state.height,
+            backgroundColor: state.backgroundColor,
+            color: state.textColor,
+          }}
           role="img"
           aria-label={`Banner preview: ${state.name}`}
         >
-          {(state.scenes ?? []).map((scene) => (
+          {scenes.map((scene) => (
             <div
               key={scene.id}
               className={`absolute inset-0 scene-seq-${scene.id}-${replayKey}`}
               style={{ backgroundColor: scene.backgroundColor ?? state.backgroundColor }}
             >
-              {scene.id === sceneId ? renderCanvasContent() : null}
+              <CanvasContent state={state} sceneId={scene.id} {...canvasProps} />
             </div>
           ))}
         </div>
@@ -539,20 +567,24 @@ export function BannerPreview({
     );
   }
 
+  const effectiveSceneId = sceneId ?? scenes[0]?.id ?? "default";
+
   return (
-    <>
-      <style>{animationCss}</style>
-      <div
-        className={`relative overflow-hidden shadow-2xl ${interactive ? "select-none" : ""} ${className}`}
-        style={{ width: state.width, height: state.height, backgroundColor: sceneBg, color: state.textColor }}
-        role="img"
-        aria-label={`Banner preview: ${state.headline}`}
-        onPointerDown={() => {
-          if (interactive) onSelectLayer?.({ type: "text", id: "headline" });
-        }}
-      >
-        {renderCanvasContent()}
-      </div>
-    </>
+    <div
+      className={`relative overflow-hidden shadow-2xl ${interactive ? "select-none" : ""} ${className}`}
+      style={{
+        width: state.width,
+        height: state.height,
+        backgroundColor: activeScene?.backgroundColor ?? state.backgroundColor,
+        color: state.textColor,
+      }}
+      role="img"
+      aria-label={`Banner preview: ${state.headline}`}
+      onPointerDown={() => {
+        if (interactive) onSelectLayer?.({ type: "text", id: "headline" });
+      }}
+    >
+      <CanvasContent state={state} sceneId={effectiveSceneId} {...canvasProps} />
+    </div>
   );
 }
