@@ -31,6 +31,17 @@ interface InteractiveCanvasLayerProps {
   children: React.ReactNode;
 }
 
+function clampResize(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  bannerWidth: number,
+  bannerHeight: number,
+): CanvasPlacement {
+  return clampPlacementLoose({ x, y, width, height }, bannerWidth, bannerHeight, 8);
+}
+
 export function InteractiveCanvasLayer({
   selected,
   interactive,
@@ -49,7 +60,7 @@ export function InteractiveCanvasLayer({
 }: InteractiveCanvasLayerProps) {
   const applyPlacement = useCallback(
     (next: CanvasPlacement) => {
-      onPlacementChange(clampPlacementLoose(next, bannerWidth, bannerHeight));
+      onPlacementChange(clampResize(next.x, next.y, next.width, next.height, bannerWidth, bannerHeight));
     },
     [bannerWidth, bannerHeight, onPlacementChange],
   );
@@ -60,6 +71,13 @@ export function InteractiveCanvasLayer({
       e.preventDefault();
       e.stopPropagation();
       onSelect();
+
+      const target = e.currentTarget as HTMLElement;
+      try {
+        target.setPointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
 
       const scale = canvasScale > 0 ? canvasScale : 1;
       const startClientX = e.clientX;
@@ -102,15 +120,20 @@ export function InteractiveCanvasLayer({
         applyPlacement({ x, y, width, height });
       }
 
-      function onUp() {
-        window.removeEventListener("pointermove", onMove);
-        window.removeEventListener("pointerup", onUp);
-        window.removeEventListener("pointercancel", onUp);
+      function onUp(ev: PointerEvent) {
+        try {
+          target.releasePointerCapture(ev.pointerId);
+        } catch {
+          // ignore
+        }
+        target.removeEventListener("pointermove", onMove);
+        target.removeEventListener("pointerup", onUp);
+        target.removeEventListener("pointercancel", onUp);
       }
 
-      window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", onUp);
-      window.addEventListener("pointercancel", onUp);
+      target.addEventListener("pointermove", onMove);
+      target.addEventListener("pointerup", onUp);
+      target.addEventListener("pointercancel", onUp);
     },
     [applyPlacement, canvasScale, interactive, onSelect, placement],
   );
@@ -143,9 +166,11 @@ export function InteractiveCanvasLayer({
       {interactive && selected ? (
         <>
           {(["tl", "tr", "bl", "br"] as Corner[]).map((corner) => (
-            <span key={corner} data-resize-handle>
-              <CanvasResizeHandle corner={corner} onPointerDown={startDrag} />
-            </span>
+            <CanvasResizeHandle
+              key={corner}
+              corner={corner}
+              onPointerDown={startDrag}
+            />
           ))}
         </>
       ) : null}

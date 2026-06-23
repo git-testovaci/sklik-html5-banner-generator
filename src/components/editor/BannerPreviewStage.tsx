@@ -10,10 +10,12 @@ import {
   getActiveScene,
   totalStoryboardDurationMs,
   updateBannerLayer,
+  updateLayerGeometryFromCanvas,
 } from "@/lib/animation/storyboard-utils";
 import type { BannerAssetPlacement, TextLayerPlacement } from "@/types/assets";
 import type { BannerEditorState, BannerEditorStateUpdater, SelectedLayer } from "@/types/editor";
 import { BannerPreview } from "./BannerPreview";
+import { PlaybackTimeline } from "./PlaybackTimeline";
 import { PreviewPlaybackControls } from "./PreviewPlaybackControls";
 
 interface BannerPreviewStageProps {
@@ -27,6 +29,7 @@ interface BannerPreviewStageProps {
   onPlayAll?: () => void;
   playAll?: boolean;
   playbackSceneId?: string | null;
+  playbackTimeMs?: number;
 }
 
 export function BannerPreviewStage({
@@ -40,6 +43,7 @@ export function BannerPreviewStage({
   onPlayAll,
   playAll = false,
   playbackSceneId,
+  playbackTimeMs = 0,
 }: BannerPreviewStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -65,6 +69,15 @@ export function BannerPreviewStage({
     layerId: TextLayerPlacement["layerId"],
     patch: Partial<TextLayerPlacement>,
   ) {
+    const storyboard = updateLayerGeometryFromCanvas(
+      state,
+      { kind: "text", legacyKey: layerId },
+      patch,
+    );
+    if (storyboard) {
+      onUpdate?.(storyboard);
+      return;
+    }
     onUpdate?.({
       textPlacements: (state.textPlacements ?? []).map((p) =>
         p.layerId === layerId
@@ -75,6 +88,15 @@ export function BannerPreviewStage({
   }
 
   function updateAssetPlacement(assetId: string, patch: Partial<BannerAssetPlacement>) {
+    const storyboard = updateLayerGeometryFromCanvas(
+      state,
+      { kind: "asset", assetId },
+      patch,
+    );
+    if (storyboard) {
+      onUpdate?.(storyboard);
+      return;
+    }
     onUpdate?.({
       assetPlacements: (state.assetPlacements ?? []).map((p) => {
         if (p.assetId !== assetId) return p;
@@ -174,8 +196,18 @@ export function BannerPreviewStage({
         }
       />
 
+      <div className="border-t border-zinc-800/60 px-4 py-3">
+        <PlaybackTimeline
+          state={state}
+          playAll={playAll}
+          playbackTimeMs={playbackTimeMs}
+          playbackSceneId={playbackSceneId ?? null}
+          replaySceneMode={!playAll && replayKey > 0}
+        />
+      </div>
+
       <p className="border-t border-zinc-800/60 px-4 py-2 text-center text-xs text-zinc-600">
-        Drag layers · {Math.round(scale * 100)}% scale · Storyboard editor
+        Drag layers · corner handles resize · {Math.round(scale * 100)}% scale
       </p>
     </section>
   );

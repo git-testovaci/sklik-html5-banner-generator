@@ -84,8 +84,11 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   const [replayKey, setReplayKey] = useState(0);
   const [playAll, setPlayAll] = useState(false);
   const [playbackSceneId, setPlaybackSceneId] = useState<string | null>(null);
+  const [playbackTimeMs, setPlaybackTimeMs] = useState(0);
   const [leftTab, setLeftTab] = useState<LeftTab>("layers");
   const [showExport, setShowExport] = useState(false);
+
+  const playbackRafRef = useRef<number | null>(null);
 
   const onUpdate: BannerEditorStateUpdater = (patch) => {
     setState((prev) => {
@@ -102,40 +105,95 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
 
   useEffect(() => {
     return () => {
+      if (playbackRafRef.current !== null) {
+        cancelAnimationFrame(playbackRafRef.current);
+      }
       playAllTimerRef.current.forEach((t) => window.clearTimeout(t));
       playAllTimerRef.current = [];
     };
   }, []);
 
   useEffect(() => {
-    if (!playAll) return;
     const scenes = state.scenes ?? [];
-    if (scenes.length <= 1) return;
+    const loop = state.timeline?.loop ?? false;
+    const timelineDurationMs = state.timeline?.durationMs ?? 3000;
+    const scene =
+      scenes.find((s) => s.id === (state.activeSceneId ?? scenes[0]?.id)) ?? scenes[0];
+    const totalDurationMs = scenes.reduce((sum, s) => sum + s.durationMs, 0);
+    const duration = playAll ? totalDurationMs : scene?.durationMs ?? timelineDurationMs;
 
-    playAllTimerRef.current.forEach((t) => window.clearTimeout(t));
-    playAllTimerRef.current = [];
-
-    let offset = 0;
-    for (const scene of scenes) {
-      const at = offset;
-      const timer = window.setTimeout(() => {
-        setPlaybackSceneId(scene.id);
-      }, at);
-      playAllTimerRef.current.push(timer);
-      offset += scene.durationMs;
+    if (!playAll && replayKey === 0) {
+      return;
     }
 
-    const endTimer = window.setTimeout(() => {
-      setPlayAll(false);
-      setPlaybackSceneId(null);
-    }, offset + 200);
-    playAllTimerRef.current.push(endTimer);
+    if (playbackRafRef.current !== null) {
+      cancelAnimationFrame(playbackRafRef.current);
+      playbackRafRef.current = null;
+    }
+
+    const start = performance.now();
+    let cancelled = false;
+
+    function resolveSceneAt(elapsed: number) {
+      if (!playAll || scenes.length <= 1) {
+        setPlaybackSceneId(scene?.id ?? null);
+        return;
+      }
+      let offset = 0;
+      for (const s of scenes) {
+        if (elapsed >= offset && elapsed < offset + s.durationMs) {
+          setPlaybackSceneId(s.id);
+          return;
+        }
+        offset += s.durationMs;
+      }
+      setPlaybackSceneId(scenes[scenes.length - 1]?.id ?? null);
+    }
+
+    function tick(now: number) {
+      if (cancelled) return;
+      let elapsed = now - start;
+
+      if (playAll && loop && duration > 0) {
+        elapsed = elapsed % duration;
+      }
+
+      if (elapsed >= duration) {
+        setPlaybackTimeMs(duration);
+        if (playAll && loop && duration > 0) {
+          playbackRafRef.current = requestAnimationFrame(tick);
+          return;
+        }
+        if (playAll) {
+          setPlayAll(false);
+          setPlaybackSceneId(null);
+        }
+        setPlaybackTimeMs(0);
+        return;
+      }
+
+      setPlaybackTimeMs(elapsed);
+      resolveSceneAt(elapsed);
+      playbackRafRef.current = requestAnimationFrame(tick);
+    }
+
+    playbackRafRef.current = requestAnimationFrame(tick);
 
     return () => {
-      playAllTimerRef.current.forEach((t) => window.clearTimeout(t));
-      playAllTimerRef.current = [];
+      cancelled = true;
+      if (playbackRafRef.current !== null) {
+        cancelAnimationFrame(playbackRafRef.current);
+        playbackRafRef.current = null;
+      }
     };
-  }, [playAll, replayKey, state.scenes]);
+  }, [
+    playAll,
+    replayKey,
+    state.scenes,
+    state.timeline?.loop,
+    state.timeline?.durationMs,
+    state.activeSceneId,
+  ]);
 
   const hasUnsavedChanges = !editorStatesEqual(state, savedState);
   const validation = useMemo(() => getValidationSummary(state), [state]);
@@ -163,12 +221,14 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
 
   function handlePlayAll() {
     setPlayAll(true);
+    setPlaybackTimeMs(0);
     setPlaybackSceneId(state.scenes?.[0]?.id ?? null);
     setReplayKey((k) => k + 1);
   }
 
   function handleReplayScene() {
     setPlayAll(false);
+    setPlaybackTimeMs(0);
     setPlaybackSceneId(activeScene?.id ?? null);
     setReplayKey((k) => k + 1);
   }
@@ -229,6 +289,10 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
               state={state}
               onUpdate={onUpdate}
               hasUnsavedChanges={hasUnsavedChanges}
+              onAfterApply={(_next, selection) => {
+                setSelectedLayer(selection);
+                setSelectedEffectId(null);
+              }}
             />
           )}
         </div>
@@ -246,8 +310,10 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             replayKey={replayKey}
             playAll={playAll}
             playbackSceneId={playbackSceneId}
+            playbackTimeMs={playbackTimeMs}
             onReplay={() => {
               setPlayAll(false);
+              setPlaybackTimeMs(0);
               setReplayKey((k) => k + 1);
             }}
             onReplayScene={handleReplayScene}

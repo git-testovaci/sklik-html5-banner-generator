@@ -18,9 +18,11 @@ export function CanvasResizeHandle({ corner, onPointerDown }: CanvasResizeHandle
   return (
     <span
       role="presentation"
-      className="absolute z-10 h-2.5 w-2.5 rounded-sm border border-violet-300 bg-violet-500 shadow"
-      style={CORNER_STYLES[corner]}
+      data-resize-handle
+      className="absolute z-20 h-3 w-3 rounded-sm border-2 border-white bg-violet-500 shadow-md"
+      style={{ ...CORNER_STYLES[corner], pointerEvents: "auto" }}
       onPointerDown={(e) => {
+        e.preventDefault();
         e.stopPropagation();
         onPointerDown(e, corner);
       }}

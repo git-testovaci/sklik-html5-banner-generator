@@ -86,22 +86,51 @@ function renderSceneLayers(
       continue;
     }
 
-    if (layer.type === "text" && layer.legacyKey) {
+    if (layer.type === "text") {
       const content = layer.text
         ? escapeHtmlText(sanitizePlainText(layer.text, "Text", 160))
         : layer.legacyKey === "headline"
           ? headline
           : layer.legacyKey === "subheadline"
             ? subheadline
-            : cta;
+            : layer.legacyKey === "cta"
+              ? cta
+              : escapeHtmlText(sanitizePlainText(layer.name, "Text", 80));
       const cls =
         layer.legacyKey === "cta"
           ? "layer--cta"
           : layer.legacyKey === "headline"
             ? "layer--headline"
-            : "layer--subheadline";
+            : layer.legacyKey === "subheadline"
+              ? "layer--subheadline"
+              : "layer--text";
+      const animKey = layer.legacyKey ?? layer.id;
       parts.push(
-        `<div class="layer ${cls}${animClass(sceneState, layer.legacyKey)}" data-layer="${layer.legacyKey}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)}">${content}</div>`,
+        `<div class="layer ${cls}${animClass(sceneState, animKey)}" data-layer="${animKey}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)}">${content}</div>`,
+      );
+      continue;
+    }
+
+    if ((layer.type === "badge" || layer.type === "shape") && !layer.assetId) {
+      const label = escapeHtmlText(sanitizePlainText(layer.text ?? layer.name, "Badge", 40));
+      const fx = (state.layerEffects ?? []).find(
+        (e) => e.layerId === layer.id && e.sceneId === sceneId,
+      );
+      const fxClass =
+        fx?.preset === "flip-180" || fx?.preset === "zoom-rotate-badge"
+          ? ` ${layer.id}-fx`
+          : "";
+      const fill = layer.fill ?? state.accentColor;
+      parts.push(
+        `<div class="layer layer--badge${fxClass}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)};background:${fill};border-radius:${layer.shapeType === "circle" ? "999px" : "8px"};display:flex;align-items:center;justify-content:center;font-size:${layer.fontSize ?? 11}px;font-weight:700;color:${layer.color ?? "#fff"};">${label}</div>`,
+      );
+      continue;
+    }
+
+    if (layer.type === "image" && !layer.assetId) {
+      const label = escapeHtmlText(sanitizePlainText(layer.name, "Frame", 24));
+      parts.push(
+        `<div class="layer layer--product layer--placeholder" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)};border:1px dashed ${state.accentColor};display:flex;align-items:center;justify-content:center;">${label}</div>`,
       );
       continue;
     }

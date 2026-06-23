@@ -12,12 +12,12 @@ export const DEFAULT_PROJECT_COLORS = {
 export const MOCK_PROJECTS: BannerProject[] = [
   {
     id: "proj-001",
-    name: "Ionic Care — ukázkový storyboard",
+    name: "Čistý vzduch — produktový storyboard",
     status: "shared",
     width: 300,
     height: 250,
-    headline: "Čistá péče pro vaši pleť",
-    subheadline: "Dýchejte čistý vzduch",
+    headline: "Čistší vzduch za pár minut",
+    subheadline: "Filtr zachytí prach, pyl i jemné částice.",
     cta: "Zjistit více",
     shareId: "share-summer-sale-2026",
     createdAt: "2026-06-01T10:00:00.000Z",

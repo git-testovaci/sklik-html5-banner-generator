@@ -262,7 +262,7 @@ export function LayerPanel({
         (state.assetPlacements ?? []).length === 0 &&
         !(state.textPlacements ?? []).some((p) => p.visible) ? (
           <p className="text-[10px] text-zinc-600">
-            Open Templates tab to apply Ionic Care, or upload images in the Assets tab.
+            Open Templates tab to apply a storyboard template, or upload images in the Assets tab.
           </p>
         ) : null}
       </div>

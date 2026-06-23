@@ -230,7 +230,11 @@ function CanvasContent({
   const assets = state.assets ?? [];
   const storyboardLayers = getLayersForScene(state, sceneId);
   const extraLayers = storyboardLayers.filter(
-    (l) => l.type === "particle" || l.type === "underline" || l.type === "shape",
+    (l) =>
+      l.type === "particle" ||
+      l.type === "underline" ||
+      l.type === "shape" ||
+      (l.type === "badge" && !l.assetId),
   );
   const missingSet = useMemo(() => new Set(missing), [missing]);
   const bgColorOnly = !(renderState.assetPlacements ?? []).some(
@@ -346,7 +350,7 @@ function CanvasContent({
                   className="flex h-full w-full items-center justify-center border border-dashed text-[10px] uppercase"
                   style={{ borderColor: `${state.accentColor}66`, color: state.accentColor }}
                 >
-                  {urlsReady && isMissing ? "Missing image" : "Loading…"}
+                  {urlsReady && isMissing ? "Chybí obrázek" : asset?.kind === "product" ? "Produkt" : asset?.kind === "logo" ? "Logo" : "Rámec"}
                 </div>
               )}
             </div>
@@ -392,34 +396,89 @@ function CanvasContent({
             </div>
           );
         }
+        if (layer.type === "shape" || (layer.type === "badge" && !layer.assetId)) {
+          const fx = (state.layerEffects ?? []).find(
+            (e) => e.layerId === layer.id && e.sceneId === sceneId,
+          );
+          const fxClass =
+            !interactive && (fx?.preset === "flip-180" || fx?.preset === "zoom-rotate-badge")
+              ? `${layer.id}-fx-${replayKey}`
+              : "";
+          const isCircle = layer.shapeType === "circle";
+          return (
+            <InteractiveCanvasLayer
+              key={`${sceneId}-${layer.id}`}
+              selected={selectedLayer?.type === "asset" && selectedLayer.id === layer.id}
+              interactive={interactive}
+              placement={{ x: layer.x, y: layer.y, width: layer.width, height: layer.height }}
+              rotation={layer.rotation}
+              zIndex={layer.zIndex}
+              opacity={layer.opacity}
+              bannerWidth={state.width}
+              bannerHeight={state.height}
+              canvasScale={canvasScale}
+              replayKey={replayKey}
+              animClassName={interactive ? "" : fxClass}
+              onSelect={() => onSelectLayer?.({ type: "asset", id: layer.id })}
+              onPlacementChange={(patch) => onUpdateStoryboardLayer?.(layer.id, patch)}
+            >
+              <div
+                className="flex h-full w-full items-center justify-center border border-dashed p-1 text-center"
+                style={{
+                  backgroundColor: layer.fill ?? `${state.accentColor}22`,
+                  borderColor: `${state.accentColor}88`,
+                  borderRadius: isCircle ? "9999px" : layer.borderRadius ?? 8,
+                  color: layer.color ?? state.textColor,
+                  fontSize: layer.fontSize ?? 11,
+                  fontWeight: layer.fontWeight ?? 700,
+                }}
+              >
+                {layer.text ?? (layer.type === "badge" ? "Badge" : "")}
+              </div>
+            </InteractiveCanvasLayer>
+          );
+        }
         return null;
       })}
 
       {textLayerIds.map((layerId) => {
         const pl = getTextPlacement(renderState, layerId);
         if (!pl || pl.visible === false) return null;
+        const sbLayer = storyboardLayers.find(
+          (l) => l.legacyKey === layerId || l.id === layerId,
+        );
         const content =
-          layerId === "headline"
+          sbLayer?.text ??
+          (layerId === "headline"
             ? renderState.headline
             : layerId === "subheadline"
               ? renderState.subheadline
-              : renderState.cta;
-        const anim = getLayerAnimation(renderState, layerId);
+              : renderState.cta);
+        const anims = renderState.layerAnimations ?? [];
+        const anim =
+          anims.find((a) => a.layerId === layerId) ??
+          (sbLayer ? anims.find((a) => a.layerId === sbLayer.id) : undefined) ??
+          getLayerAnimation(renderState, layerId);
+        const animTargetId = sbLayer?.legacyKey ?? sbLayer?.id ?? layerId;
         const animClass =
-          anim?.enabled && anim.preset !== "none" ? presetClassName(layerId, replayKey) : "";
+          anim?.enabled && anim.preset !== "none"
+            ? presetClassName(animTargetId, replayKey)
+            : "";
         const selected = isLayerSelected(selectedLayer, { type: "text", id: layerId });
         const isCta = layerId === "cta";
         const fontSize =
           pl.fontSize ??
+          sbLayer?.fontSize ??
           (isCta
             ? Math.max(8, Math.round(state.height * 0.055))
             : layerId === "headline"
               ? Math.max(10, Math.round(state.height * 0.08))
               : Math.max(8, Math.round(state.height * 0.055)));
-        const fontWeight = pl.fontWeight ?? (isCta ? 600 : layerId === "headline" ? 700 : 400);
-        const lineHeight = pl.lineHeight ?? (isCta ? 1.2 : layerId === "headline" ? 1.15 : 1.25);
-        const textAlign = pl.textAlign ?? (isCta ? "center" : "left");
-        const sbLayer = storyboardLayers.find((l) => l.legacyKey === layerId);
+        const fontWeight =
+          pl.fontWeight ?? sbLayer?.fontWeight ?? (isCta ? 600 : layerId === "headline" ? 700 : 400);
+        const lineHeight =
+          pl.lineHeight ?? sbLayer?.lineHeight ?? (isCta ? 1.2 : layerId === "headline" ? 1.15 : 1.25);
+        const textAlign = pl.textAlign ?? sbLayer?.textAlign ?? (isCta ? "center" : "left");
 
         return (
           <InteractiveCanvasLayer

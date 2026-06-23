@@ -1,5 +1,5 @@
 import { generateShareId } from "@/lib/share-links";
-import { createIonicCareDemoProject } from "@/lib/project-factory";
+import { createCleanAirDemoProject } from "@/lib/project-factory";
 import { MOCK_PROJECTS } from "@/lib/mock-projects";
 import {
   defaultStudioPlacements,
@@ -39,7 +39,7 @@ function invalidateCache(): void {
 }
 
 function seedFromMock(): BannerProject[] {
-  const demo = createIonicCareDemoProject();
+  const demo = createCleanAirDemoProject();
   const rest = MOCK_PROJECTS.filter((project) => project.id !== "proj-001").map(
     (project) => ({ ...project }),
   );

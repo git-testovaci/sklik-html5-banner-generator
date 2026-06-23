@@ -7,7 +7,7 @@ import {
   layerAnimationsForImport,
   projectToEditorState,
 } from "@/lib/animation/timeline-utils";
-import { applyIonicCareSequence } from "@/lib/templates/apply-template";
+import { applyStoryboardTemplate } from "@/lib/templates/storyboard-templates";
 import type { BannerAnimation } from "@/types/editor";
 import type { BannerProject } from "@/types/project";
 
@@ -99,14 +99,14 @@ export function defaultNewProjectName(): string {
   return `Banner ${formatted}`;
 }
 
-export function createIonicCareDemoProject(): BannerProject {
+export function createCleanAirDemoProject(): BannerProject {
   const now = new Date().toISOString();
   const base = createBannerProject({
-    name: "Ionic Care — ukázkový storyboard",
+    name: "Čistý vzduch — produktový storyboard",
     width: 300,
     height: 250,
-    headline: "Čistá péče pro vaši pleť",
-    subheadline: "Dýchejte čistý vzduch",
+    headline: "Čistší vzduch za pár minut",
+    subheadline: "Filtr zachytí prach, pyl i jemné částice.",
     cta: "Zjistit více",
     animation: "fade-in",
   });
@@ -116,13 +116,13 @@ export function createIonicCareDemoProject(): BannerProject {
     id: "proj-001",
     status: "shared",
     shareId: "share-summer-sale-2026",
-    logoLabel: "Logo",
+    logoLabel: "Značka",
     productImageLabel: "Produkt",
     createdAt: "2026-06-01T10:00:00.000Z",
     updatedAt: now,
   };
 
-  const state = applyIonicCareSequence(projectToEditorState(seed));
+  const state = applyStoryboardTemplate(projectToEditorState(seed), "clean-air-product");
   return editorStateToProject(
     {
       ...state,
@@ -134,5 +134,8 @@ export function createIonicCareDemoProject(): BannerProject {
     seed,
   );
 }
+
+/** @deprecated Use createCleanAirDemoProject */
+export const createIonicCareDemoProject = createCleanAirDemoProject;
 
 export { editorStateToProject, projectToEditorState } from "@/lib/animation/timeline-utils";

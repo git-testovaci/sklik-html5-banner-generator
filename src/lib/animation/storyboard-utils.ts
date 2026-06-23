@@ -332,9 +332,14 @@ export function buildFlatSliceForScene(
     }
   }
 
-  const layerAnimations = getEffectsForScene(state, sceneId).map((e) =>
-    effectToLayerAnimation(e, layerTypeFromId(e.layerId, state)),
-  );
+  const layerAnimations = getEffectsForScene(state, sceneId).map((e) => {
+    const layer = getLayerById(state, e.layerId);
+    const anim = effectToLayerAnimation(e, layerTypeFromId(e.layerId, state));
+    const animLayerId =
+      layer?.legacyKey ??
+      (layer?.type === "text" ? layer.id : layer?.assetId ?? e.layerId);
+    return { ...anim, layerId: animLayerId };
+  });
 
   return {
     headline: sceneLayers.find((l) => l.legacyKey === "headline")?.text ?? state.headline,
@@ -756,6 +761,46 @@ export function editorStateToProjectWithStoryboard(
     layerKeyframes: synced.layerKeyframes,
     activeSceneId: synced.activeSceneId,
   };
+}
+
+export function hasStoryboard(state: BannerEditorState): boolean {
+  return (state.scenes ?? []).length > 0;
+}
+
+export function findLayerForCanvasEdit(
+  state: BannerEditorState,
+  target:
+    | { kind: "text"; legacyKey: string }
+    | { kind: "asset"; assetId: string }
+    | { kind: "layer"; layerId: string },
+  sceneId?: string,
+): BannerLayer | undefined {
+  const sid = sceneId ?? getActiveScene(state)?.id;
+  if (!sid) return undefined;
+  const layers = getLayersForScene(state, sid);
+  if (target.kind === "layer") {
+    return layers.find((l) => l.id === target.layerId);
+  }
+  if (target.kind === "text") {
+    return layers.find((l) => l.type === "text" && l.legacyKey === target.legacyKey);
+  }
+  return layers.find(
+    (l) => l.assetId === target.assetId || l.id === target.assetId,
+  );
+}
+
+export function updateLayerGeometryFromCanvas(
+  state: BannerEditorState,
+  target:
+    | { kind: "text"; legacyKey: string }
+    | { kind: "asset"; assetId: string }
+    | { kind: "layer"; layerId: string },
+  patch: Partial<Pick<BannerLayer, "x" | "y" | "width" | "height" | "rotation" | "opacity">>,
+): BannerEditorState | null {
+  if (!hasStoryboard(state)) return null;
+  const layer = findLayerForCanvasEdit(state, target);
+  if (!layer) return null;
+  return updateBannerLayer(state, layer.id, patch);
 }
 
 export function selectedLayerToBannerLayerId(
