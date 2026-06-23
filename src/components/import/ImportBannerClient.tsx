@@ -24,6 +24,7 @@ function formatFileSize(bytes: number): string {
 
 export function ImportBannerClient() {
   const [analysis, setAnalysis] = useState<ImportedBannerAnalysis | null>(null);
+  const [sourceZipFile, setSourceZipFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [blobUrls, setBlobUrls] = useState<string[]>([]);
@@ -42,10 +43,12 @@ export function ImportBannerClient() {
     try {
       const result = await analyzeImportedBannerZip(file);
       setAnalysis(result);
+      setSourceZipFile(file);
       setBlobUrls(result.previewBlobUrls);
       saveImportedBannerSession({ analysis: result, previewBlobUrls: [] });
     } catch (err) {
       setAnalysis(null);
+      setSourceZipFile(null);
       setError(err instanceof Error ? err.message : "Import failed.");
     } finally {
       setLoading(false);
@@ -110,6 +113,7 @@ export function ImportBannerClient() {
                   revokeBlobUrls(blobUrls);
                   setBlobUrls([]);
                   setAnalysis(null);
+                  setSourceZipFile(null);
                   setError(null);
                 }}
                 className="shrink-0 rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
@@ -125,6 +129,7 @@ export function ImportBannerClient() {
                   rows={analysis.validationRows}
                   overallStatus={analysis.overallStatus}
                   sklikReadiness={analysis.sklikReadiness}
+                  imageSummaries={analysis.imageSummaries ?? []}
                 />
               </div>
 
@@ -139,7 +144,7 @@ export function ImportBannerClient() {
 
               <div className="space-y-6 xl:col-span-1">
                 <AnimationInsightsPanel insights={analysis.animationInsights} />
-                <CreateProjectFromImportPanel analysis={analysis} />
+                <CreateProjectFromImportPanel analysis={analysis} sourceZipFile={sourceZipFile} />
               </div>
             </div>
           </>

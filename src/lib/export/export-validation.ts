@@ -167,6 +167,15 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
           `${asset.fileName}: ${Math.round(asset.size / 1024)} kB`,
         ),
       );
+    } else if (asset.size > 0) {
+      rows.push(
+        row(
+          `asset-contrib-${asset.id}`,
+          `Asset: ${asset.fileName}`,
+          asset.size > 80_000 ? "warn" : "pass",
+          `~${Math.round(asset.size / 1024)} kB toward ZIP total`,
+        ),
+      );
     }
   }
 
@@ -323,9 +332,10 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
     summaryStatus,
     recommendations: [
       "Keep the exported ZIP under 250 kB for Sklik single-banner upload.",
+      "Compress large images and prefer WebP when possible.",
+      "Reduce asset count if ZIP size is high.",
       "Verify final banner size in Sklik after upload.",
       "Click URL is configured in Sklik ad settings, not inside the banner HTML.",
-      "Use compressed PNG/WebP assets under assets/ to stay within size limits.",
     ],
   };
 }

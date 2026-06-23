@@ -78,6 +78,14 @@ export interface ImportedBannerAnalysis {
   unresolvedAssets: string[];
   assetResolutionRate: number;
   analyzedAt: string;
+  imageSummaries: ImportImageSummary[];
+}
+
+export interface ImportImageSummary {
+  path: string;
+  name: string;
+  size: number;
+  suggestedRole: "logo" | "product" | "background" | "decoration";
 }
 
 export interface ImportedBannerSession {

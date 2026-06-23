@@ -13,19 +13,21 @@ import {
   normalizeEditorState,
 } from "@/lib/animation/timeline-utils";
 import type { BannerEditorState } from "@/types/editor";
+import { SafeAreaOverlay } from "./SafeAreaOverlay";
 
 interface BannerPreviewProps {
   state: BannerEditorState;
   className?: string;
   replayKey?: number;
   loopPreview?: boolean;
+  showSafeArea?: boolean;
 }
 
 function useAssetUrls(assetIds: string[]) {
+  const assetIdsKey = assetIds.join(",");
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [missing, setMissing] = useState<Set<string>>(new Set());
 
-  const assetIdsKey = assetIds.join(",");
   useEffect(() => {
     let cancelled = false;
 
@@ -57,10 +59,11 @@ export function BannerPreview({
   className = "",
   replayKey = 0,
   loopPreview = false,
+  showSafeArea = false,
 }: BannerPreviewProps) {
   const state = useMemo(() => normalizeEditorState(rawState), [rawState]);
-  const assets = state.assets ?? [];
-  const assetIds = assets.map((a) => a.id);
+  const assets = useMemo(() => state.assets ?? [], [state.assets]);
+  const assetIds = useMemo(() => assets.map((a) => a.id), [assets]);
   const { urls, missing } = useAssetUrls(assetIds);
 
   const animationCss = useMemo(() => {
@@ -90,11 +93,7 @@ export function BannerPreview({
   }, [state.layerAnimations, state.timeline?.loop, loopPreview]);
 
   const layers = useMemo(() => {
-    const items: Array<{
-      key: string;
-      zIndex: number;
-      node: React.ReactNode;
-    }> = [];
+    const items: Array<{ key: string; zIndex: number; node: React.ReactNode }> = [];
 
     const bgColorOnly = !(state.assetPlacements ?? []).some(
       (p) => p.visible && p.kind === "background",
@@ -105,10 +104,7 @@ export function BannerPreview({
         key: "bg-color",
         zIndex: 0,
         node: (
-          <div
-            className="absolute inset-0"
-            style={{ backgroundColor: state.backgroundColor }}
-          />
+          <div className="absolute inset-0" style={{ backgroundColor: state.backgroundColor }} />
         ),
       });
     }
@@ -117,14 +113,9 @@ export function BannerPreview({
       if (!placement.visible) continue;
       const asset = assets.find((a) => a.id === placement.assetId);
       const layerId =
-        placement.kind === "decoration"
-          ? `decoration-${placement.assetId}`
-          : placement.kind;
+        placement.kind === "decoration" ? `decoration-${placement.assetId}` : placement.kind;
       const anim = getLayerAnimation(state, layerId);
-      const animClass =
-        anim?.enabled && anim.preset !== "none"
-          ? presetClassName(layerId)
-          : "";
+      const animClass = anim?.enabled && anim.preset !== "none" ? presetClassName(layerId) : "";
 
       const baseStyle: React.CSSProperties = {
         position: "absolute",
@@ -149,21 +140,17 @@ export function BannerPreview({
         node: (
           <div key={`${placement.assetId}-${replayKey}`} className={animClass} style={baseStyle}>
             {url ? (
+              // eslint-disable-next-line @next/next/no-img-element -- blob URLs from IndexedDB; next/image unsupported
               <img
                 src={url}
                 alt={asset?.kind ?? "asset"}
                 className="h-full w-full"
-                style={{
-                  objectFit: placement.fit,
-                }}
+                style={{ objectFit: placement.fit }}
               />
             ) : (
               <div
                 className="flex h-full w-full items-center justify-center border border-dashed text-[10px] uppercase"
-                style={{
-                  borderColor: `${state.accentColor}66`,
-                  color: state.accentColor,
-                }}
+                style={{ borderColor: `${state.accentColor}66`, color: state.accentColor }}
               >
                 {isMissing ? "Missing image" : "Loading…"}
               </div>
@@ -178,12 +165,14 @@ export function BannerPreview({
       content: string;
       style: React.CSSProperties;
       className: string;
+      Tag: "h1" | "p" | "span";
     }> = [];
 
     const h = getTextPlacement(state, "headline");
     if (h?.visible !== false) {
       textLayers.push({
         id: "headline",
+        Tag: "h1",
         content: state.headline,
         className: presetClassName("headline"),
         style: {
@@ -210,6 +199,7 @@ export function BannerPreview({
     if (s?.visible !== false) {
       textLayers.push({
         id: "subheadline",
+        Tag: "p",
         content: state.subheadline,
         className: presetClassName("subheadline"),
         style: {
@@ -235,6 +225,7 @@ export function BannerPreview({
     if (c?.visible !== false) {
       textLayers.push({
         id: "cta",
+        Tag: "span",
         content: state.cta,
         className: presetClassName("cta"),
         style: {
@@ -260,16 +251,12 @@ export function BannerPreview({
     }
 
     for (const t of textLayers) {
-      const Tag = t.id === "headline" ? "h1" : t.id === "subheadline" ? "p" : "span";
+      const Tag = t.Tag;
       items.push({
         key: t.id,
         zIndex: (t.style.zIndex as number) ?? 30,
         node: (
-          <Tag
-            key={`${t.id}-${replayKey}`}
-            className={t.className}
-            style={t.style}
-          >
+          <Tag key={`${t.id}-${replayKey}`} className={t.className} style={t.style}>
             {t.content}
           </Tag>
         ),
@@ -296,6 +283,7 @@ export function BannerPreview({
         {layers.map((l) => (
           <div key={l.key}>{l.node}</div>
         ))}
+        <SafeAreaOverlay width={state.width} height={state.height} visible={showSafeArea} />
       </div>
     </>
   );

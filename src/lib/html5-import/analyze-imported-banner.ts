@@ -23,6 +23,7 @@ import {
   inferSizeFromCss,
   stripHtml,
 } from "./imported-banner-text";
+import { summarizeImportImages } from "./imported-banner-assets";
 
 const MAX_FILES = 40;
 const MAX_DEPTH = 2;
@@ -349,6 +350,7 @@ export async function analyzeImportedBannerZip(
     unresolvedAssets,
     assetResolutionRate,
     analyzedAt: new Date().toISOString(),
+    imageSummaries: summarizeImportImages(entries),
   };
 }
 

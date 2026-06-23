@@ -50,8 +50,7 @@ function LocalStorageNotice() {
       className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 px-4 py-3 text-sm text-zinc-400"
     >
       <p>
-        Projects are stored locally in this browser. Team sharing and cloud
-        sync via Supabase will be added later.
+        Projects and images stay in this browser. ZIP export works locally. Public preview with images works best on the same device until cloud sync is added.
       </p>
     </aside>
   );

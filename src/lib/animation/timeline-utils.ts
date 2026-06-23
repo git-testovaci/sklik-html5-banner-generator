@@ -73,10 +73,7 @@ function defaultTextPlacements(
   ];
 }
 
-function defaultAssetPlacements(
-  _width: number,
-  _height: number,
-): BannerAssetPlacement[] {
+function defaultAssetPlacements(): BannerAssetPlacement[] {
   return [];
 }
 
@@ -173,7 +170,7 @@ export function defaultStudioPlacements(width: number, height: number): {
   textPlacements: TextLayerPlacement[];
 } {
   return {
-    assetPlacements: defaultAssetPlacements(width, height),
+    assetPlacements: defaultAssetPlacements(),
     textPlacements: defaultTextPlacements(width, height),
   };
 }
@@ -399,4 +396,147 @@ export function layerAnimationsForImport(complexity: "low" | "medium" | "high"):
     );
   }
   return base;
+}
+
+export function safeInset(width: number, height: number): number {
+  return Math.max(12, Math.round(Math.min(width, height) * 0.08));
+}
+
+export function clampPlacementToBanner(
+  p: Pick<TextLayerPlacement, "x" | "y" | "width" | "height">,
+  bannerWidth: number,
+  bannerHeight: number,
+): Pick<TextLayerPlacement, "x" | "y" | "width" | "height"> {
+  const pad = safeInset(bannerWidth, bannerHeight);
+  const maxW = Math.max(20, bannerWidth - pad * 2);
+  const maxH = Math.max(12, bannerHeight - pad * 2);
+  const width = Math.min(Math.max(20, p.width), maxW);
+  const height = Math.min(Math.max(12, p.height), maxH);
+  const x = Math.min(Math.max(pad, p.x), bannerWidth - width - pad);
+  const y = Math.min(Math.max(pad, p.y), bannerHeight - height - pad);
+  return { x, y, width, height };
+}
+
+export function assetAtCorner(
+  assetId: string,
+  kind: BannerAssetPlacement["kind"],
+  corner: "top-left" | "top-right" | "center" | "bottom-left" | "bottom-right",
+  assetW: number,
+  assetH: number,
+  bannerW: number,
+  bannerH: number,
+  zIndex: number,
+): BannerAssetPlacement {
+  const pad = safeInset(bannerW, bannerH);
+  const positions: Record<typeof corner, { x: number; y: number }> = {
+    "top-left": { x: pad, y: pad },
+    "top-right": { x: bannerW - assetW - pad, y: pad },
+    center: { x: (bannerW - assetW) / 2, y: (bannerH - assetH) / 2 },
+    "bottom-left": { x: pad, y: bannerH - assetH - pad },
+    "bottom-right": { x: bannerW - assetW - pad, y: bannerH - assetH - pad },
+  };
+  const { x, y } = positions[corner];
+  return {
+    assetId,
+    kind,
+    visible: true,
+    x: Math.round(x),
+    y: Math.round(y),
+    width: assetW,
+    height: assetH,
+    opacity: 1,
+    rotation: 0,
+    zIndex,
+    fit: kind === "background" ? "cover" : "contain",
+    borderRadius: kind === "product" ? 4 : 0,
+    shadow: kind === "product",
+  };
+}
+
+export function fitBackgroundPlacement(
+  assetId: string,
+  bannerW: number,
+  bannerH: number,
+): BannerAssetPlacement {
+  return {
+    assetId,
+    kind: "background",
+    visible: true,
+    x: 0,
+    y: 0,
+    width: bannerW,
+    height: bannerH,
+    opacity: 1,
+    rotation: 0,
+    zIndex: 1,
+    fit: "cover",
+    borderRadius: 0,
+    shadow: false,
+  };
+}
+
+export function centerHorizontally<T extends { x: number; width: number }>(
+  p: T,
+  bannerW: number,
+): T {
+  return { ...p, x: Math.round((bannerW - p.width) / 2) };
+}
+
+export function centerVertically<T extends { y: number; height: number }>(
+  p: T,
+  bannerH: number,
+): T {
+  return { ...p, y: Math.round((bannerH - p.height) / 2) };
+}
+
+export function staggerEntranceAnimations(): LayerAnimation[] {
+  return defaultLayerAnimations().map((a) => {
+    const starts: Record<string, number> = {
+      logo: 0,
+      product: 200,
+      headline: 450,
+      subheadline: 700,
+      cta: 950,
+    };
+    return {
+      ...a,
+      enabled: true,
+      startMs: starts[a.layerId] ?? a.startMs,
+      preset: a.layerId === "cta" ? "soft-pulse" : a.preset === "none" ? "fade-in" : a.preset,
+    };
+  });
+}
+
+export function noAnimations(): LayerAnimation[] {
+  return defaultLayerAnimations().map((a) => ({
+    ...a,
+    enabled: false,
+    preset: "none",
+  }));
+}
+
+export function subtleAnimations(): LayerAnimation[] {
+  return defaultLayerAnimations().map((a) => ({
+    ...a,
+    enabled: true,
+    preset: "fade-in",
+    durationMs: 500,
+    startMs: a.layerId === "logo" ? 0 : a.layerId === "headline" ? 200 : 350,
+    distancePx: 6,
+  }));
+}
+
+export function energeticAnimations(): LayerAnimation[] {
+  return defaultLayerAnimations().map((a) => ({
+    ...a,
+    enabled: true,
+    durationMs: Math.min(a.durationMs + 150, 900),
+    distancePx: 18,
+    preset:
+      a.layerId === "product"
+        ? "slide-in-right"
+        : a.layerId === "cta"
+          ? "bounce-in"
+          : a.preset,
+  }));
 }

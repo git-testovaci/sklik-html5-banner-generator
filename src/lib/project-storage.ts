@@ -264,7 +264,17 @@ export function resetProjectsToSeed(): BannerProject[] {
     return SERVER_SNAPSHOT;
   }
 
+  const current = loadProjectsFromStorage();
+  const assetIds = current.flatMap((p) => (p.assets ?? []).map((a) => a.id));
+
   resetProjectsStorage();
+
+  if (assetIds.length > 0) {
+    void import("@/lib/assets/asset-storage").then(({ deleteAssetsByProject }) =>
+      deleteAssetsByProject("", assetIds),
+    );
+  }
+
   const seeded = seedFromMock();
   persistProjects(seeded, true);
   return seeded;

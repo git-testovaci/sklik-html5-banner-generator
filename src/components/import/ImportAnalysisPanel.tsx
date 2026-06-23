@@ -20,12 +20,14 @@ interface ImportAnalysisPanelProps {
   rows: ValidationRow[];
   overallStatus: "pass" | "warn" | "fail";
   sklikReadiness: "ready" | "review" | "not-ready";
+  imageSummaries?: import("@/types/imported-banner").ImportImageSummary[];
 }
 
 export function ImportAnalysisPanel({
   rows,
   overallStatus,
   sklikReadiness,
+  imageSummaries = [],
 }: ImportAnalysisPanelProps) {
   const readinessLabel = {
     ready: "Likely ready for review",
@@ -47,6 +49,21 @@ export function ImportAnalysisPanel({
           Overall: <span className="uppercase text-zinc-300">{overallStatus}</span>
         </p>
       </div>
+
+      {imageSummaries.length > 0 ? (
+        <div className="border-b border-zinc-800/60 px-4 py-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Detected images ({imageSummaries.length})
+          </p>
+          <ul className="mt-2 max-h-24 space-y-1 overflow-y-auto text-xs text-zinc-400">
+            {imageSummaries.map((img) => (
+              <li key={img.path}>
+                {img.name} · {img.suggestedRole} · {Math.round(img.size / 1024)} kB
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {criticalRows.length > 0 ? (
         <div className="border-b border-amber-900/30 bg-amber-950/15 px-4 py-3">

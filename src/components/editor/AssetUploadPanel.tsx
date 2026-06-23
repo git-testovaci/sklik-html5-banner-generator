@@ -116,7 +116,7 @@ export function AssetUploadPanel({ state, onUpdate }: AssetUploadPanelProps) {
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <div className="border-b border-zinc-800/60 px-4 py-3">
         <h2 className="text-sm font-medium text-zinc-300">Upload assets</h2>
-        <p className="mt-1 text-xs text-zinc-500">PNG, JPEG, WebP, GIF, SVG · stored in IndexedDB</p>
+        <p className="mt-1 text-xs text-zinc-500">PNG, JPEG, WebP, GIF, SVG · Replace updates the slot</p>
       </div>
       <div className="space-y-3 p-4">
         {UPLOAD_SLOTS.map(({ kind, label, id }) => {

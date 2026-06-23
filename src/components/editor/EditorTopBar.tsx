@@ -70,7 +70,7 @@ export function EditorTopBar({
         </div>
       </div>
       <p className="border-t border-zinc-800/40 px-4 py-2 text-xs text-zinc-600 sm:px-6">
-        Saved locally in this browser. Cloud sync will be added later.
+        Saved locally in this browser. Images use IndexedDB — public preview with images works best on the same device until cloud sync is added.
       </p>
     </header>
   );

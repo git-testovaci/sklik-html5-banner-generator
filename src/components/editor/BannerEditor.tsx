@@ -19,12 +19,23 @@ import {
 } from "@/types/editor";
 import { AssetLibrary } from "./AssetLibrary";
 import { AssetUploadPanel } from "./AssetUploadPanel";
+import { AssetWarningsPanel } from "./AssetWarningsPanel";
 import { BannerPreviewStage } from "./BannerPreviewStage";
 import { EditorSettingsPanel } from "./EditorSettingsPanel";
 import { EditorTopBar } from "./EditorTopBar";
 import { LayerPanel } from "./LayerPanel";
+import { TemplatePresetsPanel } from "./TemplatePresetsPanel";
 import { TimelinePanel } from "./TimelinePanel";
 import { ValidationExportPanel } from "./ValidationExportPanel";
+
+function SectionLabel({ title, hint }: { title: string; hint?: string }) {
+  return (
+    <div className="px-1 pb-1">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">{title}</h2>
+      {hint ? <p className="mt-0.5 text-[11px] leading-snug text-zinc-600">{hint}</p> : null}
+    </div>
+  );
+}
 
 interface BannerEditorProps {
   projectId: string;
@@ -74,7 +85,6 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   };
 
   const hasUnsavedChanges = !editorStatesEqual(state, savedState);
-
   const validation = useMemo(() => getValidationSummary(state), [state]);
 
   function handleSave() {
@@ -82,7 +92,6 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
       getStoredProjectById(projectId) ?? getProjectById(projectId);
     const project = editorStateToProject(state, existing);
     upsertProject(project);
-
     const nextState = normalizeEditorState(projectToEditorState(project));
     setState(nextState);
     setSavedState(nextState);
@@ -99,10 +108,20 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
       />
 
       <div className="flex flex-1 flex-col gap-4 p-4 lg:flex-row lg:items-start">
-        <div className="order-2 flex w-full shrink-0 flex-col gap-4 lg:order-1 lg:w-[300px] xl:w-[320px]">
+        <div className="order-2 flex w-full shrink-0 flex-col gap-3 lg:order-1 lg:w-[300px] xl:w-[320px]">
+          <SectionLabel title="Content" hint="Text, colors, and banner size." />
           <EditorSettingsPanel state={state} onUpdate={onUpdate} />
+          <TemplatePresetsPanel
+            state={state}
+            onUpdate={onUpdate}
+            hasUnsavedChanges={hasUnsavedChanges}
+          />
+
+          <SectionLabel title="Assets" hint="Upload logo, product, or background images." />
           <AssetUploadPanel state={state} onUpdate={onUpdate} />
-          <AssetLibrary state={state} />
+          <AssetLibrary state={state} onUpdate={onUpdate} />
+
+          <SectionLabel title="Layers" hint="Select a layer and adjust position." />
           <LayerPanel
             state={state}
             selectedLayer={selectedLayer}
@@ -111,12 +130,20 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
           />
         </div>
 
-        <div className="order-1 flex min-w-0 flex-1 flex-col gap-4 lg:order-2">
+        <div className="order-1 flex min-w-0 flex-1 flex-col gap-3 lg:order-2">
+          <SectionLabel title="Preview" hint="Replay to test timeline animations." />
           <BannerPreviewStage state={state} onUpdate={onUpdate} />
+
+          <SectionLabel title="Timeline" hint="Control when each layer animates." />
           <TimelinePanel state={state} onUpdate={onUpdate} />
         </div>
 
-        <div className="order-3 w-full shrink-0 lg:w-[300px] xl:w-[320px]">
+        <div className="order-3 flex w-full shrink-0 flex-col gap-3 lg:w-[300px] xl:w-[320px]">
+          <SectionLabel
+            title="Validation & export"
+            hint="Export ZIP when validation passes."
+          />
+          <AssetWarningsPanel state={state} />
           <ValidationExportPanel
             state={state}
             validation={validation}
@@ -150,12 +177,11 @@ export function BannerEditor({ projectId }: BannerEditorProps) {
       <div className="flex min-h-full flex-col items-center justify-center px-4 py-16 text-center">
         <h1 className="text-xl font-semibold text-zinc-100">Project not found</h1>
         <p className="mt-2 max-w-md text-sm text-zinc-500">
-          This banner project does not exist in local storage. It may have been
-          deleted or the link is invalid.
+          This banner project does not exist in local storage.
         </p>
         <Link
           href="/dashboard"
-          className="mt-6 inline-flex items-center rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-violet-500"
+          className="mt-6 inline-flex items-center rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-violet-500"
         >
           Back to dashboard
         </Link>
