@@ -17,6 +17,7 @@ export interface CanvasPlacement {
 interface InteractiveCanvasLayerProps {
   selected: boolean;
   interactive: boolean;
+  locked?: boolean;
   placement: CanvasPlacement;
   rotation: number;
   zIndex: number;
@@ -28,6 +29,7 @@ interface InteractiveCanvasLayerProps {
   onPlacementChange: (patch: Partial<CanvasPlacement>) => void;
   animClassName?: string;
   replayKey?: number;
+  scrubStyle?: Pick<React.CSSProperties, "opacity" | "transform">;
   children: React.ReactNode;
 }
 
@@ -45,6 +47,7 @@ function clampResize(
 export function InteractiveCanvasLayer({
   selected,
   interactive,
+  locked = false,
   placement,
   rotation,
   zIndex,
@@ -56,6 +59,7 @@ export function InteractiveCanvasLayer({
   onPlacementChange,
   animClassName = "",
   replayKey = 0,
+  scrubStyle,
   children,
 }: InteractiveCanvasLayerProps) {
   const applyPlacement = useCallback(
@@ -67,7 +71,7 @@ export function InteractiveCanvasLayer({
 
   const startDrag = useCallback(
     (e: React.PointerEvent, mode: "move" | Corner) => {
-      if (!interactive) return;
+      if (!interactive || locked) return;
       e.preventDefault();
       e.stopPropagation();
       onSelect();
@@ -135,35 +139,41 @@ export function InteractiveCanvasLayer({
       target.addEventListener("pointerup", onUp);
       target.addEventListener("pointercancel", onUp);
     },
-    [applyPlacement, canvasScale, interactive, onSelect, placement],
+    [applyPlacement, canvasScale, interactive, locked, onSelect, placement],
   );
+
+  const outerTransform = scrubStyle?.transform
+    ? `${scrubStyle.transform} rotate(${rotation}deg)`
+    : `rotate(${rotation}deg)`;
+  const outerOpacity = scrubStyle?.opacity ?? opacity;
+  const canInteract = interactive && !locked;
 
   return (
     <div
-      className={`absolute ${interactive ? "touch-none select-none" : ""}`}
+      className={`absolute ${canInteract ? "touch-none select-none" : ""} ${locked ? "cursor-not-allowed" : ""}`}
       style={{
         left: placement.x,
         top: placement.y,
         width: placement.width,
         height: placement.height,
         zIndex,
-        opacity,
-        transform: `rotate(${rotation}deg)`,
+        opacity: outerOpacity,
+        transform: outerTransform,
         transformOrigin: "center center",
       }}
       onPointerDown={(e) => {
-        if (!interactive) return;
+        if (!canInteract) return;
         if ((e.target as HTMLElement).closest("[data-resize-handle]")) return;
         startDrag(e, "move");
       }}
       onClick={(e) => {
-        if (!interactive) return;
+        if (!canInteract) return;
         e.stopPropagation();
         onSelect();
       }}
     >
-      <CanvasSelectionOverlay visible={interactive && selected} />
-      {interactive && selected ? (
+      <CanvasSelectionOverlay visible={canInteract && selected} />
+      {canInteract && selected ? (
         <>
           {(["tl", "tr", "bl", "br"] as Corner[]).map((corner) => (
             <CanvasResizeHandle

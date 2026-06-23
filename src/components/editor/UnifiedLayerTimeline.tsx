@@ -10,6 +10,7 @@ import {
   layerTimelineLabel,
   selectionForBannerLayer,
 } from "@/lib/animation/layer-timeline-utils";
+import { getLayerById } from "@/lib/animation/storyboard-utils";
 import {
   getLayerPhaseSegments,
   phaseSegmentTooltip,
@@ -107,12 +108,15 @@ export function UnifiedLayerTimeline({
     startMs: number;
     durationMs: number;
   } | null>(null);
+  const [livePlayheadMs, setLivePlayheadMs] = useState<number | null>(null);
+  const scrubDragRef = useRef(false);
 
   const sceneDurationMs = scene?.durationMs ?? 3000;
   const layers = scene ? getTimelineLayersForScene(state, scene.id) : [];
   const ticks = buildRulerTicks(sceneDurationMs);
+  const displayPlayheadMs = livePlayheadMs ?? playheadMs;
   const playheadPct =
-    sceneDurationMs > 0 ? (playheadMs / sceneDurationMs) * 100 : 0;
+    sceneDurationMs > 0 ? (displayPlayheadMs / sceneDurationMs) * 100 : 0;
 
   const getRange = (layerId: string) => {
     if (liveRange?.layerId === layerId) {
@@ -234,6 +238,61 @@ export function UnifiedLayerTimeline({
     };
   }, [finishDrag, finishPhaseDrag, scene]);
 
+  useEffect(() => {
+    function scrubFromX(clientX: number) {
+      const track = trackRef.current;
+      if (!track) return;
+      const rect = track.getBoundingClientRect();
+      const ms = Math.max(
+        0,
+        Math.min(sceneDurationMs, msFromClientX(clientX, rect, sceneDurationMs)),
+      );
+      setLivePlayheadMs(ms);
+      onScrub(ms);
+    }
+
+    function onMove(e: PointerEvent) {
+      if (!scrubDragRef.current) return;
+      scrubFromX(e.clientX);
+    }
+
+    function onUp() {
+      if (!scrubDragRef.current) return;
+      scrubDragRef.current = false;
+      setLivePlayheadMs(null);
+    }
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [onScrub, sceneDurationMs]);
+
+  function startScrubDrag(e: React.PointerEvent) {
+    if (isPlaying) return;
+    e.preventDefault();
+    e.stopPropagation();
+    scrubDragRef.current = true;
+    const track = trackRef.current;
+    if (!track) return;
+    const rect = track.getBoundingClientRect();
+    const ms = Math.max(
+      0,
+      Math.min(sceneDurationMs, msFromClientX(e.clientX, rect, sceneDurationMs)),
+    );
+    setLivePlayheadMs(ms);
+    onScrub(ms);
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+  }
+
   function startBlockDrag(
     e: React.PointerEvent,
     layerId: string,
@@ -241,6 +300,8 @@ export function UnifiedLayerTimeline({
   ) {
     e.preventDefault();
     e.stopPropagation();
+    const layer = getLayerById(state, layerId);
+    if (layer?.locked) return;
     const track = trackRef.current;
     if (!track || !scene) return;
     const range = getLayerTimelineRange(state, scene.id, layerId);
@@ -277,12 +338,10 @@ export function UnifiedLayerTimeline({
   }
 
   function handleTrackScrub(e: React.PointerEvent<HTMLDivElement>) {
-    if (dragRef.current) return;
+    if (dragRef.current || scrubDragRef.current) return;
     if (isPlaying) return;
-    const track = trackRef.current;
-    if (!track) return;
-    const rect = track.getBoundingClientRect();
-    onScrub(msFromClientX(e.clientX, rect, sceneDurationMs));
+    if ((e.target as HTMLElement).closest("[data-layer-block]")) return;
+    startScrubDrag(e);
   }
 
   if (!scene) {
@@ -303,11 +362,11 @@ export function UnifiedLayerTimeline({
           <h2 className="text-sm font-medium text-zinc-200">Časová osa vrstev</h2>
           <p className="text-[10px] text-zinc-500">
             {scene.name} · {formatTimelineSeconds(sceneDurationMs)}
-            {isPlaying ? " · přehrávání" : " · tažením posunete blok"}
+            {isPlaying ? " · přehrávání" : livePlayheadMs != null ? " · posun playheadu" : " · klikněte nebo táhněte playhead"}
           </p>
         </div>
         <p className="font-mono text-xs text-violet-300">
-          {formatTimelineSeconds(playheadMs)}
+          {formatTimelineSeconds(displayPlayheadMs)}
         </p>
       </div>
 
@@ -339,9 +398,14 @@ export function UnifiedLayerTimeline({
                 );
               })}
               <div
-                className="pointer-events-none absolute top-0 z-20 h-full w-0.5 bg-violet-400 shadow-[0_0_6px_rgba(167,139,250,0.85)]"
+                data-playhead-handle
+                className="absolute top-0 z-30 h-full w-3 -translate-x-1/2 cursor-ew-resize"
                 style={{ left: `${Math.min(100, playheadPct)}%` }}
-              />
+                title={`Playhead · ${formatTimelineSeconds(displayPlayheadMs)}`}
+                onPointerDown={startScrubDrag}
+              >
+                <div className="pointer-events-none absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-violet-400 shadow-[0_0_6px_rgba(167,139,250,0.85)]" />
+              </div>
             </div>
           </div>
 
@@ -370,7 +434,7 @@ export function UnifiedLayerTimeline({
                   key={layer.id}
                   className={`flex border-b border-zinc-800/30 ${
                     selected ? "bg-violet-950/20" : ""
-                  } ${!layer.visible ? "opacity-45" : ""}`}
+                  } ${!layer.visible ? "opacity-45" : ""} ${layer.locked ? "opacity-70" : ""}`}
                   style={{ height: ROW_HEIGHT }}
                 >
                   <button
@@ -384,6 +448,7 @@ export function UnifiedLayerTimeline({
                     style={{ width: LABEL_WIDTH }}
                     title={layerTimelineLabel(layer)}
                   >
+                    {layer.locked ? "🔒 " : ""}
                     {layerTimelineLabel(layer)}
                     {!layer.visible ? " (skryté)" : ""}
                   </button>
@@ -393,14 +458,21 @@ export function UnifiedLayerTimeline({
                     onPointerDown={handleTrackScrub}
                   >
                     <div
-                      className={`absolute top-1 flex h-[calc(100%-8px)] min-w-[12px] cursor-grab items-center rounded border active:cursor-grabbing ${blockColor} ${
+                      data-layer-block
+                      className={`absolute top-1 flex h-[calc(100%-8px)] min-w-[12px] items-center rounded border ${layer.locked ? "cursor-not-allowed opacity-80" : "cursor-grab active:cursor-grabbing"} ${blockColor} ${
                         selected ? "ring-1 ring-violet-300/80" : ""
                       }`}
                       style={{
                         left: `${leftPct}%`,
                         width: `${Math.max(widthPct, 1.5)}%`,
                       }}
-                      onPointerDown={(e) => startBlockDrag(e, layer.id, "move")}
+                      onPointerDown={(e) => {
+                        if (layer.locked) {
+                          e.stopPropagation();
+                          return;
+                        }
+                        startBlockDrag(e, layer.id, "move");
+                      }}
                       onClick={(e) => {
                         e.stopPropagation();
                         onSelectLayer(selectionForBannerLayer(layer));

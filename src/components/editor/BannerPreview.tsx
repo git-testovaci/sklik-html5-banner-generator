@@ -21,10 +21,12 @@ import {
 import { clampParticleCount } from "@/lib/animation/keyframe-utils";
 import { buildSceneSequenceCss } from "@/lib/animation/scene-sequence-css";
 import { isLayerVisibleAtTimelineTime } from "@/lib/animation/layer-timeline-utils";
+import { getLayerScrubStyle, scrubStyleToCss } from "@/lib/animation/layer-scrub-utils";
 import {
   buildFlatSliceForScene,
   getActiveScene,
   getEffectsForScene,
+  getLayerById,
   getLayersForScene,
 } from "@/lib/animation/storyboard-utils";
 import {
@@ -235,9 +237,26 @@ function CanvasContent({
   const sceneBg = scene?.backgroundColor ?? state.backgroundColor;
   const assets = state.assets ?? [];
   const storyboardLayers = getLayersForScene(state, sceneId);
+  const scrubMode =
+    gateLayersByPreviewTime && previewTimeMs != null && interactive;
 
-  function layerVisibleAtPreview(bannerLayerId: string): boolean {
+  function layerInteraction(bannerLayerId: string | undefined) {
+    const layer = bannerLayerId ? getLayerById(state, bannerLayerId) : undefined;
+    const locked = layer?.locked ?? false;
+    if (scrubMode && previewTimeMs != null && bannerLayerId) {
+      const style = getLayerScrubStyle(state, sceneId, bannerLayerId, previewTimeMs);
+      return { locked, scrubStyle: scrubStyleToCss(style) };
+    }
+    return { locked, scrubStyle: undefined };
+  }
+
+  function layerVisibleAtPreview(bannerLayerId: string | undefined): boolean {
+    if (bannerLayerId) {
+      const layer = getLayerById(state, bannerLayerId);
+      if (layer && !layer.visible) return false;
+    }
     if (!gateLayersByPreviewTime || previewTimeMs == null) return true;
+    if (!bannerLayerId) return true;
     return isLayerVisibleAtTimelineTime(state, sceneId, bannerLayerId, previewTimeMs);
   }
   const slotLayers = storyboardLayers.filter(
@@ -360,12 +379,15 @@ function CanvasContent({
           fx?.preset === "flip-180" || fx?.preset === "zoom-rotate-badge"
             ? `${placement.assetId}-fx-${replayKey}`
             : resolveAnimClassName(layerId);
+        const layerChrome = layerInteraction(sbLayer?.id);
 
         return (
           <InteractiveCanvasLayer
             key={`${sceneId}-${placement.assetId}`}
             selected={selected}
             interactive={interactive}
+            locked={layerChrome.locked}
+            scrubStyle={layerChrome.scrubStyle}
             placement={{
               x: placement.x,
               y: placement.y,
@@ -455,11 +477,14 @@ function CanvasContent({
       {slotLayers.map((layer) => {
         if (!layerVisibleAtPreview(layer.id)) return null;
         const selected = selectedLayer?.type === "asset" && selectedLayer.id === layer.id;
+        const layerChrome = layerInteraction(layer.id);
         return (
           <InteractiveCanvasLayer
             key={`${sceneId}-slot-${layer.id}`}
             selected={selected}
             interactive={interactive}
+            locked={layerChrome.locked}
+            scrubStyle={layerChrome.scrubStyle}
             placement={{ x: layer.x, y: layer.y, width: layer.width, height: layer.height }}
             rotation={layer.rotation}
             zIndex={layer.zIndex}
@@ -497,6 +522,8 @@ function CanvasContent({
               <InteractiveCanvasLayer
                 selected={selectedLayer?.type === "asset" && selectedLayer.id === layer.id}
                 interactive={interactive}
+                locked={layer.locked}
+                scrubStyle={layerInteraction(layer.id).scrubStyle}
                 placement={{ x: layer.x, y: layer.y, width: layer.width, height: layer.height }}
                 rotation={layer.rotation}
                 zIndex={layer.zIndex}
@@ -530,11 +557,14 @@ function CanvasContent({
               ? `${layer.id}-fx-${replayKey}`
               : "";
           const isCircle = layer.shapeType === "circle";
+          const layerChrome = layerInteraction(layer.id);
           return (
             <InteractiveCanvasLayer
               key={`${sceneId}-${layer.id}`}
               selected={selectedLayer?.type === "asset" && selectedLayer.id === layer.id}
               interactive={interactive}
+              locked={layerChrome.locked}
+              scrubStyle={layerChrome.scrubStyle}
               placement={{ x: layer.x, y: layer.y, width: layer.width, height: layer.height }}
               rotation={layer.rotation}
               zIndex={layer.zIndex}
@@ -599,12 +629,15 @@ function CanvasContent({
         const textAlign = pl.textAlign ?? sbLayer?.textAlign ?? (isCta ? "center" : "left");
         const textColor = sbLayer?.color ?? (isCta ? state.ctaTextColor : state.textColor);
         const letterSpacing = sbLayer?.letterSpacing ?? 0;
+        const layerChrome = layerInteraction(sbLayer?.id);
 
         return (
           <InteractiveCanvasLayer
             key={`${sceneId}-${layerId}`}
             selected={selected}
             interactive={interactive}
+            locked={layerChrome.locked}
+            scrubStyle={layerChrome.scrubStyle}
             placement={{ x: pl.x, y: pl.y, width: pl.width, height: pl.height }}
             rotation={pl.rotation}
             zIndex={pl.zIndex}
@@ -680,12 +713,15 @@ function CanvasContent({
         const content = layer.text ?? "";
         const textColor = layer.color ?? state.textColor;
         const letterSpacing = layer.letterSpacing ?? 0;
+        const layerChrome = layerInteraction(layer.id);
 
         return (
           <InteractiveCanvasLayer
             key={`${sceneId}-${layer.id}`}
             selected={selectedLayer?.type === "asset" && selectedLayer.id === layer.id}
             interactive={interactive}
+            locked={layerChrome.locked}
+            scrubStyle={layerChrome.scrubStyle}
             placement={{ x: layer.x, y: layer.y, width: layer.width, height: layer.height }}
             rotation={layer.rotation}
             zIndex={layer.zIndex}

@@ -206,22 +206,48 @@ export function isTimelineLayerSelected(
   return selected.type === target.type && selected.id === target.id;
 }
 
-/** Renderable scene layers sorted for timeline rows (front layers first). */
+/** Renderable scene layers sorted front-first (same order for timeline + layer panel). */
+export function getOrderedSceneLayersForUi(
+  state: BannerEditorState,
+  sceneId: string,
+): BannerLayer[] {
+  const scene = getSceneById(state, sceneId);
+  if (!scene) return [];
+
+  const byId = new Map(
+    getLayersForScene(state, sceneId)
+      .filter(
+        (l) =>
+          l.type === "text" ||
+          l.type === "image" ||
+          l.type === "badge" ||
+          l.type === "shape" ||
+          l.type === "particle" ||
+          l.type === "underline",
+      )
+      .map((l) => [l.id, l]),
+  );
+
+  const ordered: BannerLayer[] = [];
+  for (const id of scene.layerIds) {
+    const layer = byId.get(id);
+    if (layer) {
+      ordered.push(layer);
+      byId.delete(id);
+    }
+  }
+  for (const layer of byId.values()) {
+    ordered.push(layer);
+  }
+
+  return [...ordered].sort((a, b) => b.zIndex - a.zIndex);
+}
+
 export function getTimelineLayersForScene(
   state: BannerEditorState,
   sceneId: string,
 ): BannerLayer[] {
-  return getLayersForScene(state, sceneId)
-    .filter(
-      (l) =>
-        l.type === "text" ||
-        l.type === "image" ||
-        l.type === "badge" ||
-        l.type === "shape" ||
-        l.type === "particle" ||
-        l.type === "underline",
-    )
-    .sort((a, b) => b.zIndex - a.zIndex);
+  return getOrderedSceneLayersForUi(state, sceneId);
 }
 
 export function formatTimelineSeconds(ms: number): string {
