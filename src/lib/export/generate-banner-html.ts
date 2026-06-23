@@ -65,11 +65,11 @@ function renderSceneLayers(
   const slice = buildFlatSliceForScene(state, sceneId);
   const sceneState: BannerEditorState = { ...state, ...slice };
 
-  const headline = escapeHtmlText(sanitizePlainText(sceneState.headline, "Headline", 120));
-  const subheadline = escapeHtmlText(sanitizePlainText(sceneState.subheadline, "Subheadline", 160));
-  const cta = escapeHtmlText(sanitizePlainText(sceneState.cta, "Learn more", 40));
+  const headline = escapeHtmlText(sanitizePlainText(sceneState.headline, "Nadpis", 120));
+  const subheadline = escapeHtmlText(sanitizePlainText(sceneState.subheadline, "Podnadpis", 160));
+  const cta = escapeHtmlText(sanitizePlainText(sceneState.cta, "Zjistit více", 40));
   const logo = escapeHtmlText(sanitizePlainText(state.logoLabel, "Logo", 24));
-  const product = escapeHtmlText(sanitizePlainText(state.productImageLabel, "Product", 24));
+  const product = escapeHtmlText(sanitizePlainText(state.productImageLabel, "Produkt", 24));
 
   const layers = getLayersForScene(state, sceneId);
   const parts: string[] = [];

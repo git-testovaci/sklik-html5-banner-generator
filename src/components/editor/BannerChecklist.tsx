@@ -131,7 +131,7 @@ export function BannerChecklist({ state, onAction }: BannerChecklistProps) {
                 <span className="block text-[11px] text-zinc-300">{item.label}</span>
                 <span className="block truncate text-[9px] text-zinc-600">{item.hint}</span>
               </span>
-              <span className="text-[9px] text-zinc-600">Hotovo</span>
+              <span className="text-[9px] text-zinc-700">→</span>
             </button>
           </li>
         ))}

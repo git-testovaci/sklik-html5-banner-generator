@@ -22,7 +22,8 @@ import {
   subscribeProjects,
   upsertProject,
 } from "@/lib/project-storage";
-import { getValidationSummary } from "@/lib/validation-rules";
+import { deriveWorkflowGuidance } from "@/lib/editor/workflow-guidance";
+import { findFirstTransitionSceneNeedingAttention } from "@/lib/editor/checklist-utils";
 import {
   editorStatesEqual,
   type BannerEditorState,
@@ -42,7 +43,9 @@ import { MotionPresetQuickActions } from "./MotionPresetQuickActions";
 import { SceneStrip } from "./SceneStrip";
 import { TemplatePresetsPanel } from "./TemplatePresetsPanel";
 import { ValidationExportPanel } from "./ValidationExportPanel";
+import { WorkflowGuidanceBox } from "./WorkflowGuidance";
 import { EditorTopBar } from "./EditorTopBar";
+import { getValidationSummary } from "@/lib/validation-rules";
 
 type LeftTab = "assets" | "layers" | "templates";
 
@@ -96,6 +99,13 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   const [placementMessage, setPlacementMessage] = useState<string | null>(null);
   const [selectedTransitionSceneId, setSelectedTransitionSceneId] = useState<string | null>(null);
   const [expandTiming, setExpandTiming] = useState(false);
+  const [dismissedGuidanceId, setDismissedGuidanceId] = useState<string | null>(null);
+
+  const workflowGuidance = useMemo(() => deriveWorkflowGuidance(state), [state]);
+  const activeGuidance =
+    workflowGuidance && workflowGuidance.id !== dismissedGuidanceId
+      ? workflowGuidance
+      : null;
 
   const playback = usePlaybackController({
     scenes: state.scenes,
@@ -124,7 +134,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
 
   function handleSave() {
     if (!getStoredProjectById(projectId)) {
-      setSaveError("This project was removed. Return to the dashboard.");
+      setSaveError("Projekt byl odstraněn. Vraťte se na přehled.");
       setSaveStatus("idle");
       return;
     }
@@ -226,10 +236,10 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
         break;
       }
       case "transitions": {
-        const firstScene = state.scenes?.[0];
-        if (firstScene) {
-          setSelectedTransitionSceneId(firstScene.id);
-          onUpdate(setActiveScene(state, firstScene.id));
+        const sceneId = findFirstTransitionSceneNeedingAttention(state);
+        if (sceneId) {
+          setSelectedTransitionSceneId(sceneId);
+          onUpdate(setActiveScene(state, sceneId));
         }
         setSelectedEffectId(null);
         break;
@@ -240,6 +250,24 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
         break;
       case "export":
         setShowExport(true);
+        break;
+    }
+  }
+
+  function handleWorkflowGuidanceAction() {
+    if (!activeGuidance?.action) return;
+    switch (activeGuidance.action) {
+      case "templates":
+        setLeftTab("templates");
+        break;
+      case "assets":
+        setLeftTab("assets");
+        break;
+      case "play":
+        handlePlayAll();
+        break;
+      case "text":
+        handleChecklistAction("text");
         break;
     }
   }
@@ -363,11 +391,22 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             onSelectEffect={setSelectedEffectId}
             forceExpandAdvanced={expandTiming}
             onExpanded={() => setExpandTiming(false)}
+            onSelectTransition={(sceneId) => {
+              setSelectedTransitionSceneId(sceneId);
+              setSelectedEffectId(null);
+            }}
           />
         </div>
 
         {/* Right — checklist + inspector + export */}
         <div className="order-3 flex w-full shrink-0 flex-col gap-3 lg:w-[280px] xl:w-[300px]">
+          {activeGuidance ? (
+            <WorkflowGuidanceBox
+              guidance={activeGuidance}
+              onDismiss={() => setDismissedGuidanceId(activeGuidance.id)}
+              onAction={activeGuidance.action ? handleWorkflowGuidanceAction : undefined}
+            />
+          ) : null}
           <BannerChecklist state={state} onAction={handleChecklistAction} />
           <InspectorPanel
             state={state}
@@ -415,7 +454,7 @@ export function BannerEditor({ projectId }: BannerEditorProps) {
           <div className="h-8 w-48 animate-pulse rounded bg-zinc-800/60" />
         </div>
         <div className="flex flex-1 items-center justify-center p-8">
-          <p className="text-sm text-zinc-500">Loading editor…</p>
+          <p className="text-sm text-zinc-500">Načítání editoru…</p>
         </div>
       </div>
     );
@@ -424,15 +463,15 @@ export function BannerEditor({ projectId }: BannerEditorProps) {
   if (!project) {
     return (
       <div className="flex min-h-full flex-col items-center justify-center px-4 py-16 text-center">
-        <h1 className="text-xl font-semibold text-zinc-100">Project not found</h1>
+        <h1 className="text-xl font-semibold text-zinc-100">Projekt nenalezen</h1>
         <p className="mt-2 max-w-md text-sm text-zinc-500">
-          This banner project does not exist in local storage.
+          Tento banner v lokálním úložišti prohlížeče neexistuje.
         </p>
         <Link
           href="/dashboard"
           className="mt-6 inline-flex items-center rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-violet-500"
         >
-          Back to dashboard
+          Zpět na přehled
         </Link>
       </div>
     );

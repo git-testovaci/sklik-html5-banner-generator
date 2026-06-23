@@ -7,6 +7,7 @@ import {
   saveAssetBlob,
 } from "@/lib/assets/asset-storage";
 import { autoPlaceUploadedAsset } from "@/lib/assets/slot-utils";
+import { nextStepAfterAssetPlacement } from "@/lib/editor/workflow-guidance";
 import {
   compressImageIfNeeded,
   formatFileSize,
@@ -110,7 +111,11 @@ export function AssetUploadPanel({ state, onUpdate, onPlaced }: AssetUploadPanel
           onUpdate(nextState);
           setSuccess(placed.message);
           if (placed.layerId) {
-            onPlaced?.({ type: "asset", id: placed.layerId }, placed.message);
+            const nextMsg = nextStepAfterAssetPlacement(kind);
+            onPlaced?.(
+              { type: "asset", id: placed.layerId },
+              nextMsg ?? placed.message,
+            );
           }
         } else {
           const placement = createDefaultAssetPlacement(

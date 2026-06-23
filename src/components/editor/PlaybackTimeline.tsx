@@ -71,7 +71,7 @@ export function PlaybackTimeline({
     return scenes.map((scene, index) => {
       const start = offset;
       offset += scene.durationMs;
-      const transMs = sceneTransitionWindowMs(scene.durationMs);
+      const transMs = sceneTransitionWindowMs(scene.durationMs, scene);
       return {
         scene,
         startMs: start,

@@ -158,7 +158,7 @@ function migrateProject(value: unknown): BannerProject | null {
     productImageLabel:
       typeof record.productImageLabel === "string"
         ? record.productImageLabel
-        : "Product",
+        : "Produkt",
     shareId:
       typeof record.shareId === "string" && record.shareId.length > 0
         ? record.shareId

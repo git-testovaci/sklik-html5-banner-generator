@@ -32,7 +32,7 @@ export function EmptyProjectsState({ onCreateClick }: EmptyProjectsStateProps) {
         onClick={onCreateClick}
         className="mt-6 inline-flex items-center rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-violet-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500"
       >
-        Create first banner
+        Vytvořit první banner
       </button>
     </div>
   );

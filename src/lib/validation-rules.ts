@@ -78,53 +78,55 @@ export function getValidationSummary(
   const rows: ValidationRow[] = [
     {
       id: "banner-size",
-      label: "Banner size",
-      value: isAllowedSize ? sizeLabel : `${sizeLabel} (non-standard)`,
+      label: "Velikost banneru",
+      value: isAllowedSize ? sizeLabel : `${sizeLabel} (nestandardní)`,
       status: isAllowedSize ? "pass" : "warn",
     },
     {
       id: "headline-length",
-      label: "Headline length",
-      value: `${state.headline.length} characters`,
+      label: "Délka nadpisu",
+      value: `${state.headline.length} znaků`,
       status: textLengthStatus(state.headline.length, 40, 60),
     },
     {
       id: "subheadline-length",
-      label: "Subheadline length",
-      value: `${state.subheadline.length} characters`,
+      label: "Délka podnadpisu",
+      value: `${state.subheadline.length} znaků`,
       status: textLengthStatus(state.subheadline.length, 60, 90),
     },
     {
       id: "cta-length",
-      label: "CTA length",
-      value: `${state.cta.length} characters`,
+      label: "Délka CTA",
+      value: `${state.cta.length} znaků`,
       status: textLengthStatus(state.cta.length, 18, 28),
     },
     {
       id: "text-contrast",
-      label: "Text contrast",
+      label: "Kontrast textu",
       value:
         textContrast === null
-          ? "Could not evaluate colors"
-          : `Ratio ${textContrast.toFixed(1)}:1`,
+          ? "Barvy nelze vyhodnotit"
+          : `Poměr ${textContrast.toFixed(1)}:1`,
       status: contrastStatus(textContrast),
     },
     {
       id: "cta-contrast",
-      label: "CTA contrast",
+      label: "Kontrast CTA",
       value:
         ctaContrast === null
-          ? "Could not evaluate colors"
-          : `Ratio ${ctaContrast.toFixed(1)}:1`,
+          ? "Barvy nelze vyhodnotit"
+          : `Poměr ${ctaContrast.toFixed(1)}:1`,
       status: contrastStatus(ctaContrast),
     },
     {
       id: "storyboard-duration",
-      label: "Storyboard duration",
+      label: "Délka storyboardu",
       value: (() => {
         const scenes = state.scenes ?? [];
         const total = scenes.reduce((s, sc) => s + sc.durationMs, 0);
-        return scenes.length > 0 ? `${scenes.length} scenes · ${total}ms` : "Single scene";
+        return scenes.length > 0
+          ? `${scenes.length} scén · ${(total / 1000).toFixed(1)} s`
+          : "Jedna scéna";
       })(),
       status: (() => {
         const total = (state.scenes ?? []).reduce((s, sc) => s + sc.durationMs, 0);
@@ -134,12 +136,12 @@ export function getValidationSummary(
     },
     {
       id: "particles",
-      label: "Particle layers",
+      label: "Vrstvy částic",
       value: (() => {
         const count = (state.bannerLayers ?? []).filter((l) => l.type === "particle").length;
         const particles = (state.bannerLayers ?? []).filter((l) => l.type === "particle");
         const maxCount = particles.reduce((m, l) => Math.max(m, l.particleCount ?? 0), 0);
-        return count > 0 ? `${count} layer(s), max ${maxCount} particles` : "None";
+        return count > 0 ? `${count} vrstev, max ${maxCount} částic` : "Žádné";
       })(),
       status: (() => {
         const particles = (state.bannerLayers ?? []).filter((l) => l.type === "particle");
@@ -149,47 +151,47 @@ export function getValidationSummary(
     },
     {
       id: "scene-count",
-      label: "Scene count",
-      value: `${(state.scenes ?? []).length || 1} scene(s)`,
+      label: "Počet scén",
+      value: `${(state.scenes ?? []).length || 1} scén`,
       status: (state.scenes ?? []).length > 5 ? "warn" : "pass",
     },
     {
       id: "local-preview",
-      label: "Local asset preview",
+      label: "Lokální náhled assetů",
       value:
         (state.assets ?? []).length > 0
-          ? "Uploaded images are browser-local — public preview may differ"
-          : "No uploaded assets",
+          ? "Obrázky jsou jen v tomto prohlížeči — veřejný náhled může lišit"
+          : "Bez nahraných assetů",
       status: (state.assets ?? []).length > 0 ? "info" : "pass",
     },
     {
       id: "external-sources",
-      label: "External sources",
-      value: "None in preview",
+      label: "Externí zdroje",
+      value: "V náhledu žádné",
       status: "pass",
     },
     {
       id: "forbidden-js",
-      label: "Forbidden JS",
-      value: "Not generated yet",
+      label: "Zakázaný JS",
+      value: "Zatím negenerováno",
       status: "pass",
     },
     {
       id: "zip-size",
-      label: "ZIP size",
-      value: "Use Generate Sklik ZIP below",
+      label: "Velikost ZIP",
+      value: "Vygenerujte Sklik ZIP níže",
       status: "info",
     },
     {
       id: "file-count",
-      label: "File count",
-      value: "Use Generate Sklik ZIP below",
+      label: "Počet souborů",
+      value: "Vygenerujte Sklik ZIP níže",
       status: "info",
     },
     {
       id: "html-file",
-      label: "HTML file",
-      value: "Use Generate Sklik ZIP below",
+      label: "HTML soubor",
+      value: "Vygenerujte Sklik ZIP níže",
       status: "info",
     },
   ];

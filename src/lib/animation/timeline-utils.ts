@@ -344,7 +344,7 @@ export function normalizeEditorState(
     accentColor: partial.accentColor ?? "#a78bfa",
     animation: partial.animation ?? "fade-in",
     logoLabel: partial.logoLabel ?? "Logo",
-    productImageLabel: partial.productImageLabel ?? "Product",
+    productImageLabel: partial.productImageLabel ?? "Produkt",
     shareId: partial.shareId ?? "",
     assets: partial.assets ?? [],
     assetPlacements: partial.assetPlacements ?? defaults.assetPlacements,

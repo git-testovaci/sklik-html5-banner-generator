@@ -27,6 +27,7 @@ interface KeyframeTimelineProps {
   onSelectEffect: (effectId: string | null) => void;
   forceExpandAdvanced?: boolean;
   onExpanded?: () => void;
+  onSelectTransition?: (sceneId: string) => void;
 }
 
 const STORY_PREVIEW_LIMIT = 6;
@@ -38,6 +39,7 @@ export function KeyframeTimeline({
   onSelectEffect,
   forceExpandAdvanced = false,
   onExpanded,
+  onSelectTransition,
 }: KeyframeTimelineProps) {
   const scene = getActiveScene(state);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -132,9 +134,15 @@ export function KeyframeTimeline({
                   </button>
                 </li>
               ))}
-              <li className="rounded px-2 py-1 text-[11px] text-zinc-500">
-                {(transitionAt / 1000).toFixed(1)} s — Přechod:{" "}
-                {transitionFriendlyLabel(scene.transitionOut)}
+              <li>
+                <button
+                  type="button"
+                  onClick={() => onSelectTransition?.(scene.id)}
+                  className="w-full rounded px-2 py-1 text-left text-[11px] text-zinc-500 hover:bg-zinc-800/40 hover:text-zinc-300"
+                >
+                  {(transitionAt / 1000).toFixed(1)} s — Přechod:{" "}
+                  {transitionFriendlyLabel(scene.transitionOut)}
+                </button>
               </li>
             </ul>
             {sortedStory.length > STORY_PREVIEW_LIMIT && !showAllStory ? (

@@ -21,7 +21,7 @@ function formatUpdatedDate(isoDate: string): string {
       minute: "2-digit",
     }).format(new Date(isoDate));
   } catch {
-    return "Unknown date";
+    return "Neznámé datum";
   }
 }
 
@@ -34,7 +34,7 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
 
   function handleDelete() {
     const confirmed = window.confirm(
-      `Delete "${project.name}"? This action cannot be undone.`,
+      `Smazat „${project.name}"? Tuto akci nelze vrátit.`,
     );
     if (confirmed) {
       onDelete(project.id);
@@ -51,7 +51,7 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
             </h2>
             {isFromImport ? (
               <span className="shrink-0 rounded-full bg-sky-950/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-sky-300 ring-1 ring-sky-800/50">
-                From import
+                Z importu
               </span>
             ) : null}
           </div>
@@ -68,18 +68,18 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
       </p>
 
       <div className="mb-5 space-y-1 text-xs text-zinc-600">
-        <p>Updated {formatUpdatedDate(project.updatedAt)}</p>
+        <p>Upraveno {formatUpdatedDate(project.updatedAt)}</p>
         {sceneCount > 1 ? (
-          <p className="text-sky-400/90">{sceneCount} scenes · storyboard</p>
+          <p className="text-sky-400/90">{sceneCount} scén · storyboard</p>
         ) : null}
         <p className="text-zinc-500">
           {canPreview ? (
-            <>Public preview link available</>
+            <>Veřejný náhled k dispozici</>
           ) : (
-            <>No public preview — share or export to enable</>
+            <>Bez veřejného náhledu — sdílejte nebo exportujte</>
           )}
         </p>
-        <p className="text-zinc-600">Stored locally in this browser</p>
+        <p className="text-zinc-600">Uloženo lokálně v tomto prohlížeči</p>
       </div>
 
       <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-zinc-800/60 pt-4">
@@ -87,7 +87,7 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
           href={`/editor/${project.id}`}
           className="inline-flex items-center rounded-lg bg-violet-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-violet-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500"
         >
-          Open editor
+          Otevřít editor
         </Link>
 
         {canPreview ? (
@@ -95,25 +95,25 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
             href={`/preview/${project.shareId}`}
             className="inline-flex items-center rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500"
           >
-            Preview
+            Náhled
           </Link>
         ) : (
           <span
             className="inline-flex cursor-not-allowed items-center rounded-lg border border-zinc-800 px-3.5 py-2 text-sm font-medium text-zinc-600"
             aria-disabled="true"
-            title="Set status to shared or exported in the editor to enable public preview"
+            title="Nastavte stav Sdíleno nebo Exportováno v editoru pro veřejný náhled"
           >
-            Preview (draft)
+            Náhled (koncept)
           </span>
         )}
 
         <button
           type="button"
           onClick={handleDelete}
-          aria-label={`Delete project ${project.name}`}
+          aria-label={`Smazat projekt ${project.name}`}
           className="ml-auto inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-red-400/90 transition-colors hover:bg-red-950/30 hover:text-red-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
         >
-          Delete
+          Smazat
         </button>
       </div>
     </article>

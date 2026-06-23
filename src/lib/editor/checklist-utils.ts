@@ -57,6 +57,16 @@ export function logoChecklistStatus(state: BannerEditorState): "done" | "warn" |
   return hasFilledSlot(state, "logo") ? "done" : "warn";
 }
 
+export function findFirstTransitionSceneNeedingAttention(
+  state: BannerEditorState,
+): string | undefined {
+  const scenes = state.scenes ?? [];
+  if (scenes.length === 0) return undefined;
+  if (scenes.length === 1) return scenes[0]?.id;
+  const noneScene = scenes.find((s) => s.transitionOut === "none");
+  return noneScene?.id ?? scenes[0]?.id;
+}
+
 export function productChecklistStatus(state: BannerEditorState): "done" | "warn" | "missing" {
   const slots = getTemplateSlotLayers(state).filter(
     (s) => s.slotKind === "product" || s.slotKind === "image",

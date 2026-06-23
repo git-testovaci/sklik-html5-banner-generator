@@ -52,7 +52,7 @@ export function createBannerProject(
 
   return {
     id: `proj-${Date.now()}-${suffix}`,
-    name: input.name.trim() || "Untitled banner",
+    name: input.name.trim() || "Nepojmenovaný banner",
     status: "draft",
     width: input.width,
     height: input.height,
@@ -62,7 +62,7 @@ export function createBannerProject(
     ...DEFAULT_PROJECT_COLORS,
     animation: input.animation ?? "fade-in",
     logoLabel: "Logo",
-    productImageLabel: "Product",
+    productImageLabel: "Produkt",
     shareId: generateShareId(),
     createdAt: now,
     updatedAt: now,

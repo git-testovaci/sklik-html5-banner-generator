@@ -52,6 +52,7 @@ export function SceneTransitionChip({
 
   const durSec = (getSceneTransitionDurationMs(scene) / 1000).toFixed(1);
   const label = transitionFriendlyLabel(scene.transitionOut);
+  const isNone = scene.transitionOut === "none";
 
   return (
     <div className="flex shrink-0 flex-col items-center px-0.5">
@@ -64,7 +65,9 @@ export function SceneTransitionChip({
         className={`rounded-full border px-2.5 py-1 text-[9px] font-medium leading-tight transition-colors ${
           active
             ? "border-violet-500 bg-violet-950/50 text-violet-200 ring-1 ring-violet-500/40"
-            : "border-zinc-600 bg-zinc-900/90 text-zinc-300 hover:border-violet-700/60"
+            : isNone
+              ? "border-dashed border-zinc-700 bg-zinc-950/80 text-zinc-500 hover:border-zinc-600"
+              : "border-zinc-600 bg-zinc-900/90 text-zinc-300 hover:border-violet-700/60"
         }`}
         title={`${label} · ${durSec} s`}
         aria-label={`Přechod: ${label}`}

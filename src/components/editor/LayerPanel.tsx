@@ -20,9 +20,9 @@ interface LayerPanelProps {
 }
 
 const TEXT_LAYERS: { id: TextLayerPlacement["layerId"]; label: string }[] = [
-  { id: "headline", label: "Headline" },
-  { id: "subheadline", label: "Subheadline" },
-  { id: "cta", label: "CTA" },
+  { id: "headline", label: "Nadpis" },
+  { id: "subheadline", label: "Podnadpis" },
+  { id: "cta", label: "Výzva k akci" },
 ];
 
 function clampText(p: TextLayerPlacement, w: number, h: number): TextLayerPlacement {
@@ -155,7 +155,7 @@ export function LayerPanel({
         );})}
         {(state.assetPlacements ?? []).length > 0 ? (
           <>
-            <p className="mt-2 px-2 py-1 text-[10px] uppercase tracking-wide text-zinc-600">Images</p>
+            <p className="mt-2 px-2 py-1 text-[10px] uppercase tracking-wide text-zinc-600">Obrázky</p>
             {(state.assetPlacements ?? []).map((p) => {
           const asset = (state.assets ?? []).find((a) => a.id === p.assetId);
           const layerId = p.kind === "decoration" ? `decoration-${p.assetId}` : p.kind;
@@ -176,7 +176,7 @@ export function LayerPanel({
               }`}
             >
               {asset?.kind ?? p.kind} {sbLayer?.persistent ? "📌" : ""}{" "}
-              {!p.visible ? "(hidden)" : ""} · z{p.zIndex}
+              {!p.visible ? "(skryté)" : ""} · vrstva {p.zIndex}
               {animOn ? " · anim" : ""}
             </button>
           );
@@ -212,11 +212,11 @@ export function LayerPanel({
                 }
                 className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800"
               >
-                {a === "fwd" ? "↑" : a === "backwd" ? "↓" : a === "front" ? "Front" : "Back"}
+                {a === "fwd" ? "↑" : a === "backwd" ? "↓" : a === "front" ? "Vpřed" : "Dozadu"}
               </button>
             ))}
-            <button type="button" onClick={() => centerSelected("h")} className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800">Center H</button>
-            <button type="button" onClick={() => centerSelected("v")} className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800">Center V</button>
+            <button type="button" onClick={() => centerSelected("h")} className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800">Na střed ↔</button>
+            <button type="button" onClick={() => centerSelected("v")} className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800">Na střed ↕</button>
             <button type="button" onClick={resetSelected} className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800">Reset</button>
           </div>
         )}
@@ -256,13 +256,13 @@ export function LayerPanel({
             onChange={(patch) => updateAssetPlacement(selectedAsset.assetId, patch)}
           />
         ) : (
-          <p className="text-xs text-zinc-500">Select a layer to edit placement.</p>
+          <p className="text-xs text-zinc-500">Vyberte vrstvu pro úpravu pozice.</p>
         )}
         {(state.bannerLayers ?? []).length > 0 &&
         (state.assetPlacements ?? []).length === 0 &&
         !(state.textPlacements ?? []).some((p) => p.visible) ? (
           <p className="text-[10px] text-zinc-600">
-            Open Templates tab to apply a storyboard template, or upload images in the Assets tab.
+            Otevřete záložku Šablony pro storyboard, nebo nahrajte obrázky v Assety.
           </p>
         ) : null}
       </div>

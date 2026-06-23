@@ -449,7 +449,7 @@ export const STORYBOARD_TEMPLATES: StoryboardTemplateDefinition[] = [
   {
     id: "finance-trust",
     name: "Finance a důvěra",
-    description: "Důvěryhodný headline, čísla a CTA.",
+    description: "Důvěryhodný nadpis, čísla a CTA.",
     category: "trust",
     sceneCount: 3,
     keyEffects: ["Prolnutí", "Zvětšení textu", "Odznak"],
@@ -540,7 +540,7 @@ function buildCleanAirProduct(state: BannerEditorState): BannerEditorState {
             textLayer(
               "s1-sub",
               sceneId,
-              "Supporting",
+              "Podnadpis",
               "Filtr zachytí prach, pyl i jemné částice.",
               pad,
               pad + Math.round(height * 0.15),
@@ -610,7 +610,7 @@ function buildCleanAirProduct(state: BannerEditorState): BannerEditorState {
             textLayer(
               "s2-sub",
               sceneId,
-              "Supporting",
+              "Podnadpis",
               "Tichý provoz a výkon pro každý den.",
               pad,
               pad + Math.round(height * 0.16),
@@ -988,10 +988,10 @@ export const STORYBOARD_TEMPLATE_CATEGORIES: {
   id: StoryboardTemplateDefinition["category"];
   label: string;
 }[] = [
-  { id: "product", label: "Product" },
-  { id: "sale", label: "Sale" },
-  { id: "trust", label: "Trust" },
-  { id: "travel", label: "Travel" },
+  { id: "product", label: "Produkt" },
+  { id: "sale", label: "Sleva" },
+  { id: "trust", label: "Důvěra" },
+  { id: "travel", label: "Cestování" },
   { id: "saas", label: "SaaS" },
-  { id: "local", label: "Local service" },
+  { id: "local", label: "Místní služby" },
 ];

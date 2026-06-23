@@ -43,16 +43,24 @@ const STATUS_STYLES: Record<
 };
 
 const OVERALL_LABELS = {
-  pass: { text: "Ready for export prep", className: "text-emerald-400" },
-  warn: { text: "Review warnings before export", className: "text-amber-400" },
-  fail: { text: "Fix issues before export", className: "text-red-400" },
+  pass: { text: "Připraveno k exportu", className: "text-emerald-400" },
+  warn: { text: "Zkontrolujte upozornění před exportem", className: "text-amber-400" },
+  fail: { text: "Opravte chyby před exportem", className: "text-red-400" },
 } as const;
 
 const EXPORT_SUMMARY_LABELS = {
-  pass: { text: "PASS", className: "text-emerald-400" },
-  warn: { text: "WARN", className: "text-amber-400" },
-  fail: { text: "FAIL", className: "text-red-400" },
+  pass: { text: "OK", className: "text-emerald-400" },
+  warn: { text: "VAROVÁNÍ", className: "text-amber-400" },
+  fail: { text: "CHYBA", className: "text-red-400" },
 } as const;
+
+const STATUS_LABELS: Record<ValidationRowStatus, string> = {
+  pass: "OK",
+  warn: "VAR",
+  fail: "CHYBA",
+  info: "INFO",
+  pending: "…",
+};
 
 function ExportRowItem({ row }: { row: ExportValidationRow }) {
   const style = STATUS_STYLES[row.status];
@@ -65,7 +73,7 @@ function ExportRowItem({ row }: { row: ExportValidationRow }) {
       <span
         className={`inline-flex h-6 shrink-0 items-center rounded-full px-2 text-xs font-medium ring-1 ring-inset ${style.badge}`}
       >
-        {style.icon} {row.status.toUpperCase()}
+        {style.icon} {STATUS_LABELS[row.status]}
       </span>
     </li>
   );
@@ -133,20 +141,20 @@ export function ValidationExportPanel({
       if (missingAsset) {
         setExportError(
           result.validationReport.rows.find((r) => r.id.startsWith("missing-asset"))
-            ?.message ?? "Export blocked — fix missing asset blobs first.",
+            ?.message ?? "Export blokován — nejdříve opravte chybějící assety.",
         );
       } else if (result.validationReport.summaryStatus !== "fail") {
         const downloaded = downloadBlob(result.zipBlob, result.fileName);
         setDownloadStarted(downloaded);
         if (!downloaded) {
-          setExportError("ZIP generated but download could not start.");
+          setExportError("ZIP vygenerován, ale stahování se nespustilo.");
         }
       } else {
-        setExportError("Export validation failed. Review the checks above.");
+        setExportError("Validace exportu selhala. Zkontrolujte položky výše.");
       }
     } catch {
       if (!mountedRef.current) return;
-      setExportError("ZIP generation failed. Try again.");
+      setExportError("Generování ZIP selhalo. Zkuste to znovu.");
       setExportResult(null);
     } finally {
       if (mountedRef.current) {
@@ -160,7 +168,7 @@ export function ValidationExportPanel({
     const downloaded = downloadBlob(exportResult.zipBlob, exportResult.fileName);
     setDownloadStarted(downloaded);
     if (!downloaded) {
-      setExportError("Download could not start.");
+      setExportError("Stahování se nepodařilo spustit.");
     }
   }
 
@@ -171,17 +179,17 @@ export function ValidationExportPanel({
     >
       <div className="border-b border-zinc-800/60 px-4 py-3">
         <h2 id="validation-heading" className="text-sm font-medium text-zinc-300">
-          Validation &amp; export
+          Validace a export
         </h2>
         <p className="mt-1 text-xs text-zinc-500">
-          Generate a Sklik-ready ZIP for manual upload. PASS = ready, WARN = review, FAIL = blocked.
+          Vygenerujte Sklik ZIP pro ruční nahrání. OK = připraveno, VAR = zkontrolovat, CHYBA = blokováno.
         </p>
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         <div>
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
-            Editor checks
+            Kontrola v editoru
           </p>
           <ul className="space-y-2" aria-label="Editor validation checks">
             {validation.rows.map((row) => {
@@ -198,7 +206,7 @@ export function ValidationExportPanel({
                   <span
                     className={`inline-flex h-6 shrink-0 items-center rounded-full px-2 text-xs font-medium ring-1 ring-inset ${style.badge}`}
                   >
-                    {style.icon} {row.status.toUpperCase()}
+                    {style.icon} {STATUS_LABELS[row.status]}
                   </span>
                 </li>
               );
@@ -206,7 +214,7 @@ export function ValidationExportPanel({
           </ul>
           <div className="mt-3 rounded-lg border border-zinc-800/60 bg-zinc-950/40 px-3 py-3">
             <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-              Export readiness
+              Připravenost exportu
             </p>
             <p className={`mt-1 text-sm font-semibold ${overall.className}`}>
               {overall.text}
@@ -217,7 +225,7 @@ export function ValidationExportPanel({
         {exportResult ? (
           <div>
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
-              Export validation
+              Validace exportu
             </p>
             <ul className="max-h-48 space-y-2 overflow-y-auto" aria-label="Export validation checks">
               {exportResult.validationReport.rows.map((row) => (
@@ -229,7 +237,7 @@ export function ValidationExportPanel({
               <div className="mt-3 space-y-2 rounded-lg border border-zinc-800/60 bg-zinc-950/40 px-3 py-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                    Export result
+                    Výsledek exportu
                   </p>
                   <span className={`text-sm font-bold ${exportSummary.className}`}>
                     {exportSummary.text}
@@ -239,12 +247,12 @@ export function ValidationExportPanel({
                 {exportPassed ? (
                   <p className="text-xs text-zinc-400">
                     {downloadStarted
-                      ? "ZIP downloaded. If it did not start, use Download again."
-                      : "ZIP ready. Use Download again if the file did not save."}
+                      ? "ZIP stažen. Pokud se nestáhl, použijte Stáhnout znovu."
+                      : "ZIP připraven. Použijte Stáhnout znovu, pokud se soubor neuložil."}
                   </p>
                 ) : (
                   <p className="text-xs text-red-400" role="alert">
-                    ZIP was not downloaded because export validation failed.
+                    ZIP nebyl stažen — validace exportu selhala.
                   </p>
                 )}
 
@@ -253,7 +261,7 @@ export function ValidationExportPanel({
                 </p>
                 <p className="text-xs text-zinc-500">
                   {formatFileSize(exportResult.zipSize)} · {exportResult.fileCount}{" "}
-                  {exportResult.fileCount === 1 ? "file" : "files"}
+                  {exportResult.fileCount === 1 ? "soubor" : "souborů"}
                 </p>
 
                 {exportResult.generatedFiles.length > 0 ? (
@@ -275,7 +283,7 @@ export function ValidationExportPanel({
       <div className="space-y-2 border-t border-zinc-800/60 p-4">
         {hasUnsavedChanges ? (
           <p className="text-xs text-amber-400/90">
-            ZIP export uses current visible values. Save to keep changes.
+            Export používá aktuální hodnoty na plátně. Uložte projekt pro trvalé změny.
           </p>
         ) : null}
 
@@ -285,7 +293,7 @@ export function ValidationExportPanel({
           disabled={exporting}
           className="w-full rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {exporting ? "Generating ZIP…" : "Export Sklik ZIP"}
+          {exporting ? "Generuji ZIP…" : "Exportovat Sklik ZIP"}
         </button>
 
         {exportResult && exportPassed ? (
@@ -294,7 +302,7 @@ export function ValidationExportPanel({
             onClick={handleDownloadAgain}
             className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-4 py-2.5 text-sm font-medium text-zinc-300 hover:bg-zinc-800"
           >
-            Download ZIP again
+            Stáhnout ZIP znovu
           </button>
         ) : null}
 
@@ -310,7 +318,7 @@ export function ValidationExportPanel({
           aria-label="Copy preview link"
           className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-4 py-2.5 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800"
         >
-          {copied ? "Link copied" : "Copy preview link"}
+          {copied ? "Odkaz zkopírován" : "Kopírovat odkaz na náhled"}
         </button>
 
         <Link
@@ -319,7 +327,7 @@ export function ValidationExportPanel({
           rel="noopener noreferrer"
           className="flex w-full items-center justify-center rounded-lg border border-zinc-700 px-4 py-2.5 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800"
         >
-          Open public preview
+          Otevřít veřejný náhled
         </Link>
       </div>
     </aside>

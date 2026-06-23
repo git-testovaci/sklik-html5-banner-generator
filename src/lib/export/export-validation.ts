@@ -94,16 +94,16 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
 
   if (assetErrors.length > 0) {
     for (const err of assetErrors) {
-      rows.push(row("missing-asset", "Missing asset blob", "fail", err));
+      rows.push(row("missing-asset", "Chybějící asset", "fail", err));
     }
   }
 
   rows.push(
     row(
       "html-count",
-      "HTML file count",
+      "Počet HTML souborů",
       "pass",
-      "Exactly 1 HTML file (index.html)",
+      "Přesně 1 HTML soubor (index.html)",
     ),
   );
 
@@ -112,35 +112,35 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
     zipSize > MAX_ZIP_SIZE ? "fail" : zipSize > 200_000 ? "warn" : zipSize === 0 && assetErrors.length ? "fail" : "pass";
   const zipSizeMessage =
     assetErrors.length && zipSize === 0
-      ? "Export blocked — fix asset errors"
+      ? "Export blokován — opravte chyby assetů"
       : zipSize > MAX_ZIP_SIZE
-        ? `${zipSizeKb} kB — exceeds 250 kB Sklik limit`
+        ? `${zipSizeKb} kB — překračuje limit Sklik 250 kB. Zkomprimujte obrázky, použijte WebP, snižte částice.`
         : zipSize > 200_000
-          ? `${zipSizeKb} kB — approaching 250 kB limit`
+          ? `${zipSizeKb} kB — blíží se limitu 250 kB. Zvažte kompresi obrázků.`
           : `${zipSizeKb} kB (limit 250 kB)`;
 
-  rows.push(row("zip-size", "ZIP size", zipSizeStatus, zipSizeMessage));
+  rows.push(row("zip-size", "Velikost ZIP", zipSizeStatus, zipSizeMessage));
 
   rows.push(
     row(
       "file-count",
-      "File count",
+      "Počet souborů",
       fileCount <= MAX_FILES ? "pass" : "fail",
       `${fileCount} / ${MAX_FILES}`,
     ),
   );
 
-  rows.push(row("nested-zip", "Nested ZIP", "pass", "None"));
+  rows.push(row("nested-zip", "Vnořený ZIP", "pass", "Žádný"));
 
-  rows.push(row("video", "Video files", "pass", "None"));
+  rows.push(row("video", "Video soubory", "pass", "Žádné"));
 
   const assetCount = (state.assets ?? []).length;
   rows.push(
     row(
       "asset-count",
-      "Asset count",
+      "Počet assetů",
       assetCount <= 20 ? "pass" : "warn",
-      `${assetCount} metadata entries`,
+      `${assetCount} záznamů v metadatech`,
     ),
   );
 
@@ -148,13 +148,13 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
   rows.push(
     row(
       "assets-folder",
-      "Assets folder",
+      "Složka assets",
       indexHtml.includes('src="assets/') || visibleAssets.length === 0
         ? "pass"
         : "warn",
       visibleAssets.length
-        ? "Local assets/ references expected"
-        : "No visible image assets",
+        ? "Očekávány lokální reference assets/"
+        : "Bez viditelných obrázků",
     ),
   );
 
@@ -356,11 +356,11 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
     rows,
     summaryStatus,
     recommendations: [
-      "Keep the exported ZIP under 250 kB for Sklik single-banner upload.",
-      "Compress large images and prefer WebP when possible.",
-      "Reduce asset count if ZIP size is high.",
-      "Verify final banner size in Sklik after upload.",
-      "Click URL is configured in Sklik ad settings, not inside the banner HTML.",
+      "Udržujte exportovaný ZIP pod 250 kB pro nahrání do Skliku.",
+      "Zkomprimujte velké obrázky a preferujte WebP.",
+      "Snižte počet assetů nebo částic, pokud je ZIP příliš velký.",
+      "Po nahrání ověřte finální velikost banneru ve Skliku.",
+      "Klik URL se nastavuje ve Skliku u reklamy, ne uvnitř HTML banneru.",
     ],
   };
 }

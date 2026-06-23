@@ -35,7 +35,7 @@ export function EditorTopBar({
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
             </svg>
-            Back to dashboard
+            Zpět na přehled
           </Link>
           <span className="hidden text-zinc-700 sm:inline" aria-hidden="true">|</span>
           <h1 className="truncate text-base font-semibold text-zinc-100 sm:text-lg">
@@ -47,9 +47,9 @@ export function EditorTopBar({
         <div className="flex flex-wrap items-center gap-3">
           <p className="font-mono text-sm text-zinc-500">{sizeLabel}</p>
           {hasUnsavedChanges ? (
-            <span className="text-xs font-medium text-amber-400">Unsaved changes</span>
+            <span className="text-xs font-medium text-amber-400">Neuložené změny</span>
           ) : saveStatus === "saved" ? (
-            <span className="text-xs font-medium text-emerald-400">Saved locally</span>
+            <span className="text-xs font-medium text-emerald-400">Uloženo lokálně</span>
           ) : null}
           {saveError ? (
             <span className="text-xs font-medium text-red-400" role="alert">{saveError}</span>
@@ -61,21 +61,21 @@ export function EditorTopBar({
             className="hidden text-xs text-zinc-500 underline-offset-2 hover:text-zinc-300 hover:underline sm:inline"
             title={getPreviewUrl(state.shareId)}
           >
-            Public preview
+            Veřejný náhled
           </Link>
           <button
             type="button"
             onClick={onSave}
             disabled={!hasUnsavedChanges}
-            aria-label={hasUnsavedChanges ? "Save project changes" : "No changes to save"}
+            aria-label={hasUnsavedChanges ? "Uložit změny projektu" : "Žádné změny k uložení"}
             className="inline-flex items-center rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-violet-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Save
+            Uložit
           </button>
         </div>
       </div>
       <p className="border-t border-zinc-800/40 px-4 py-2 text-xs text-zinc-600 sm:px-6">
-        Saved locally in this browser. Images use IndexedDB — public preview with images works best on the same device until cloud sync is added.
+        Projekt je uložen lokálně v tomto prohlížeči. Obrázky v IndexedDB — veřejný náhled s obrázky funguje nejlépe na stejném zařízení.
       </p>
     </header>
   );
