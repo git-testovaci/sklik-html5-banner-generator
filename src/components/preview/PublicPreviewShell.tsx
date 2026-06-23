@@ -73,8 +73,8 @@ function PreviewContent({ state }: PreviewContentProps) {
       if (cancelled) return;
       const missing = warnings.find((w) => w.id.startsWith("missing-"));
       const note = missing
-        ? "Some images are missing in this browser. Public preview works best on the device where assets were uploaded."
-        : "Images are stored locally in IndexedDB. Other browsers or devices may not show uploaded images.";
+        ? "Některé obrázky chybí v tomto prohlížeči. Veřejný náhled funguje nejlépe na stejném zařízení, kde jste je nahráli."
+        : "Obrázky jsou uložené lokálně v prohlížeči. Na jiném zařízení se nemusí zobrazit.";
       setAssetNoteCache((prev) => ({ ...prev, [assetNoteKey]: note }));
     });
     return () => {
@@ -146,8 +146,8 @@ function PreviewContent({ state }: PreviewContentProps) {
 
       <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-6 sm:px-6 sm:py-8">
         <p className="mb-3 text-center text-sm text-zinc-500">
-          Preview only. Editing is disabled.
-          {hasStoryboard ? ` · ${state.scenes!.length} scenes` : ""}
+          Náhled pouze ke čtení — úpravy v editoru nejsou k dispozici.
+          {hasStoryboard ? ` · ${state.scenes!.length} scén` : ""}
         </p>
         {assetNote ? (
           <p className="mb-4 rounded-lg border border-amber-900/40 bg-amber-950/20 px-3 py-2 text-center text-xs text-amber-200">

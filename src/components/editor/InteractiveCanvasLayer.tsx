@@ -117,7 +117,7 @@ export function InteractiveCanvasLayer({
 
   return (
     <div
-      className={`absolute ${interactive ? "touch-none" : ""}`}
+      className={`absolute ${interactive ? "touch-none select-none" : ""}`}
       style={{
         left: placement.x,
         top: placement.y,

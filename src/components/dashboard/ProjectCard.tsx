@@ -30,6 +30,7 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
     project.status !== "draft" && project.shareId.length > 0;
   const sizeLabel = formatBannerSize(project.width, project.height);
   const isFromImport = isImportCreatedProjectId(project.id);
+  const sceneCount = project.scenes?.length ?? 0;
 
   function handleDelete() {
     const confirmed = window.confirm(
@@ -68,6 +69,9 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
 
       <div className="mb-5 space-y-1 text-xs text-zinc-600">
         <p>Updated {formatUpdatedDate(project.updatedAt)}</p>
+        {sceneCount > 1 ? (
+          <p className="text-sky-400/90">{sceneCount} scenes · storyboard</p>
+        ) : null}
         <p className="text-zinc-500">
           {canPreview ? (
             <>Public preview link available</>

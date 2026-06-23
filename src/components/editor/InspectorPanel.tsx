@@ -181,8 +181,8 @@ export function InspectorPanel({
   if (!layer) {
     const active = getActiveScene(state);
     if (active) {
-      return (
-        <EmptyInspector message="Select a layer on the canvas or timeline to inspect." />
+        return (
+        <EmptyInspector message="Select a layer on the canvas or timeline to edit its properties." />
       );
     }
     return <EmptyInspector message="No layer selected" />;
@@ -261,7 +261,7 @@ function ImageInspector({
           checked={layer.persistent}
           onChange={(e) => patch({ persistent: e.target.checked })}
         />
-        Persist across scenes
+        Persist across all scenes (persistent layer)
       </label>
     </>
   );
@@ -362,7 +362,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function EmptyInspector({ message }: { message: string }) {
   return (
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 px-4 py-8 text-center">
-      <p className="text-xs text-zinc-500">{message}</p>
+      <h2 className="text-sm font-medium text-zinc-400">Inspector</h2>
+      <p className="mt-2 text-xs leading-relaxed text-zinc-500">{message}</p>
+      <p className="mt-3 text-[10px] text-zinc-600">
+        Tip: click a layer on the canvas, a scene card, or an effect bar in the timeline.
+      </p>
     </section>
   );
 }

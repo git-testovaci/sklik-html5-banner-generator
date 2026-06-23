@@ -68,9 +68,11 @@ export function MotionPresetQuickActions({
   return (
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <div className="border-b border-zinc-800/60 px-4 py-3">
-        <h2 className="text-sm font-medium text-zinc-300">Quick motion</h2>
+        <h2 className="text-sm font-medium text-zinc-300">Quick motion presets</h2>
         <p className="text-[10px] text-zinc-500">
-          {layer ? `Target: ${layer.name}` : "Select a layer for layer effects"}
+          {layer
+            ? `Selected layer: ${layer.name}${layer.persistent ? " (persistent)" : ""}`
+            : "Select a layer first for layer effects, or use scene/product actions below."}
         </p>
       </div>
       <div className="flex flex-wrap gap-1.5 p-3">
@@ -82,6 +84,7 @@ export function MotionPresetQuickActions({
               key={id}
               type="button"
               disabled={disabled}
+              title={disabled ? "Select a layer on the canvas first" : undefined}
               onClick={() => handleQuick(id, preset, target)}
               className="rounded border border-zinc-700 px-2 py-1 text-[10px] text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -94,7 +97,7 @@ export function MotionPresetQuickActions({
           onClick={() => onUpdate(clearSceneEffects(state))}
           className="rounded border border-red-900/50 px-2 py-1 text-[10px] text-red-400 hover:bg-red-950/30"
         >
-          Clear animations
+          Clear scene animations
         </button>
       </div>
     </section>

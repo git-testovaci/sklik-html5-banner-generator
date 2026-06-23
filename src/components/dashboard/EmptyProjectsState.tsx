@@ -23,9 +23,9 @@ export function EmptyProjectsState({ onCreateClick }: EmptyProjectsStateProps) {
           />
         </svg>
       </div>
-      <h2 className="text-lg font-semibold text-zinc-200">No banners yet</h2>
+      <h2 className="text-lg font-semibold text-zinc-200">Zatím žádné bannery</h2>
       <p className="mt-2 max-w-sm text-sm leading-relaxed text-zinc-500">
-        Create your first HTML5 banner project and start building for Sklik.
+        Vytvořte první HTML5 banner pro Sklik, nebo resetujte ukázková data pro předpřipravený Ionic Care storyboard.
       </p>
       <button
         type="button"

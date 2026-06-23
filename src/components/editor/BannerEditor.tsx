@@ -286,7 +286,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             onClick={() => setShowExport((v) => !v)}
             className="rounded-lg border border-zinc-700 px-3 py-2 text-xs text-zinc-400 hover:bg-zinc-800/50"
           >
-            {showExport ? "Hide" : "Show"} validation & export
+            {showExport ? "Hide export panel" : "Show export & validation"}
           </button>
           {showExport && (
             <>

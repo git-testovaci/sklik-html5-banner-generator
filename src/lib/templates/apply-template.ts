@@ -55,7 +55,7 @@ export function applyIonicCareSequence(state: BannerEditorState): BannerEditorSt
   const logoLayer: BannerLayer = {
     id: logoLayerId,
     persistent: true,
-    name: "Logo",
+    name: "Persistent logo",
     type: "image",
     visible: true,
     locked: false,
@@ -85,7 +85,7 @@ export function applyIonicCareSequence(state: BannerEditorState): BannerEditorSt
     return { scene, layers, effects };
   }
 
-  const s1 = makeScene("Intro", 3000, "swipe-left", (sceneId) => [
+  const s1 = makeScene("Úvod", 3000, "swipe-left", (sceneId) => [
     logoLayer,
     {
       id: "headline",
@@ -103,7 +103,7 @@ export function applyIonicCareSequence(state: BannerEditorState): BannerEditorSt
       rotation: 0,
       scale: 1,
       zIndex: 30,
-      text: state.headline || "Pure care for your skin",
+      text: state.headline || "Čistá péče pro vaši pleť",
       fontSize: Math.round(height * 0.07),
       fontWeight: 700,
       textAlign: "left",
@@ -113,7 +113,7 @@ export function applyIonicCareSequence(state: BannerEditorState): BannerEditorSt
       id: productAsset?.id ?? "product",
       sceneId,
       persistent: false,
-      name: "Product",
+      name: "Product image",
       type: "image",
       visible: true,
       locked: false,
@@ -134,7 +134,7 @@ export function applyIonicCareSequence(state: BannerEditorState): BannerEditorSt
       id: newId("underline"),
       sceneId,
       persistent: false,
-      name: "Underline",
+      name: "Underline effect",
       type: "underline",
       visible: true,
       locked: false,
@@ -175,7 +175,7 @@ export function applyIonicCareSequence(state: BannerEditorState): BannerEditorSt
     },
   ]);
 
-  const s2 = makeScene("Reveal", 3000, "swipe-left", (sceneId) => [
+  const s2 = makeScene("Odhalení", 3000, "swipe-left", (sceneId) => [
     logoLayer,
     {
       id: "headline-s2",
@@ -193,7 +193,7 @@ export function applyIonicCareSequence(state: BannerEditorState): BannerEditorSt
       rotation: 0,
       scale: 1,
       zIndex: 30,
-      text: state.subheadline || "Breathe clean air",
+      text: state.subheadline || "Dýchejte čistý vzduch",
       fontSize: Math.round(height * 0.065),
       fontWeight: 700,
       textAlign: "center",
@@ -203,7 +203,7 @@ export function applyIonicCareSequence(state: BannerEditorState): BannerEditorSt
       id: newId("product-s2"),
       sceneId,
       persistent: false,
-      name: "Lung image",
+      name: "Image placeholder",
       type: "image",
       visible: true,
       locked: false,
@@ -222,7 +222,7 @@ export function applyIonicCareSequence(state: BannerEditorState): BannerEditorSt
       id: newId("underline-s2"),
       sceneId,
       persistent: false,
-      name: "Underline",
+      name: "Underline effect",
       type: "underline",
       visible: true,
       locked: false,
@@ -242,7 +242,7 @@ export function applyIonicCareSequence(state: BannerEditorState): BannerEditorSt
       id: newId("particle-s2"),
       sceneId,
       persistent: false,
-      name: "Clean particles",
+      name: "Clean air particles",
       type: "particle",
       visible: true,
       locked: false,
@@ -262,7 +262,7 @@ export function applyIonicCareSequence(state: BannerEditorState): BannerEditorSt
     },
   ]);
 
-  const s3 = makeScene("Lineup", 3500, "fade", (sceneId) => [
+  const s3 = makeScene("Řada produktů", 3500, "fade", (sceneId) => [
     logoLayer,
     {
       id: "headline-s3",
@@ -280,7 +280,7 @@ export function applyIonicCareSequence(state: BannerEditorState): BannerEditorSt
       rotation: 0,
       scale: 1,
       zIndex: 30,
-      text: state.headline || "Complete care range",
+      text: state.headline || "Kompletní řada péče",
       fontSize: Math.round(height * 0.06),
       fontWeight: 700,
       textAlign: "center",
@@ -290,7 +290,7 @@ export function applyIonicCareSequence(state: BannerEditorState): BannerEditorSt
       id: newId(`lineup-${i}`),
       sceneId,
       persistent: false,
-      name: `Product ${i + 1}`,
+      name: `Product lineup ${i + 1}`,
       type: "image" as const,
       visible: true,
       locked: false,
@@ -328,7 +328,7 @@ export function applyIonicCareSequence(state: BannerEditorState): BannerEditorSt
       id: newId("circle-label"),
       sceneId,
       persistent: false,
-      name: "Circle label",
+      name: "Circle placeholder",
       type: "shape",
       visible: true,
       locked: false,
@@ -356,8 +356,8 @@ export function applyIonicCareSequence(state: BannerEditorState): BannerEditorSt
 
   let next = normalizeEditorState({
     ...state,
-    headline: state.headline || "Pure care for your skin",
-    subheadline: state.subheadline || "Breathe clean air",
+    headline: state.headline || "Čistá péče pro vaši pleť",
+    subheadline: state.subheadline || "Dýchejte čistý vzduch",
     scenes,
     bannerLayers: uniqueLayers,
     layerEffects: [],
@@ -373,7 +373,7 @@ export function applyIonicCareSequence(state: BannerEditorState): BannerEditorSt
   next = addLayerEffect(next, logoLayerId, "fade-in");
   const badge = uniqueLayers.find((l) => l.name === "Badge");
   if (badge) next = addLayerEffect(next, badge.id, "flip-180");
-  const circle = uniqueLayers.find((l) => l.name === "Circle label");
+  const circle = uniqueLayers.find((l) => l.name === "Circle placeholder");
   if (circle) next = addLayerEffect(next, circle.id, "zoom-rotate-badge");
 
   return syncFlatFromActiveScene(next);

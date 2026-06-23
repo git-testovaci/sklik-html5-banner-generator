@@ -2,10 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { BANNER_SIZES } from "@/lib/banner-sizes";
-import {
-  createBannerProject,
-  defaultNewProjectName,
-} from "@/lib/project-factory";
+import { createBannerProject, DEFAULT_BANNER_COPY, defaultNewProjectName } from "@/lib/project-factory";
 import { upsertProject } from "@/lib/project-storage";
 
 interface NewProjectDialogProps {
@@ -28,9 +25,9 @@ export function NewProjectDialog({
   const [sizeValue, setSizeValue] = useState(
     `${DEFAULT_SIZE.width}x${DEFAULT_SIZE.height}`,
   );
-  const [headline, setHeadline] = useState("Your headline here");
-  const [subheadline, setSubheadline] = useState("Supporting message");
-  const [cta, setCta] = useState("Learn more");
+  const [headline, setHeadline] = useState<string>(DEFAULT_BANNER_COPY.headline);
+  const [subheadline, setSubheadline] = useState<string>(DEFAULT_BANNER_COPY.subheadline);
+  const [cta, setCta] = useState<string>(DEFAULT_BANNER_COPY.cta);
 
   const trimmedName = name.trim();
   const nameError = nameTouched && trimmedName.length === 0;
@@ -54,9 +51,9 @@ export function NewProjectDialog({
     setName("");
     setNameTouched(false);
     setSizeValue(`${DEFAULT_SIZE.width}x${DEFAULT_SIZE.height}`);
-    setHeadline("Your headline here");
-    setSubheadline("Supporting message");
-    setCta("Learn more");
+    setHeadline(DEFAULT_BANNER_COPY.headline);
+    setSubheadline(DEFAULT_BANNER_COPY.subheadline);
+    setCta(DEFAULT_BANNER_COPY.cta);
   }
 
   function handleClose() {

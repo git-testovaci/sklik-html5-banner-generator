@@ -3,10 +3,19 @@ import {
   defaultLayerAnimations,
   defaultStudioPlacements,
   defaultTimeline,
+  editorStateToProject,
   layerAnimationsForImport,
+  projectToEditorState,
 } from "@/lib/animation/timeline-utils";
+import { applyIonicCareSequence } from "@/lib/templates/apply-template";
 import type { BannerAnimation } from "@/types/editor";
 import type { BannerProject } from "@/types/project";
+
+export const DEFAULT_BANNER_COPY = {
+  headline: "Váš nadpis zde",
+  subheadline: "Podnadpis nebo krátký popis",
+  cta: "Zjistit více",
+} as const;
 
 export const DEFAULT_PROJECT_COLORS = {
   backgroundColor: "#0f172a",
@@ -47,9 +56,9 @@ export function createBannerProject(
     status: "draft",
     width: input.width,
     height: input.height,
-    headline: input.headline.trim() || "Your headline here",
-    subheadline: input.subheadline.trim() || "Supporting message",
-    cta: input.cta.trim() || "Learn more",
+    headline: input.headline.trim() || DEFAULT_BANNER_COPY.headline,
+    subheadline: input.subheadline.trim() || DEFAULT_BANNER_COPY.subheadline,
+    cta: input.cta.trim() || DEFAULT_BANNER_COPY.cta,
     ...DEFAULT_PROJECT_COLORS,
     animation: input.animation ?? "fade-in",
     logoLabel: "Logo",
@@ -88,6 +97,42 @@ export function defaultNewProjectName(): string {
     year: "numeric",
   }).format(new Date());
   return `Banner ${formatted}`;
+}
+
+export function createIonicCareDemoProject(): BannerProject {
+  const now = new Date().toISOString();
+  const base = createBannerProject({
+    name: "Ionic Care — ukázkový storyboard",
+    width: 300,
+    height: 250,
+    headline: "Čistá péče pro vaši pleť",
+    subheadline: "Dýchejte čistý vzduch",
+    cta: "Zjistit více",
+    animation: "fade-in",
+  });
+
+  const seed: BannerProject = {
+    ...base,
+    id: "proj-001",
+    status: "shared",
+    shareId: "share-summer-sale-2026",
+    logoLabel: "Logo",
+    productImageLabel: "Produkt",
+    createdAt: "2026-06-01T10:00:00.000Z",
+    updatedAt: now,
+  };
+
+  const state = applyIonicCareSequence(projectToEditorState(seed));
+  return editorStateToProject(
+    {
+      ...state,
+      projectId: seed.id,
+      name: seed.name,
+      status: seed.status,
+      shareId: seed.shareId,
+    },
+    seed,
+  );
 }
 
 export { editorStateToProject, projectToEditorState } from "@/lib/animation/timeline-utils";

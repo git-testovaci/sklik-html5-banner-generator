@@ -12,13 +12,13 @@ export const DEFAULT_PROJECT_COLORS = {
 export const MOCK_PROJECTS: BannerProject[] = [
   {
     id: "proj-001",
-    name: "Summer Sale 2026",
-    status: "draft",
+    name: "Ionic Care — ukázkový storyboard",
+    status: "shared",
     width: 300,
     height: 250,
-    headline: "Letní výprodej až −50 %",
-    subheadline: "Jen do neděle na vybrané produkty",
-    cta: "Nakupovat",
+    headline: "Čistá péče pro vaši pleť",
+    subheadline: "Dýchejte čistý vzduch",
+    cta: "Zjistit více",
     shareId: "share-summer-sale-2026",
     createdAt: "2026-06-01T10:00:00.000Z",
     updatedAt: "2026-06-20T14:32:00.000Z",

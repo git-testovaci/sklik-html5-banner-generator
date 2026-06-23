@@ -171,8 +171,11 @@ export function ValidationExportPanel({
     >
       <div className="border-b border-zinc-800/60 px-4 py-3">
         <h2 id="validation-heading" className="text-sm font-medium text-zinc-300">
-          Validation & export
+          Validation &amp; export
         </h2>
+        <p className="mt-1 text-xs text-zinc-500">
+          Generate a Sklik-ready ZIP for manual upload. PASS = ready, WARN = review, FAIL = blocked.
+        </p>
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
@@ -282,7 +285,7 @@ export function ValidationExportPanel({
           disabled={exporting}
           className="w-full rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {exporting ? "Generating ZIP…" : "Generate Sklik ZIP"}
+          {exporting ? "Generating ZIP…" : "Export Sklik ZIP"}
         </button>
 
         {exportResult && exportPassed ? (

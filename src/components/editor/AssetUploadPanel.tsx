@@ -23,10 +23,10 @@ interface AssetUploadPanelProps {
 }
 
 const UPLOAD_SLOTS: { kind: BannerAssetKind; label: string; id: string }[] = [
-  { kind: "logo", label: "Logo", id: "upload-logo" },
-  { kind: "product", label: "Product image", id: "upload-product" },
-  { kind: "background", label: "Background image", id: "upload-background" },
-  { kind: "decoration", label: "Decoration", id: "upload-decoration" },
+  { kind: "logo", label: "Upload logo", id: "upload-logo" },
+  { kind: "product", label: "Upload product image", id: "upload-product" },
+  { kind: "background", label: "Upload background", id: "upload-background" },
+  { kind: "decoration", label: "Upload decoration", id: "upload-decoration" },
 ];
 
 export function AssetUploadPanel({ state, onUpdate }: AssetUploadPanelProps) {
@@ -126,7 +126,9 @@ export function AssetUploadPanel({ state, onUpdate }: AssetUploadPanelProps) {
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <div className="border-b border-zinc-800/60 px-4 py-3">
         <h2 className="text-sm font-medium text-zinc-300">Upload assets</h2>
-        <p className="mt-1 text-xs text-zinc-500">PNG, JPEG, WebP, GIF, SVG · Replace updates the slot</p>
+        <p className="mt-1 text-xs text-zinc-500">
+          PNG, JPEG, WebP, GIF, SVG · max 200 kB per image · stored locally in this browser
+        </p>
       </div>
       <div className="space-y-3 p-4">
         {UPLOAD_SLOTS.map(({ kind, label, id }) => {

@@ -258,6 +258,13 @@ export function LayerPanel({
         ) : (
           <p className="text-xs text-zinc-500">Select a layer to edit placement.</p>
         )}
+        {(state.bannerLayers ?? []).length > 0 &&
+        (state.assetPlacements ?? []).length === 0 &&
+        !(state.textPlacements ?? []).some((p) => p.visible) ? (
+          <p className="text-[10px] text-zinc-600">
+            Open Templates tab to apply Ionic Care, or upload images in the Assets tab.
+          </p>
+        ) : null}
       </div>
     </section>
   );

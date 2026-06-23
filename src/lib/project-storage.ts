@@ -1,4 +1,5 @@
 import { generateShareId } from "@/lib/share-links";
+import { createIonicCareDemoProject } from "@/lib/project-factory";
 import { MOCK_PROJECTS } from "@/lib/mock-projects";
 import {
   defaultStudioPlacements,
@@ -38,7 +39,11 @@ function invalidateCache(): void {
 }
 
 function seedFromMock(): BannerProject[] {
-  return MOCK_PROJECTS.map((project) => ({ ...project }));
+  const demo = createIonicCareDemoProject();
+  const rest = MOCK_PROJECTS.filter((project) => project.id !== "proj-001").map(
+    (project) => ({ ...project }),
+  );
+  return [demo, ...rest];
 }
 
 function isValidStatus(value: unknown): value is BannerProject["status"] {

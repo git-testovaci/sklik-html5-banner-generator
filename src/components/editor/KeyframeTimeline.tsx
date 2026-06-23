@@ -71,9 +71,11 @@ export function KeyframeTimeline({
           </div>
         ) : null}
       </div>
-      <div className="space-y-2 p-4">
+      <div className="space-y-2 overflow-x-auto p-4">
         {effects.length === 0 ? (
-          <p className="text-xs text-zinc-500">No effects — use Quick motion or Inspector.</p>
+          <p className="text-xs text-zinc-500">
+            No effects on this scene — use Quick motion presets or select a layer in the Inspector.
+          </p>
         ) : (
           effects.map((effect) => (
             <KeyframeTrack
