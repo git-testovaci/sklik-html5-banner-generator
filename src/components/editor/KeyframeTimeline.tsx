@@ -9,11 +9,13 @@ import {
   getEffectsForScene,
   getLayerById,
   getLayersForScene,
+  getSceneTransitionDurationMs,
   updateLayerEffect,
 } from "@/lib/animation/storyboard-utils";
 import { duplicateEffect } from "@/lib/animation/keyframe-utils";
 import {
   effectGroupForLayer,
+  effectStoryLine,
   transitionFriendlyLabel,
 } from "@/lib/animation/effect-labels";
 import { KeyframeTrack } from "./KeyframeTrack";
@@ -54,20 +56,19 @@ export function KeyframeTimeline({
     onUpdate(updateLayerEffect(state, effectId, patch));
   }
 
-  const compactLimit = 4;
-  const needsCollapse = effects.length > compactLimit;
-  const visibleEffects = showAdvanced || !needsCollapse ? effects : effects.slice(0, compactLimit);
+  const sortedStory = [...effects].sort((a, b) => a.startMs - b.startMs);
+  const transitionAt = Math.max(0, durationMs - getSceneTransitionDurationMs(scene));
 
   return (
-    <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
+    <section
+      id="keyframe-timeline"
+      className="rounded-xl border border-zinc-800/80 bg-zinc-900/40"
+    >
       <div className="flex items-center justify-between border-b border-zinc-800/60 px-4 py-3">
         <div>
-          <h2 className="text-sm font-medium text-zinc-300">Časování animací</h2>
+          <h2 className="text-sm font-medium text-zinc-300">Časová osa</h2>
           <p className="text-[10px] text-zinc-500">
-            {scene.name} · {(durationMs / 1000).toFixed(1)} s · {effects.length} animací
-          </p>
-          <p className="mt-0.5 text-[10px] text-zinc-600">
-            Přetáhněte fialový pruh pro změnu času animace.
+            {scene.name} · {(durationMs / 1000).toFixed(1)} s
           </p>
         </div>
         {selectedEffectId ? (
@@ -96,62 +97,72 @@ export function KeyframeTimeline({
         ) : null}
       </div>
 
-      <div className="border-b border-zinc-800/40 px-4 py-2">
-        <p className="text-[10px] text-zinc-500">
-          Přechod na další scénu:{" "}
-          <span className="text-zinc-300">{transitionFriendlyLabel(scene.transitionOut)}</span>
+      <div className="border-b border-zinc-800/40 px-4 py-3">
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+          Příběh animace
         </p>
-      </div>
-
-      <div className="max-h-56 space-y-3 overflow-y-auto p-4">
-        {effects.length === 0 ? (
-          <p className="text-xs text-zinc-500">
-            Na této scéně zatím nejsou animace — použijte rychlé motion presety nebo Inspector.
-          </p>
+        {sortedStory.length === 0 ? (
+          <p className="text-xs text-zinc-500">Zatím žádné animace — použijte rychlé presety.</p>
         ) : (
-          <>
-            {[...grouped.entries()].map(([group, groupEffects]) => {
-              const shown = groupEffects.filter((e) => visibleEffects.some((v) => v.id === e.id));
-              if (shown.length === 0) return null;
-              return (
-                <div key={group}>
-                  <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-zinc-600">
-                    {group}
-                  </p>
-                  <div className="space-y-1.5">
-                    {shown.map((effect) => (
-                      <KeyframeTrack
-                        key={effect.id}
-                        effect={effect}
-                        state={state}
-                        timelineDurationMs={durationMs}
-                        selected={effect.id === selectedEffectId}
-                        persistent={persistentIds.has(effect.layerId)}
-                        onSelect={() => onSelectEffect(effect.id)}
-                        onChange={(patch) => updateEffect(effect.id, patch)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </>
+          <ul className="space-y-1">
+            {sortedStory.map((effect) => (
+              <li key={effect.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelectEffect(effect.id)}
+                  className={`w-full rounded px-2 py-1 text-left text-[11px] ${
+                    effect.id === selectedEffectId
+                      ? "bg-violet-950/40 text-violet-200"
+                      : "text-zinc-400 hover:bg-zinc-800/40"
+                  }`}
+                >
+                  {effectStoryLine(state, effect)}
+                </button>
+              </li>
+            ))}
+            <li className="rounded px-2 py-1 text-[11px] text-zinc-500">
+              Přechod: {transitionFriendlyLabel(scene.transitionOut)} ·{" "}
+              {(transitionAt / 1000).toFixed(1)} s
+            </li>
+          </ul>
         )}
       </div>
 
-      {needsCollapse ? (
-        <div className="border-t border-zinc-800/60 px-4 py-2">
-          <button
-            type="button"
-            onClick={() => setShowAdvanced((v) => !v)}
-            className="text-[10px] text-violet-400 hover:underline"
-          >
-            {showAdvanced
-              ? "Skrýt detailní časování"
-              : `Upravit detailní časování (${effects.length - compactLimit} dalších)`}
-          </button>
+      {showAdvanced ? (
+        <div className="max-h-56 space-y-3 overflow-y-auto p-4">
+          {[...grouped.entries()].map(([group, groupEffects]) => (
+            <div key={group}>
+              <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-zinc-600">
+                {group}
+              </p>
+              <div className="space-y-1.5">
+                {groupEffects.map((effect) => (
+                  <KeyframeTrack
+                    key={effect.id}
+                    effect={effect}
+                    state={state}
+                    timelineDurationMs={durationMs}
+                    selected={effect.id === selectedEffectId}
+                    persistent={persistentIds.has(effect.layerId)}
+                    onSelect={() => onSelectEffect(effect.id)}
+                    onChange={(patch) => updateEffect(effect.id, patch)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       ) : null}
+
+      <div className="border-t border-zinc-800/60 px-4 py-2">
+        <button
+          type="button"
+          onClick={() => setShowAdvanced((v) => !v)}
+          className="text-[10px] text-violet-400 hover:underline"
+        >
+          {showAdvanced ? "Skrýt detailní časování" : "Detailní časování"}
+        </button>
+      </div>
     </section>
   );
 }

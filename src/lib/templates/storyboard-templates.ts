@@ -89,7 +89,7 @@ function productFrame(
     id: ref,
     sceneId,
     persistent: false,
-    name: "Product frame",
+    name: "Produkt",
     type: assetId ? "image" : "badge",
     visible: true,
     locked: false,
@@ -105,6 +105,10 @@ function productFrame(
     fit: "contain",
     shadow: true,
     legacyKey: assetId ? "product" : "decoration",
+    isTemplateSlot: !assetId,
+    slotId: ref,
+    slotKind: "product",
+    slotLabel: "Nahrát produkt",
   };
 }
 
@@ -133,6 +137,10 @@ function persistentLogo(ctx: TemplateCtx): BannerLayer {
     fontWeight: 700,
     textAlign: "center",
     color: ctx.state.textColor,
+    isTemplateSlot: !logoAssetId,
+    slotId: logoAssetId ?? "logo-wordmark",
+    slotKind: "logo",
+    slotLabel: "Nahrát logo",
   };
 }
 
@@ -383,10 +391,15 @@ export const STORYBOARD_TEMPLATES: StoryboardTemplateDefinition[] = [
     description: "3 scény s logem, produktem, částicemi a podtržením.",
     category: "product",
     sceneCount: 3,
-    keyEffects: ["Drop in", "Particles", "Underline", "Badge flip", "Swipe"],
+    keyEffects: ["Spadne na místo", "Částice", "Podtržení", "Otočení odznaku", "Přechod doleva"],
     useCase: "Produktové kampaně, čističky vzduchu, zdraví domova",
     recommended: true,
     totalDurationMs: 9500,
+    transitionStyle: "Přechod doleva",
+    requiredSlots: [
+      { kind: "logo", label: "Logo", required: true },
+      { kind: "product", label: "Produkt", required: false },
+    ],
   },
   {
     id: "flash-sale",
@@ -394,9 +407,14 @@ export const STORYBOARD_TEMPLATES: StoryboardTemplateDefinition[] = [
     description: "Sleva, produkt a pulzující CTA.",
     category: "sale",
     sceneCount: 3,
-    keyEffects: ["Zoom in", "Slide in", "CTA pulse", "Swipe"],
+    keyEffects: ["Přiblížení", "Najetí", "Jemný pohyb", "Posun"],
     useCase: "E-commerce akce a výprodeje",
     totalDurationMs: 9000,
+    transitionStyle: "Posun doleva",
+    requiredSlots: [
+      { kind: "product", label: "Produkt", required: true },
+      { kind: "logo", label: "Logo", required: false },
+    ],
   },
   {
     id: "premium-launch",
@@ -404,9 +422,14 @@ export const STORYBOARD_TEMPLATES: StoryboardTemplateDefinition[] = [
     description: "Elegantní odhalení a hero produkt.",
     category: "product",
     sceneCount: 3,
-    keyEffects: ["Fade in", "Stagger", "Zoom rotate"],
+    keyEffects: ["Přiblížení", "Postupně", "Otočení odznaku"],
     useCase: "Launch novinek a prémiových produktů",
     totalDurationMs: 10000,
+    transitionStyle: "Prolnutí",
+    requiredSlots: [
+      { kind: "logo", label: "Logo", required: true },
+      { kind: "product", label: "Produkt", required: true },
+    ],
   },
   {
     id: "health-wellness",
@@ -414,9 +437,14 @@ export const STORYBOARD_TEMPLATES: StoryboardTemplateDefinition[] = [
     description: "Problém → řešení s částicemi a CTA.",
     category: "product",
     sceneCount: 3,
-    keyEffects: ["Enter top", "Particles flow", "Underline"],
+    keyEffects: ["Přijede shora", "Částice", "Podtržení"],
     useCase: "Wellness, péče o zdraví",
     totalDurationMs: 9600,
+    transitionStyle: "Přechod doleva",
+    requiredSlots: [
+      { kind: "logo", label: "Logo", required: false },
+      { kind: "product", label: "Produkt", required: true },
+    ],
   },
   {
     id: "finance-trust",
@@ -424,9 +452,11 @@ export const STORYBOARD_TEMPLATES: StoryboardTemplateDefinition[] = [
     description: "Důvěryhodný headline, čísla a CTA.",
     category: "trust",
     sceneCount: 3,
-    keyEffects: ["Fade in", "Scale text", "Badge"],
+    keyEffects: ["Prolnutí", "Zvětšení textu", "Odznak"],
     useCase: "Pojištění, finance, služby",
     totalDurationMs: 9000,
+    transitionStyle: "Prolnutí",
+    requiredSlots: [{ kind: "logo", label: "Logo", required: true }],
   },
   {
     id: "travel-holiday",
@@ -434,9 +464,14 @@ export const STORYBOARD_TEMPLATES: StoryboardTemplateDefinition[] = [
     description: "Destinace, cena a výzva k akci.",
     category: "travel",
     sceneCount: 3,
-    keyEffects: ["Slide in", "Badge rotate", "Swipe"],
+    keyEffects: ["Najetí", "Otočení odznaku", "Přechod doleva"],
     useCase: "Cestovní kanceláře a hotely",
     totalDurationMs: 9600,
+    transitionStyle: "Přechod doleva",
+    requiredSlots: [
+      { kind: "background", label: "Pozadí", required: false },
+      { kind: "product", label: "Destinace", required: false },
+    ],
   },
   {
     id: "saas-app",
@@ -444,9 +479,14 @@ export const STORYBOARD_TEMPLATES: StoryboardTemplateDefinition[] = [
     description: "UI karta, feature chips a trial CTA.",
     category: "saas",
     sceneCount: 3,
-    keyEffects: ["Slide in", "Stagger", "CTA pulse"],
+    keyEffects: ["Najetí", "Postupně", "Jemný pohyb CTA"],
     useCase: "Webové aplikace a SaaS",
     totalDurationMs: 9600,
+    transitionStyle: "Posun doleva",
+    requiredSlots: [
+      { kind: "logo", label: "Logo", required: true },
+      { kind: "product", label: "Screenshot", required: true },
+    ],
   },
   {
     id: "local-service",
@@ -454,9 +494,11 @@ export const STORYBOARD_TEMPLATES: StoryboardTemplateDefinition[] = [
     description: "Problém, benefity a kontakt CTA.",
     category: "local",
     sceneCount: 3,
-    keyEffects: ["Drop in", "Line reveal", "Fade CTA"],
+    keyEffects: ["Spadne na místo", "Odhalení", "Prolnutí CTA"],
     useCase: "Řemeslníci, servis, lokální firmy",
     totalDurationMs: 9000,
+    transitionStyle: "Prolnutí",
+    requiredSlots: [{ kind: "logo", label: "Logo", required: true }],
   },
 ];
 

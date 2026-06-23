@@ -6,7 +6,7 @@ import {
   transitionKeyframes,
 } from "@/lib/animation/storyboard-utils";
 
-export const SCENE_TRANSITION_MS = 550;
+export const SCENE_TRANSITION_MS = 700;
 
 interface FrameState {
   opacity: number;
@@ -105,10 +105,7 @@ export function buildSceneSequenceCss(
       scene.transitionOut === "none" && i < scenes.length - 1
         ? "fade"
         : scene.transitionOut;
-    const transMs = Math.min(
-      SCENE_TRANSITION_MS,
-      Math.max(280, Math.round(scene.durationMs * 0.2)),
-    );
+    const transMs = sceneTransitionWindowMs(scene.durationMs, scene);
     const transStartMs = endMs - transMs;
     const isLast = i === scenes.length - 1;
     const prevTransition =
@@ -121,10 +118,7 @@ export function buildSceneSequenceCss(
     const startPct = toPct(startMs, total);
     const prevTransMs =
       i > 0
-        ? Math.min(
-            SCENE_TRANSITION_MS,
-            Math.max(280, Math.round(scenes[i - 1].durationMs * 0.2)),
-          )
+        ? sceneTransitionWindowMs(scenes[i - 1].durationMs, scenes[i - 1])
         : 0;
     const prevEndMs =
       i > 0
@@ -179,11 +173,7 @@ export function buildSceneSequenceCss(
   return rules.join("\n");
 }
 
-export function sceneTransitionWindowMs(
-  sceneDurationMs: number,
-): number {
-  return Math.min(
-    SCENE_TRANSITION_MS,
-    Math.max(280, Math.round(sceneDurationMs * 0.2)),
-  );
+export function sceneTransitionWindowMs(sceneDurationMs: number, scene?: { transitionDurationMs?: number }): number {
+  const configured = scene?.transitionDurationMs ?? SCENE_TRANSITION_MS;
+  return Math.min(configured, Math.max(320, Math.round(sceneDurationMs * 0.22)));
 }

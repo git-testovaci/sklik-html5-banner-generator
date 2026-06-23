@@ -111,7 +111,7 @@ function renderSceneLayers(
       continue;
     }
 
-    if ((layer.type === "badge" || layer.type === "shape") && !layer.assetId) {
+    if ((layer.type === "badge" || layer.type === "shape") && !layer.assetId && !layer.isTemplateSlot) {
       const label = escapeHtmlText(sanitizePlainText(layer.text ?? layer.name, "Badge", 40));
       const fx = (state.layerEffects ?? []).find(
         (e) => e.layerId === layer.id && e.sceneId === sceneId,
@@ -123,6 +123,20 @@ function renderSceneLayers(
       const fill = layer.fill ?? state.accentColor;
       parts.push(
         `<div class="layer layer--badge${fxClass}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)};background:${fill};border-radius:${layer.shapeType === "circle" ? "999px" : "8px"};display:flex;align-items:center;justify-content:center;font-size:${layer.fontSize ?? 11}px;font-weight:700;color:${layer.color ?? "#fff"};">${label}</div>`,
+      );
+      continue;
+    }
+
+    if (
+      (layer.type === "badge" || layer.type === "image") &&
+      !layer.assetId &&
+      layer.isTemplateSlot
+    ) {
+      const accent = state.accentColor;
+      const radius = layer.shapeType === "circle" ? "999px" : `${layer.borderRadius ?? 10}px`;
+      const grad = `linear-gradient(135deg, ${accent}22 0%, ${accent}08 100%)`;
+      parts.push(
+        `<div class="layer layer--slot-placeholder" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)};background:${grad};border:1px solid ${accent}44;border-radius:${radius};"></div>`,
       );
       continue;
     }

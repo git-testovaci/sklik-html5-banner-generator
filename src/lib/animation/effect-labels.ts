@@ -61,6 +61,7 @@ export function layerDisplayName(layer: BannerLayer | undefined): string {
     if (layer.legacyKey === "cta") return "Výzva k akci";
     return layer.text?.slice(0, 28) || layer.name || "Text";
   }
+  if (layer.slotLabel) return layer.slotLabel;
   if (layer.type === "image" || layer.legacyKey === "product") return "Produkt";
   if (layer.type === "badge" || layer.type === "shape") return layer.text || layer.name || "Odznak";
   if (layer.type === "underline") return "Podtržení";
@@ -75,6 +76,18 @@ export function describeLayerEffect(
 ): string {
   const layer = getLayerById(state, effect.layerId);
   return `${layerDisplayName(layer)} — ${effectFriendlyLabel(effect.preset)}`;
+}
+
+/** Compact line for animation story summary, e.g. "Nadpis přijede shora · 0.0 s" */
+export function effectStoryLine(
+  state: BannerEditorState,
+  effect: LayerEffect,
+): string {
+  const layer = getLayerById(state, effect.layerId);
+  const name = layerDisplayName(layer);
+  const action = effectFriendlyLabel(effect.preset);
+  const at = (effect.startMs / 1000).toFixed(1);
+  return `${name} ${action.charAt(0).toLowerCase()}${action.slice(1)} · ${at} s`;
 }
 
 export function findActiveEffectAtTime(

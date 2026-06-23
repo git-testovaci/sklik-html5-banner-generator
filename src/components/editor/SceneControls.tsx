@@ -5,18 +5,22 @@ import { SCENE_TRANSITIONS } from "@/types/animation";
 import type { BannerEditorState, BannerEditorStateUpdater } from "@/types/editor";
 import {
   addScene,
+  applyTransitionToAllScenes,
   deleteScene,
   duplicateScene,
+  getSceneTransitionDurationMs,
   moveScene,
   updateScene,
 } from "@/lib/animation/storyboard-utils";
+import { transitionFriendlyLabel } from "@/lib/animation/effect-labels";
 
 interface SceneControlsProps {
   state: BannerEditorState;
   onUpdate: BannerEditorStateUpdater;
+  onPreviewTransition?: () => void;
 }
 
-export function SceneControls({ state, onUpdate }: SceneControlsProps) {
+export function SceneControls({ state, onUpdate, onPreviewTransition }: SceneControlsProps) {
   const activeId = state.activeSceneId ?? state.scenes?.[0]?.id;
   const active = (state.scenes ?? []).find((s) => s.id === activeId);
 
@@ -33,14 +37,14 @@ export function SceneControls({ state, onUpdate }: SceneControlsProps) {
         onClick={() => onUpdate(addScene(state))}
         className="rounded border border-zinc-700 px-2 py-1 text-[10px] text-zinc-300 hover:bg-zinc-800"
       >
-        + Add scene
+        + Scéna
       </button>
       <button
         type="button"
         onClick={() => onUpdate(duplicateScene(state, active.id))}
         className="rounded border border-zinc-700 px-2 py-1 text-[10px] text-zinc-400 hover:bg-zinc-800"
       >
-        Duplicate
+        Duplikovat
       </button>
       <button
         type="button"
@@ -48,7 +52,7 @@ export function SceneControls({ state, onUpdate }: SceneControlsProps) {
         onClick={() => onUpdate(deleteScene(state, active.id))}
         className="rounded border border-zinc-700 px-2 py-1 text-[10px] text-red-400 hover:bg-zinc-800 disabled:opacity-40"
       >
-        Delete
+        Smazat
       </button>
       <button
         type="button"
@@ -69,10 +73,10 @@ export function SceneControls({ state, onUpdate }: SceneControlsProps) {
         value={active.name}
         onChange={(e) => patchScene({ name: e.target.value })}
         className="w-28 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-[10px] text-zinc-200"
-        aria-label="Scene name"
+        aria-label="Název scény"
       />
       <label className="flex items-center gap-1 text-[10px] text-zinc-500">
-        Duration
+        Délka
         <input
           type="number"
           min={500}
@@ -85,7 +89,7 @@ export function SceneControls({ state, onUpdate }: SceneControlsProps) {
         ms
       </label>
       <label className="flex items-center gap-1 text-[10px] text-zinc-500">
-        Transition
+        Přechod
         <select
           value={active.transitionOut}
           onChange={(e) =>
@@ -95,11 +99,43 @@ export function SceneControls({ state, onUpdate }: SceneControlsProps) {
         >
           {SCENE_TRANSITIONS.map((t) => (
             <option key={t.value} value={t.value}>
-              {t.label}
+              {transitionFriendlyLabel(t.value)}
             </option>
           ))}
         </select>
       </label>
+      <label className="flex items-center gap-1 text-[10px] text-zinc-500">
+        Přechod ms
+        <input
+          type="number"
+          min={400}
+          max={1200}
+          step={50}
+          value={getSceneTransitionDurationMs(active)}
+          onChange={(e) => patchScene({ transitionDurationMs: Number(e.target.value) })}
+          className="w-14 rounded border border-zinc-700 bg-zinc-900 px-1 py-0.5 text-zinc-200"
+        />
+      </label>
+      <button
+        type="button"
+        onClick={() =>
+          onUpdate(
+            applyTransitionToAllScenes(state, active.transitionOut, active.transitionDurationMs),
+          )
+        }
+        className="rounded border border-violet-800/50 px-2 py-1 text-[10px] text-violet-300 hover:bg-violet-950/30"
+      >
+        Přechod na všechny
+      </button>
+      {onPreviewTransition ? (
+        <button
+          type="button"
+          onClick={onPreviewTransition}
+          className="rounded border border-zinc-700 px-2 py-1 text-[10px] text-zinc-300 hover:bg-zinc-800"
+        >
+          Náhled přechodu
+        </button>
+      ) : null}
     </div>
   );
 }

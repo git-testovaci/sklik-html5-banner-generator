@@ -28,6 +28,8 @@ export interface StoryboardTemplateDefinition {
   useCase: string;
   recommended?: boolean;
   totalDurationMs: number;
+  transitionStyle?: string;
+  requiredSlots?: import("./template-slots").TemplateSlotSpec[];
 }
 
 export interface TemplateEffectSpec {

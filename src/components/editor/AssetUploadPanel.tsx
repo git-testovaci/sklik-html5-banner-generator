@@ -6,6 +6,7 @@ import {
   invalidateAssetObjectUrl,
   saveAssetBlob,
 } from "@/lib/assets/asset-storage";
+import { autoPlaceUploadedAsset } from "@/lib/assets/slot-utils";
 import {
   compressImageIfNeeded,
   formatFileSize,
@@ -16,26 +17,30 @@ import {
 import { createDefaultAssetPlacement } from "@/lib/animation/timeline-utils";
 import type { BannerAssetKind } from "@/types/assets";
 import type { BannerEditorState, BannerEditorStateUpdater } from "@/types/editor";
+import type { SelectedLayer } from "@/types/editor";
 
 interface AssetUploadPanelProps {
   state: BannerEditorState;
   onUpdate: BannerEditorStateUpdater;
+  onPlaced?: (selection: SelectedLayer, message: string) => void;
 }
 
-const UPLOAD_SLOTS: { kind: BannerAssetKind; label: string; id: string }[] = [
-  { kind: "logo", label: "Upload logo", id: "upload-logo" },
-  { kind: "product", label: "Upload product image", id: "upload-product" },
-  { kind: "background", label: "Upload background", id: "upload-background" },
-  { kind: "decoration", label: "Upload decoration", id: "upload-decoration" },
+const UPLOAD_SLOTS: { kind: BannerAssetKind; label: string; hint: string; id: string }[] = [
+  { kind: "logo", label: "Nahrát logo", hint: "Vloží se do slotu loga v banneru", id: "upload-logo" },
+  { kind: "product", label: "Nahrát produkt", hint: "Vloží se do slotu produktu", id: "upload-product" },
+  { kind: "background", label: "Nahrát pozadí", hint: "Vloží se jako pozadí scény", id: "upload-background" },
+  { kind: "decoration", label: "Nahrát dekoraci", hint: "Uloží do knihovny", id: "upload-decoration" },
 ];
 
-export function AssetUploadPanel({ state, onUpdate }: AssetUploadPanelProps) {
+export function AssetUploadPanel({ state, onUpdate, onPlaced }: AssetUploadPanelProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const handleUpload = useCallback(
     async (kind: BannerAssetKind, file: File) => {
       setErrors((prev) => ({ ...prev, [kind]: "" }));
+      setSuccess(null);
       const validation = validateImageFile(file);
       if (!validation.valid) {
         setErrors((prev) => ({ ...prev, [kind]: validation.message }));
@@ -50,7 +55,7 @@ export function AssetUploadPanel({ state, onUpdate }: AssetUploadPanelProps) {
         if (!dims && mimeType !== "image/svg+xml") {
           setErrors((prev) => ({
             ...prev,
-            [kind]: "Could not read image. Try another file or format.",
+            [kind]: "Obrázek se nepodařilo načíst. Zkuste jiný formát.",
           }));
           return;
         }
@@ -85,32 +90,50 @@ export function AssetUploadPanel({ state, onUpdate }: AssetUploadPanelProps) {
             ? (state.assets ?? [])
             : (state.assets ?? []).filter((a) => a.kind !== kind);
 
-        const placement = createDefaultAssetPlacement(
-          assetId,
-          kind,
-          state.width,
-          state.height,
-        );
-
-        const withoutPlacement =
-          kind === "decoration"
-            ? (state.assetPlacements ?? [])
-            : (state.assetPlacements ?? []).filter((p) => p.kind !== kind);
-
-        onUpdate({
+        let nextState: BannerEditorState = {
+          ...state,
           assets: [...withoutKind, asset],
-          assetPlacements: [...withoutPlacement, placement],
-        });
+        };
+
+        const hasStoryboard = (state.scenes ?? []).length > 0;
+        if (hasStoryboard) {
+          const placed = autoPlaceUploadedAsset(nextState, assetId, kind);
+          nextState = placed.state;
+          onUpdate(nextState);
+          setSuccess(placed.message);
+          if (placed.layerId) {
+            onPlaced?.({ type: "asset", id: placed.layerId }, placed.message);
+          }
+        } else {
+          const placement = createDefaultAssetPlacement(
+            assetId,
+            kind,
+            state.width,
+            state.height,
+          );
+          const withoutPlacement =
+            kind === "decoration"
+              ? (state.assetPlacements ?? [])
+              : (state.assetPlacements ?? []).filter((p) => p.kind !== kind);
+          nextState = {
+            ...nextState,
+            assetPlacements: [...withoutPlacement, placement],
+          };
+          onUpdate(nextState);
+          setSuccess("Obrázek nahrán a umístěn");
+          onPlaced?.({ type: "asset", id: assetId }, "Obrázek nahrán a umístěn");
+        }
+
         if (validation.warnings.length > 0) {
           setErrors((prev) => ({ ...prev, [kind]: validation.warnings[0] ?? "" }));
         }
       } catch {
-        setErrors((prev) => ({ ...prev, [kind]: "Upload failed." }));
+        setErrors((prev) => ({ ...prev, [kind]: "Nahrání selhalo." }));
       } finally {
         setLoading(null);
       }
     },
-    [onUpdate, state.assets, state.assetPlacements, state.projectId, state.width, state.height],
+    [onUpdate, onPlaced, state],
   );
 
   async function handleRemove(assetId: string) {
@@ -119,31 +142,39 @@ export function AssetUploadPanel({ state, onUpdate }: AssetUploadPanelProps) {
     onUpdate({
       assets: (state.assets ?? []).filter((a) => a.id !== assetId),
       assetPlacements: (state.assetPlacements ?? []).filter((p) => p.assetId !== assetId),
+      bannerLayers: (state.bannerLayers ?? []).map((l) =>
+        l.assetId === assetId ? { ...l, assetId: undefined } : l,
+      ),
     });
+    setSuccess(null);
   }
 
   return (
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <div className="border-b border-zinc-800/60 px-4 py-3">
-        <h2 className="text-sm font-medium text-zinc-300">Upload assets</h2>
+        <h2 className="text-sm font-medium text-zinc-300">Nahrát assety</h2>
         <p className="mt-1 text-xs text-zinc-500">
-          PNG, JPEG, WebP, GIF, SVG · max 200 kB per image · stored locally in this browser
+          PNG, JPEG, WebP · max 200 kB · lokálně v prohlížeči
         </p>
+        {success ? (
+          <p className="mt-2 rounded bg-emerald-950/40 px-2 py-1 text-[11px] text-emerald-300">
+            {success}
+          </p>
+        ) : null}
       </div>
       <div className="space-y-3 p-4">
-        {UPLOAD_SLOTS.map(({ kind, label, id }) => {
-          const asset = (state.assets ?? []).find((a) => a.kind === kind && kind !== "decoration")
-            ?? (kind === "decoration" ? undefined : undefined);
-          const decorationAssets = kind === "decoration"
-            ? (state.assets ?? []).filter((a) => a.kind === "decoration")
-            : [];
+        {UPLOAD_SLOTS.map(({ kind, label, hint, id }) => {
+          const asset = (state.assets ?? []).find((a) => a.kind === kind && kind !== "decoration");
+          const decorationAssets =
+            kind === "decoration" ? (state.assets ?? []).filter((a) => a.kind === "decoration") : [];
           const current = kind !== "decoration" ? asset : undefined;
 
           return (
             <div key={kind} className="rounded-lg border border-zinc-800/60 bg-zinc-950/40 p-3">
-              <label htmlFor={id} className="mb-2 block text-xs font-medium text-zinc-400">
+              <label htmlFor={id} className="mb-1 block text-xs font-medium text-zinc-300">
                 {label}
               </label>
+              <p className="mb-2 text-[10px] text-zinc-600">{hint}</p>
               <input
                 id={id}
                 type="file"
@@ -157,22 +188,25 @@ export function AssetUploadPanel({ state, onUpdate }: AssetUploadPanelProps) {
                 }}
               />
               {loading === kind ? (
-                <p className="mt-1 text-xs text-zinc-500">Processing…</p>
+                <p className="mt-1 text-xs text-zinc-500">Zpracování…</p>
               ) : null}
               {errors[kind] ? (
-                <p className="mt-1 text-xs text-red-400" role="alert">{errors[kind]}</p>
+                <p className="mt-1 text-xs text-red-400" role="alert">
+                  {errors[kind]}
+                </p>
               ) : null}
               {current ? (
                 <div className="mt-2 flex items-center justify-between gap-2 text-xs">
                   <span className="truncate text-zinc-400">
-                    {current.fileName} · {current.width}×{current.height} · {formatFileSize(current.size)}
+                    {current.fileName} · {current.width}×{current.height} ·{" "}
+                    {formatFileSize(current.size)}
                   </span>
                   <button
                     type="button"
                     onClick={() => void handleRemove(current.id)}
                     className="shrink-0 text-red-400 hover:text-red-300"
                   >
-                    Remove
+                    Odebrat
                   </button>
                 </div>
               ) : null}
@@ -181,7 +215,13 @@ export function AssetUploadPanel({ state, onUpdate }: AssetUploadPanelProps) {
                   {decorationAssets.map((d) => (
                     <li key={d.id} className="flex justify-between gap-2">
                       <span className="truncate">{d.fileName}</span>
-                      <button type="button" onClick={() => void handleRemove(d.id)} className="text-red-400">×</button>
+                      <button
+                        type="button"
+                        onClick={() => void handleRemove(d.id)}
+                        className="text-red-400"
+                      >
+                        ×
+                      </button>
                     </li>
                   ))}
                 </ul>

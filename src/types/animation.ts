@@ -1,3 +1,5 @@
+import type { TemplateAssetSlotKind } from "./template-slots";
+
 export type AnimationPreset =
   | "none"
   | "fade-in"
@@ -97,6 +99,8 @@ export interface BannerScene {
   durationMs: number;
   transitionIn: BannerSceneTransition;
   transitionOut: BannerSceneTransition;
+  /** Duration of transitionOut animation in ms (default 700) */
+  transitionDurationMs?: number;
   backgroundColor?: string;
   layerIds: string[];
   createdAt: string;
@@ -155,6 +159,11 @@ export interface BannerLayer extends BannerLayerBase {
   offsetY?: number;
   /** Maps to legacy text layer id or asset kind */
   legacyKey?: string;
+  /** Template replaceable asset slot (editor-only metadata) */
+  slotId?: string;
+  slotKind?: TemplateAssetSlotKind;
+  slotLabel?: string;
+  isTemplateSlot?: boolean;
 }
 
 export interface LayerKeyframe {

@@ -10,8 +10,11 @@ import {
 } from "@/lib/animation/timeline-utils";
 import {
   clearSelectedEffectIfMissing,
+  getLayerById,
   setActiveScene,
 } from "@/lib/animation/storyboard-utils";
+import { createQuickLayer, type QuickAddLayerType } from "@/lib/animation/layer-factory";
+import { findEmptySlotForKind, getTemplateSlotLayers } from "@/lib/assets/slot-utils";
 import { usePlaybackController } from "@/lib/playback/use-playback-controller";
 import {
   getProjectByIdSnapshot,
@@ -30,6 +33,7 @@ import {
 import { AssetLibrary } from "./AssetLibrary";
 import { AssetUploadPanel } from "./AssetUploadPanel";
 import { AssetWarningsPanel } from "./AssetWarningsPanel";
+import { BannerChecklist, type ChecklistAction } from "./BannerChecklist";
 import { BannerPreviewStage } from "./BannerPreviewStage";
 import { InspectorPanel } from "./InspectorPanel";
 import { KeyframeTimeline } from "./KeyframeTimeline";
@@ -41,6 +45,12 @@ import { ValidationExportPanel } from "./ValidationExportPanel";
 import { EditorTopBar } from "./EditorTopBar";
 
 type LeftTab = "assets" | "layers" | "templates";
+
+const TAB_LABELS: Record<LeftTab, string> = {
+  assets: "Assety",
+  layers: "Vrstvy",
+  templates: "Šablony",
+};
 
 interface BannerEditorProps {
   projectId: string;
@@ -83,6 +93,10 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   const [selectedEffectId, setSelectedEffectId] = useState<string | null>(null);
   const [leftTab, setLeftTab] = useState<LeftTab>("layers");
   const [showExport, setShowExport] = useState(false);
+  const [placementMessage, setPlacementMessage] = useState<string | null>(null);
+  const [selectedTransitionSceneId, setSelectedTransitionSceneId] = useState<string | null>(null);
+
+  const hasTemplate = (state.scenes ?? []).length > 0;
 
   const playback = usePlaybackController({
     scenes: state.scenes,
@@ -136,6 +150,81 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   function handleSceneSelect(sceneId: string) {
     onUpdate(setActiveScene(state, sceneId));
     setSelectedEffectId(null);
+    setSelectedTransitionSceneId(null);
+  }
+
+  function handleAssetPlaced(selection: SelectedLayer, message: string) {
+    setSelectedLayer(selection);
+    setSelectedEffectId(null);
+    setPlacementMessage(message);
+    window.setTimeout(() => setPlacementMessage(null), 3500);
+  }
+
+  function handleQuickAdd(kind: QuickAddLayerType) {
+    const { state: next, layer } = createQuickLayer(state, kind);
+    onUpdate(next);
+    if (
+      layer.type === "text" &&
+      (layer.legacyKey === "headline" ||
+        layer.legacyKey === "subheadline" ||
+        layer.legacyKey === "cta")
+    ) {
+      setSelectedLayer({ type: "text", id: layer.legacyKey });
+    } else if (layer.type === "text") {
+      setSelectedLayer({ type: "asset", id: layer.id });
+    } else {
+      setSelectedLayer({ type: "asset", id: layer.id });
+    }
+    setSelectedEffectId(null);
+  }
+
+  function handleSlotActivate(layerId: string) {
+    const layer = getLayerById(state, layerId);
+    if (!layer) return;
+    setSelectedLayer({ type: "asset", id: layer.id });
+    setSelectedEffectId(null);
+    setLeftTab("assets");
+  }
+
+  function handleChecklistAction(action: ChecklistAction) {
+    switch (action) {
+      case "templates":
+        setLeftTab("templates");
+        break;
+      case "logo-slot": {
+        setLeftTab("assets");
+        const logoSlot = findEmptySlotForKind(state, "logo") ?? getTemplateSlotLayers(state).find((s) => s.slotKind === "logo");
+        if (logoSlot) setSelectedLayer({ type: "asset", id: logoSlot.id });
+        break;
+      }
+      case "product-slot": {
+        setLeftTab("assets");
+        const productSlot =
+          findEmptySlotForKind(state, "product") ??
+          getTemplateSlotLayers(state).find((s) => s.slotKind === "product" || s.slotKind === "image");
+        if (productSlot) setSelectedLayer({ type: "asset", id: productSlot.id });
+        break;
+      }
+      case "text": {
+        const sceneId = state.activeSceneId ?? state.scenes?.[0]?.id;
+        const textLayer = (state.bannerLayers ?? []).find(
+          (l) => l.sceneId === sceneId && l.type === "text" && l.legacyKey === "headline",
+        );
+        const key = textLayer?.legacyKey;
+        if (key === "headline" || key === "subheadline" || key === "cta") {
+          setSelectedLayer({ type: "text", id: key });
+        } else {
+          setSelectedLayer({ type: "text", id: "headline" });
+        }
+        break;
+      }
+      case "timing":
+        document.getElementById("keyframe-timeline")?.scrollIntoView({ behavior: "smooth" });
+        break;
+      case "export":
+        setShowExport(true);
+        break;
+    }
   }
 
   return (
@@ -157,20 +246,30 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
                 key={tab}
                 type="button"
                 onClick={() => setLeftTab(tab)}
-                className={`flex-1 rounded px-2 py-1.5 text-xs capitalize ${
+                className={`flex-1 rounded px-2 py-1.5 text-xs ${
                   leftTab === tab
                     ? "bg-violet-950/50 text-violet-200"
                     : "text-zinc-400 hover:bg-zinc-800/50"
                 }`}
               >
-                {tab}
+                {TAB_LABELS[tab]}
               </button>
             ))}
           </div>
+          {placementMessage ? (
+            <p className="rounded-lg border border-emerald-900/40 bg-emerald-950/30 px-3 py-2 text-[11px] text-emerald-300">
+              {placementMessage}
+            </p>
+          ) : null}
           {leftTab === "assets" && (
             <>
-              <AssetUploadPanel state={state} onUpdate={onUpdate} />
-              <AssetLibrary state={state} onUpdate={onUpdate} />
+              <AssetUploadPanel state={state} onUpdate={onUpdate} onPlaced={handleAssetPlaced} />
+              <AssetLibrary
+                state={state}
+                onUpdate={onUpdate}
+                selectedLayer={selectedLayer}
+                onPlaced={handleAssetPlaced}
+              />
             </>
           )}
           {leftTab === "layers" && (
@@ -210,6 +309,8 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             playback={playback}
             onPlayAll={handlePlayAll}
             onReplayScene={handleReplayScene}
+            onQuickAdd={handleQuickAdd}
+            onSlotActivate={handleSlotActivate}
           />
           <SceneStrip
             state={state}
@@ -218,6 +319,12 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             playbackSceneId={
               playback.mode !== "idle" ? playback.playbackSceneId : null
             }
+            selectedTransitionSceneId={selectedTransitionSceneId}
+            onSelectTransition={(sceneId) => {
+              setSelectedTransitionSceneId(sceneId);
+              setSelectedEffectId(null);
+            }}
+            onPreviewTransition={() => playback.previewSceneTransition()}
           />
           <MotionPresetQuickActions
             state={state}
@@ -233,20 +340,31 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
           />
         </div>
 
-        {/* Right — inspector + export */}
+        {/* Right — checklist + inspector + export */}
         <div className="order-3 flex w-full shrink-0 flex-col gap-3 lg:w-[280px] xl:w-[300px]">
+          <BannerChecklist
+            state={state}
+            hasTemplate={hasTemplate}
+            onAction={handleChecklistAction}
+          />
           <InspectorPanel
             state={state}
             onUpdate={onUpdate}
-            selection={editorSelection}
+            selection={
+              selectedTransitionSceneId
+                ? { type: "scene", sceneId: selectedTransitionSceneId }
+                : editorSelection
+            }
             onSelectEffect={setSelectedEffectId}
+            onOpenAssets={() => setLeftTab("assets")}
+            onPreviewTransition={() => playback.previewSceneTransition()}
           />
           <button
             type="button"
             onClick={() => setShowExport((v) => !v)}
             className="rounded-lg border border-zinc-700 px-3 py-2 text-xs text-zinc-400 hover:bg-zinc-800/50"
           >
-            {showExport ? "Hide export panel" : "Show export & validation"}
+            {showExport ? "Skrýt export" : "Export Sklik ZIP"}
           </button>
           {showExport && (
             <>

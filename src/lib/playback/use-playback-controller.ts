@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BannerScene } from "@/types/animation";
 import type { PlaybackControllerSnapshot, PlaybackMode } from "@/types/playback";
+import { getSceneTransitionDurationMs } from "@/lib/animation/storyboard-utils";
 
 export interface UsePlaybackControllerOptions {
   scenes: BannerScene[] | undefined;
@@ -17,6 +18,7 @@ export interface PlaybackController extends PlaybackControllerSnapshot {
   pause: () => void;
   resume: () => void;
   stop: () => void;
+  previewSceneTransition: () => void;
 }
 
 export function usePlaybackController(
@@ -166,6 +168,20 @@ export function usePlaybackController(
     setPlaybackSceneId(null);
   }, [cancelRaf]);
 
+  const previewSceneTransition = useCallback(() => {
+    const sceneId = options.activeSceneId ?? scenesList[0]?.id;
+    const scene = scenesList.find((s) => s.id === sceneId);
+    if (!scene) return;
+    const transitionMs = getSceneTransitionDurationMs(scene);
+    const startAt = Math.max(0, scene.durationMs - transitionMs - 200);
+    cancelRaf();
+    elapsedRef.current = startAt;
+    setPlaybackTimeMs(startAt);
+    setPlaybackSceneId(sceneId ?? null);
+    setReplayKey((k) => k + 1);
+    setMode("playing-scene");
+  }, [cancelRaf, options.activeSceneId, scenesList]);
+
   const playAllView =
     mode === "playing-all" || (mode === "paused" && pausedFrom === "playing-all");
 
@@ -182,5 +198,6 @@ export function usePlaybackController(
     pause,
     resume,
     stop,
+    previewSceneTransition,
   };
 }

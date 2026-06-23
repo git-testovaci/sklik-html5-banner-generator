@@ -25,10 +25,17 @@ export function defaultScene(name = "Scene 1", durationMs = 3000): BannerScene {
     durationMs,
     transitionIn: "none",
     transitionOut: "fade",
+    transitionDurationMs: DEFAULT_SCENE_TRANSITION_MS,
     layerIds: [],
     createdAt: now,
     updatedAt: now,
   };
+}
+
+export const DEFAULT_SCENE_TRANSITION_MS = 700;
+
+export function getSceneTransitionDurationMs(scene: BannerScene): number {
+  return scene.transitionDurationMs ?? DEFAULT_SCENE_TRANSITION_MS;
 }
 
 export function getActiveScene(state: BannerEditorState): BannerScene | undefined {
@@ -519,6 +526,57 @@ export function updateScene(
     return syncFlatFromActiveScene(next);
   }
   return next;
+}
+
+export function applyTransitionToAllScenes(
+  state: BannerEditorState,
+  transitionOut: BannerSceneTransition,
+  transitionDurationMs?: number,
+): BannerEditorState {
+  const now = new Date().toISOString();
+  return {
+    ...state,
+    scenes: (state.scenes ?? []).map((s) => ({
+      ...s,
+      transitionOut,
+      transitionDurationMs: transitionDurationMs ?? s.transitionDurationMs ?? DEFAULT_SCENE_TRANSITION_MS,
+      updatedAt: now,
+    })),
+  };
+}
+
+export function addLayerToScene(
+  state: BannerEditorState,
+  layer: BannerLayer,
+): BannerEditorState {
+  const scene = getActiveScene(state);
+  if (!scene) return state;
+  const layers = [...(state.bannerLayers ?? []), { ...layer, sceneId: layer.persistent ? undefined : scene.id }];
+  const scenes = (state.scenes ?? []).map((s) =>
+    s.id === scene.id && !layer.persistent
+      ? { ...s, layerIds: [...s.layerIds, layer.id], updatedAt: new Date().toISOString() }
+      : s,
+  );
+  return syncFlatFromActiveScene({ ...state, bannerLayers: layers, scenes });
+}
+
+export function deleteBannerLayer(
+  state: BannerEditorState,
+  layerId: string,
+): BannerEditorState {
+  const layer = getLayerById(state, layerId);
+  if (!layer || layer.persistent) return state;
+  const next = {
+    ...state,
+    bannerLayers: (state.bannerLayers ?? []).filter((l) => l.id !== layerId),
+    layerEffects: (state.layerEffects ?? []).filter((e) => e.layerId !== layerId),
+    layerKeyframes: (state.layerKeyframes ?? []).filter((k) => k.layerId !== layerId),
+    scenes: (state.scenes ?? []).map((s) => ({
+      ...s,
+      layerIds: s.layerIds.filter((id) => id !== layerId),
+    })),
+  };
+  return syncFlatFromActiveScene(next);
 }
 
 export function addLayerEffect(

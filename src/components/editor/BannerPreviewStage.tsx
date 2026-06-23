@@ -12,10 +12,12 @@ import {
   updateBannerLayer,
   updateLayerGeometryFromCanvas,
 } from "@/lib/animation/storyboard-utils";
+import type { QuickAddLayerType } from "@/lib/animation/layer-factory";
 import type { PlaybackController } from "@/lib/playback/use-playback-controller";
 import type { BannerAssetPlacement, TextLayerPlacement } from "@/types/assets";
 import type { BannerEditorState, BannerEditorStateUpdater, SelectedLayer } from "@/types/editor";
 import { BannerPreview } from "./BannerPreview";
+import { CanvasQuickAdd } from "./CanvasQuickAdd";
 import { PlaybackTimeline } from "./PlaybackTimeline";
 import { PreviewPlaybackControls } from "./PreviewPlaybackControls";
 
@@ -27,6 +29,8 @@ interface BannerPreviewStageProps {
   playback: PlaybackController;
   onPlayAll?: () => void;
   onReplayScene?: () => void;
+  onQuickAdd?: (kind: QuickAddLayerType) => void;
+  onSlotActivate?: (layerId: string) => void;
 }
 
 export function BannerPreviewStage({
@@ -37,6 +41,8 @@ export function BannerPreviewStage({
   playback,
   onPlayAll,
   onReplayScene,
+  onQuickAdd,
+  onSlotActivate,
 }: BannerPreviewStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -133,6 +139,7 @@ export function BannerPreviewStage({
           Náhled plátna
         </h2>
         <div className="flex items-center gap-3">
+          {onQuickAdd ? <CanvasQuickAdd onAdd={onQuickAdd} /> : null}
           <label className="flex items-center gap-1.5 text-xs text-zinc-500">
             <input
               type="checkbox"
@@ -170,6 +177,7 @@ export function BannerPreviewStage({
             onUpdateStoryboardLayer={updateStoryboardLayer}
             playAll={playback.playAllView}
             playbackSceneId={playback.playbackSceneId}
+            onSlotActivate={onSlotActivate}
           />
         </div>
       </div>

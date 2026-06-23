@@ -1,6 +1,8 @@
 "use client";
 
 import type { BannerScene } from "@/types/animation";
+import { getSceneTransitionDurationMs } from "@/lib/animation/storyboard-utils";
+import { transitionFriendlyLabel } from "@/lib/animation/effect-labels";
 
 interface SceneCardProps {
   scene: BannerScene;
@@ -10,6 +12,9 @@ interface SceneCardProps {
 }
 
 export function SceneCard({ scene, index, active, onSelect }: SceneCardProps) {
+  const durSec = (scene.durationMs / 1000).toFixed(1);
+  const transSec = (getSceneTransitionDurationMs(scene) / 1000).toFixed(1);
+
   return (
     <button
       type="button"
@@ -24,10 +29,10 @@ export function SceneCard({ scene, index, active, onSelect }: SceneCardProps) {
         {index + 1}. {scene.name}
       </p>
       <p className="mt-0.5 text-[10px] text-zinc-500">
-        {scene.durationMs}ms · {scene.transitionOut}
+        {durSec} s · {transitionFriendlyLabel(scene.transitionOut)} {transSec}s
       </p>
       <p className="mt-1 text-[9px] uppercase tracking-wide text-zinc-600">
-        {scene.layerIds.length} layers
+        {scene.layerIds.length} vrstev
       </p>
     </button>
   );

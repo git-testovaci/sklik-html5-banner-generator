@@ -33,6 +33,8 @@ import type { BannerAssetPlacement, TextLayerPlacement } from "@/types/assets";
 import type { BannerEditorState, SelectedLayer } from "@/types/editor";
 import { InteractiveCanvasLayer } from "./InteractiveCanvasLayer";
 import { SafeAreaOverlay } from "./SafeAreaOverlay";
+import { SlotPlaceholder } from "./SlotPlaceholder";
+import { isSlotEmpty } from "@/lib/assets/slot-utils";
 
 interface BannerPreviewProps {
   state: BannerEditorState;
@@ -60,6 +62,7 @@ interface BannerPreviewProps {
   playbackSceneId?: string | null;
   /** When true, render read-only (public preview) with storyboard playback */
   publicMode?: boolean;
+  onSlotActivate?: (layerId: string) => void;
 }
 
 interface AssetUrlSnapshot {
@@ -169,6 +172,8 @@ interface CanvasContentProps {
   onUpdateTextPlacement?: BannerPreviewProps["onUpdateTextPlacement"];
   onUpdateAssetPlacement?: BannerPreviewProps["onUpdateAssetPlacement"];
   onUpdateStoryboardLayer?: BannerPreviewProps["onUpdateStoryboardLayer"];
+  publicMode?: boolean;
+  onSlotActivate?: (layerId: string) => void;
 }
 
 function CanvasContent({
@@ -187,6 +192,8 @@ function CanvasContent({
   onUpdateTextPlacement,
   onUpdateAssetPlacement,
   onUpdateStoryboardLayer,
+  publicMode = false,
+  onSlotActivate,
 }: CanvasContentProps) {
   const slice = buildFlatSliceForScene(state, sceneId);
   const renderState: BannerEditorState = { ...state, ...slice };
@@ -194,12 +201,19 @@ function CanvasContent({
   const sceneBg = scene?.backgroundColor ?? state.backgroundColor;
   const assets = state.assets ?? [];
   const storyboardLayers = getLayersForScene(state, sceneId);
+  const slotLayers = storyboardLayers.filter(
+    (l) =>
+      l.visible &&
+      (l.type === "image" || l.type === "badge") &&
+      isSlotEmpty(l) &&
+      (l.isTemplateSlot || l.slotKind),
+  );
   const extraLayers = storyboardLayers.filter(
     (l) =>
       l.type === "particle" ||
       l.type === "underline" ||
       l.type === "shape" ||
-      (l.type === "badge" && !l.assetId),
+      (l.type === "badge" && !l.assetId && !l.isTemplateSlot && !l.slotKind),
   );
   const missingSet = useMemo(() => new Set(missing), [missing]);
   const bgColorOnly = !(renderState.assetPlacements ?? []).some(
@@ -319,6 +333,35 @@ function CanvasContent({
                 </div>
               )}
             </div>
+          </InteractiveCanvasLayer>
+        );
+      })}
+
+      {slotLayers.map((layer) => {
+        const selected = selectedLayer?.type === "asset" && selectedLayer.id === layer.id;
+        return (
+          <InteractiveCanvasLayer
+            key={`${sceneId}-slot-${layer.id}`}
+            selected={selected}
+            interactive={interactive}
+            placement={{ x: layer.x, y: layer.y, width: layer.width, height: layer.height }}
+            rotation={layer.rotation}
+            zIndex={layer.zIndex}
+            opacity={layer.opacity}
+            bannerWidth={state.width}
+            bannerHeight={state.height}
+            canvasScale={canvasScale}
+            replayKey={replayKey}
+            onSelect={() => onSelectLayer?.({ type: "asset", id: layer.id })}
+            onPlacementChange={(patch) => onUpdateStoryboardLayer?.(layer.id, patch)}
+          >
+            <SlotPlaceholder
+              layer={layer}
+              accentColor={state.accentColor}
+              interactive={interactive && !publicMode}
+              publicMode={publicMode}
+              onActivate={() => onSlotActivate?.(layer.id)}
+            />
           </InteractiveCanvasLayer>
         );
       })}
@@ -532,6 +575,7 @@ export function BannerPreview({
   playAll = false,
   playbackSceneId,
   publicMode = false,
+  onSlotActivate,
 }: BannerPreviewProps) {
   const assets = state.assets ?? [];
   const assetsMetaKey = buildAssetsMetaKey(assets);
@@ -560,6 +604,8 @@ export function BannerPreview({
     onUpdateTextPlacement,
     onUpdateAssetPlacement,
     onUpdateStoryboardLayer,
+    publicMode,
+    onSlotActivate,
   };
 
   if (playAll && scenes.length > 1) {
