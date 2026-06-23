@@ -172,7 +172,7 @@ export function BannerPreviewStage({
             replayKey={playback.replayKey}
             loopPreview={loopPreview}
             showSafeArea={showSafeArea}
-            interactive
+            interactive={!playback.isPlaying}
             canvasScale={scale}
             selectedLayer={selectedLayer}
             onSelectLayer={onSelectLayer}

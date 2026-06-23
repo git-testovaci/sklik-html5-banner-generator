@@ -1,5 +1,6 @@
 import type { BannerLayer } from "@/types/animation";
 import type { BannerEditorState, SelectedLayer } from "@/types/editor";
+import { layoutPhaseEffectsOnLayer } from "@/lib/animation/layer-phase-utils";
 import {
   getEffectsForScene,
   getLayerById,
@@ -120,15 +121,20 @@ export function updateLayerTimelineRange(
       return { ...e, startMs: bounded.startMs, durationMs: bounded.durationMs };
     });
 
-    return syncFlatFromActiveScene({ ...state, layerEffects: nextEffects });
+    return layoutPhaseEffectsOnLayer(
+      syncFlatFromActiveScene({ ...state, layerEffects: nextEffects }),
+      sceneId,
+      layerId,
+    );
   }
 
-  return syncFlatFromActiveScene(
+  const withLayer = syncFlatFromActiveScene(
     updateBannerLayer(state, layerId, {
       timelineStartMs: clamped.startMs,
       timelineDurationMs: clamped.durationMs,
     }),
   );
+  return layoutPhaseEffectsOnLayer(withLayer, sceneId, layerId);
 }
 
 export function defaultInsertDurationMs(

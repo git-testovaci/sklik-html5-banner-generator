@@ -1,8 +1,7 @@
 import type { ExportAssetFile } from "@/lib/assets/asset-export";
-import { presetClassName } from "@/lib/animation/animation-presets";
+import { layerAnimGroupClassName, presetClassName } from "@/lib/animation/animation-presets";
 import { clampParticleCount } from "@/lib/animation/keyframe-utils";
 import { buildFlatSliceForScene, getLayersForScene, totalStoryboardDurationMs } from "@/lib/animation/storyboard-utils";
-import { getLayerAnimation } from "@/lib/animation/timeline-utils";
 import type { BannerLayer } from "@/types/animation";
 import type { BannerEditorState } from "@/types/editor";
 import {
@@ -36,9 +35,12 @@ function layerStyle(
 }
 
 function animClass(state: BannerEditorState, layerId: string): string {
-  const anim = getLayerAnimation(state, layerId);
-  if (!anim?.enabled || anim.preset === "none") return "";
-  return ` ${presetClassName(layerId)}`;
+  const matched = (state.layerAnimations ?? []).filter(
+    (a) => a.enabled && a.preset !== "none" && a.layerId === layerId,
+  );
+  if (matched.length === 0) return "";
+  if (matched.length > 1) return ` ${layerAnimGroupClassName(layerId, 0)}`;
+  return ` ${presetClassName(layerId, 0)}`;
 }
 
 function renderParticleLayer(layer: BannerLayer): string {

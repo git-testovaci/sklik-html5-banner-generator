@@ -12,8 +12,10 @@ import {
   zoomRotateKeyframes,
 } from "@/lib/animation/effect-presets";
 import {
+  buildCombinedLayerAnimationStyle,
   buildLayerAnimationStyle,
   collectLayerKeyframes,
+  layerAnimGroupClassName,
   presetClassName,
 } from "@/lib/animation/animation-presets";
 import { clampParticleCount } from "@/lib/animation/keyframe-utils";
@@ -26,7 +28,6 @@ import {
   getLayersForScene,
 } from "@/lib/animation/storyboard-utils";
 import {
-  getLayerAnimation,
   getTextPlacement,
 } from "@/lib/animation/timeline-utils";
 import type { BannerLayer } from "@/types/animation";
@@ -266,19 +267,50 @@ function CanvasContent({
     (l) => l.type === "text" && l.visible && !l.legacyKey,
   );
 
+  function resolveAnimClassName(animTargetId: string): string {
+    if (interactive) return "";
+    const anims = (renderState.layerAnimations ?? []).filter(
+      (a) => a.enabled && a.preset !== "none" && a.layerId === animTargetId,
+    );
+    if (anims.length === 0) return "";
+    if (anims.length === 1) return presetClassName(animTargetId, replayKey);
+    return layerAnimGroupClassName(animTargetId, replayKey);
+  }
+
   const animationCss = useMemo(() => {
     const slice = buildFlatSliceForScene(state, sceneId);
     const anims = slice.layerAnimations ?? [];
     const keyframes = collectLayerKeyframes(anims, false, replayKey);
     const rules: string[] = keyframes ? [keyframes] : [];
+    const grouped = new Map<string, typeof anims>();
 
     for (const anim of anims) {
       if (!anim.enabled || anim.preset === "none") continue;
+      const list = grouped.get(anim.layerId) ?? [];
+      list.push(anim);
+      grouped.set(anim.layerId, list);
+    }
+
+    for (const [layerId, layerAnims] of grouped) {
       const loop =
         loopPreview ||
-        (anim.preset === "soft-pulse" && (slice.timeline?.loop ?? false));
-      const style = buildLayerAnimationStyle(anim, loop, false, replayKey);
-      if (style) rules.push(`.${presetClassName(anim.layerId, replayKey)} { ${style} }`);
+        (layerAnims.some((a) => a.preset === "soft-pulse") &&
+          (slice.timeline?.loop ?? false));
+      if (layerAnims.length > 1) {
+        const style = buildCombinedLayerAnimationStyle(
+          layerAnims,
+          loop,
+          false,
+          replayKey,
+        );
+        if (style) {
+          rules.push(`.${layerAnimGroupClassName(layerId, replayKey)} { ${style} }`);
+        }
+      } else {
+        const anim = layerAnims[0]!;
+        const style = buildLayerAnimationStyle(anim, loop, false, replayKey);
+        if (style) rules.push(`.${presetClassName(layerId, replayKey)} { ${style} }`);
+      }
     }
 
     for (const effect of getEffectsForScene(state, sceneId)) {
@@ -321,16 +353,13 @@ function CanvasContent({
         );
         const layerId =
           placement.kind === "decoration" ? `decoration-${placement.assetId}` : placement.kind;
-        const anim = getLayerAnimation(renderState, layerId);
         const fx = (state.layerEffects ?? []).find(
           (e) => e.layerId === placement.assetId && e.sceneId === sceneId,
         );
         const animClass =
-          anim?.enabled && anim.preset !== "none"
-            ? presetClassName(layerId, replayKey)
-            : fx?.preset === "flip-180" || fx?.preset === "zoom-rotate-badge"
-              ? `${placement.assetId}-fx-${replayKey}`
-              : "";
+          fx?.preset === "flip-180" || fx?.preset === "zoom-rotate-badge"
+            ? `${placement.assetId}-fx-${replayKey}`
+            : resolveAnimClassName(layerId);
 
         return (
           <InteractiveCanvasLayer
@@ -551,16 +580,8 @@ function CanvasContent({
             : layerId === "subheadline"
               ? renderState.subheadline
               : renderState.cta);
-        const anims = renderState.layerAnimations ?? [];
-        const anim =
-          anims.find((a) => a.layerId === layerId) ??
-          (sbLayer ? anims.find((a) => a.layerId === sbLayer.id) : undefined) ??
-          getLayerAnimation(renderState, layerId);
         const animTargetId = sbLayer?.legacyKey ?? sbLayer?.id ?? layerId;
-        const animClass =
-          anim?.enabled && anim.preset !== "none"
-            ? presetClassName(animTargetId, replayKey)
-            : "";
+        const animClass = resolveAnimClassName(animTargetId);
         const selected = isLayerSelected(selectedLayer, { type: "text", id: layerId });
         const isCta = layerId === "cta";
         const fontSize =
@@ -645,11 +666,7 @@ function CanvasContent({
 
       {extraTextLayers.map((layer) => {
         if (!layerVisibleAtPreview(layer.id)) return null;
-        const anim = (renderState.layerAnimations ?? []).find((a) => a.layerId === layer.id);
-        const animClass =
-          anim?.enabled && anim.preset !== "none"
-            ? presetClassName(layer.id, replayKey)
-            : "";
+        const animClass = resolveAnimClassName(layer.id);
         const fontSize = layer.fontSize ?? Math.max(10, Math.round(state.height * 0.055));
         const fontWeight = layer.fontWeight ?? 400;
         const lineHeight = layer.lineHeight ?? 1.25;

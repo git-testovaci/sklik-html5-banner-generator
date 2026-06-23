@@ -184,6 +184,8 @@ export interface LayerKeyframe {
   easing: AnimationEasing;
 }
 
+export type LayerEffectPhase = "in" | "out" | "loop" | "custom";
+
 export interface LayerEffect {
   id: string;
   layerId: string;
@@ -196,6 +198,8 @@ export interface LayerEffect {
   distancePx: number;
   intensity: number;
   loop: boolean;
+  /** CapCut-style animation phase — optional for backward compatibility */
+  phase?: LayerEffectPhase;
   params?: Record<string, string | number | boolean>;
 }
 
@@ -214,6 +218,9 @@ export interface LayerAnimation {
   opacityTo: number;
   scaleFrom: number;
   scaleTo: number;
+  /** Derived phase metadata for preview/export CSS (not persisted on project) */
+  phase?: LayerEffectPhase;
+  phaseUiPresetId?: string;
 }
 
 export const ANIMATION_PRESETS: readonly {

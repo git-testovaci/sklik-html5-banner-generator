@@ -1,6 +1,8 @@
 import {
+  buildCombinedLayerAnimationStyle,
   buildLayerAnimationStyle,
   collectLayerKeyframes,
+  layerAnimGroupClassName,
   presetClassName,
 } from "@/lib/animation/animation-presets";
 import {
@@ -72,17 +74,28 @@ function buildAnimationRules(state: BannerEditorState): string {
   const anims = state.layerAnimations ?? [];
   const keyframes = collectLayerKeyframes(anims, true, 0);
   const rules: string[] = keyframes ? [keyframes] : [];
+  const grouped = new Map<string, typeof anims>();
 
   for (const anim of anims) {
     if (!anim.enabled || anim.preset === "none") continue;
-    const style = buildLayerAnimationStyle(
-      anim,
-      state.timeline?.loop ?? false,
-      true,
-      0,
-    );
-    if (style) {
-      rules.push(`.${presetClassName(anim.layerId, 0)} { ${style} }`);
+    const list = grouped.get(anim.layerId) ?? [];
+    list.push(anim);
+    grouped.set(anim.layerId, list);
+  }
+
+  for (const [layerId, layerAnims] of grouped) {
+    const loop = state.timeline?.loop ?? false;
+    if (layerAnims.length > 1) {
+      const style = buildCombinedLayerAnimationStyle(layerAnims, loop, true, 0);
+      if (style) {
+        rules.push(`.${layerAnimGroupClassName(layerId, 0)} { ${style} }`);
+      }
+    } else {
+      const anim = layerAnims[0]!;
+      const style = buildLayerAnimationStyle(anim, loop, true, 0);
+      if (style) {
+        rules.push(`.${presetClassName(layerId, 0)} { ${style} }`);
+      }
     }
   }
 

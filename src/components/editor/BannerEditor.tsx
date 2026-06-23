@@ -19,6 +19,7 @@ import {
   setActiveScene,
 } from "@/lib/animation/storyboard-utils";
 import { updateLayerTimelineRange } from "@/lib/animation/layer-timeline-utils";
+import { updateLayerPhaseDuration } from "@/lib/animation/layer-phase-utils";
 import { createQuickLayer, type QuickAddLayerType } from "@/lib/animation/layer-factory";
 import { findEmptySlotForKind, getTemplateSlotLayers } from "@/lib/assets/slot-utils";
 import { usePlaybackController } from "@/lib/playback/use-playback-controller";
@@ -533,6 +534,11 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
               const sceneId = activeScene?.id;
               if (!sceneId) return;
               onUpdate(updateLayerTimelineRange(state, sceneId, layerId, startMs, durationMs));
+            }}
+            onPhaseDurationChange={(layerId, phase, durationMs) => {
+              const sceneId = activeScene?.id;
+              if (!sceneId) return;
+              onUpdate(updateLayerPhaseDuration(state, sceneId, layerId, phase, durationMs));
             }}
           />
           {showEffectDetail ? (

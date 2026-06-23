@@ -11,7 +11,8 @@ import type {
 import type { BannerAssetPlacement, TextLayerPlacement } from "@/types/assets";
 import type { BannerEditorState, SelectedLayer } from "@/types/editor";
 import type { BannerProject } from "@/types/project";
-import { effectPresetDefaults, effectToLayerAnimation } from "./effect-presets";
+import { effectPresetDefaults } from "./effect-presets";
+import { buildPhaseLayerAnimationsForScene } from "./layer-phase-utils";
 
 export function newId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -365,14 +366,7 @@ export function buildFlatSliceForScene(
     }
   }
 
-  const layerAnimations = getEffectsForScene(state, sceneId).map((e) => {
-    const layer = getLayerById(state, e.layerId);
-    const anim = effectToLayerAnimation(e, layerTypeFromId(e.layerId, state));
-    const animLayerId =
-      layer?.legacyKey ??
-      (layer?.type === "text" ? layer.id : layer?.assetId ?? e.layerId);
-    return { ...anim, layerId: animLayerId };
-  });
+  const layerAnimations = buildPhaseLayerAnimationsForScene(state, sceneId);
 
   return {
     headline: sceneLayers.find((l) => l.legacyKey === "headline")?.text ?? state.headline,
@@ -396,21 +390,6 @@ export function syncFlatFromActiveScene(state: BannerEditorState): BannerEditorS
 
   const slice = buildFlatSliceForScene(state, scene.id);
   return { ...state, ...slice };
-}
-
-function layerTypeFromId(
-  layerId: string,
-  state: BannerEditorState,
-): LayerAnimation["layerType"] {
-  const layer = getLayerById(state, layerId);
-  if (layer?.legacyKey === "headline") return "headline";
-  if (layer?.legacyKey === "subheadline") return "subheadline";
-  if (layer?.legacyKey === "cta") return "cta";
-  if (layer?.legacyKey === "logo") return "logo";
-  if (layer?.legacyKey === "product") return "product";
-  if (layer?.legacyKey === "background") return "background";
-  if (layer?.type === "badge") return "decoration";
-  return "decoration";
 }
 
 export function updateBannerLayer(

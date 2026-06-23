@@ -10,6 +10,10 @@ import {
   layerTimelineLabel,
   selectionForBannerLayer,
 } from "@/lib/animation/layer-timeline-utils";
+import {
+  getLayerPhaseSegments,
+  phaseSegmentTooltip,
+} from "@/lib/animation/layer-phase-utils";
 import { getActiveScene } from "@/lib/animation/storyboard-utils";
 import type { BannerEditorState, SelectedLayer } from "@/types/editor";
 
@@ -25,9 +29,14 @@ interface UnifiedLayerTimelineProps {
   isPlaying: boolean;
   onScrub: (timeMs: number) => void;
   onRangeChange: (layerId: string, startMs: number, durationMs: number) => void;
+  onPhaseDurationChange?: (
+    layerId: string,
+    phase: "in" | "out",
+    durationMs: number,
+  ) => void;
 }
 
-type DragMode = "move" | "resize-left" | "resize-right";
+type DragMode = "move" | "resize-left" | "resize-right" | "phase-in" | "phase-out";
 
 interface DragState {
   layerId: string;
@@ -35,6 +44,8 @@ interface DragState {
   startX: number;
   initialStartMs: number;
   initialDurationMs: number;
+  initialPhaseInMs: number;
+  initialPhaseOutMs: number;
   trackWidth: number;
 }
 
@@ -74,6 +85,7 @@ export function UnifiedLayerTimeline({
   isPlaying,
   onScrub,
   onRangeChange,
+  onPhaseDurationChange,
 }: UnifiedLayerTimelineProps) {
   const scene = getActiveScene(state);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -81,6 +93,15 @@ export function UnifiedLayerTimeline({
   const liveRangeRef = useRef<{ layerId: string; startMs: number; durationMs: number } | null>(
     null,
   );
+  const [livePhase, setLivePhase] = useState<{
+    layerId: string;
+    inMs: number;
+    outMs: number;
+  } | null>(null);
+  const livePhaseRef = useRef<{ layerId: string; inMs: number; outMs: number } | null>(
+    null,
+  );
+
   const [liveRange, setLiveRange] = useState<{
     layerId: string;
     startMs: number;
@@ -111,6 +132,23 @@ export function UnifiedLayerTimeline({
     [onRangeChange],
   );
 
+  const finishPhaseDrag = useCallback(
+    (drag: DragState) => {
+      const phase = livePhaseRef.current;
+      if (phase && phase.layerId === drag.layerId && onPhaseDurationChange) {
+        if (drag.mode === "phase-in") {
+          onPhaseDurationChange(drag.layerId, "in", phase.inMs);
+        } else if (drag.mode === "phase-out") {
+          onPhaseDurationChange(drag.layerId, "out", phase.outMs);
+        }
+      }
+      livePhaseRef.current = null;
+      setLivePhase(null);
+      dragRef.current = null;
+    },
+    [onPhaseDurationChange],
+  );
+
   useEffect(() => {
     function onMove(e: PointerEvent) {
       const drag = dragRef.current;
@@ -119,6 +157,36 @@ export function UnifiedLayerTimeline({
 
       const dx = e.clientX - drag.startX;
       const dMs = (dx / drag.trackWidth) * sceneDur;
+
+      if (drag.mode === "phase-in" || drag.mode === "phase-out") {
+        const blockDur = drag.initialDurationMs;
+        const dBlockMs = (dx / drag.trackWidth) * sceneDur;
+        let inMs = drag.initialPhaseInMs;
+        let outMs = drag.initialPhaseOutMs;
+        if (drag.mode === "phase-in") {
+          inMs = Math.max(
+            0,
+            Math.min(
+              drag.initialPhaseInMs + dBlockMs,
+              blockDur - outMs - 100,
+            ),
+          );
+          if (inMs > 0 && inMs < 100) inMs = 100;
+        } else {
+          outMs = Math.max(
+            0,
+            Math.min(
+              drag.initialPhaseOutMs - dBlockMs,
+              blockDur - inMs - 100,
+            ),
+          );
+          if (outMs > 0 && outMs < 100) outMs = 100;
+        }
+        const next = { layerId: drag.layerId, inMs, outMs };
+        livePhaseRef.current = next;
+        setLivePhase(next);
+        return;
+      }
 
       let start = drag.initialStartMs;
       let dur = drag.initialDurationMs;
@@ -144,6 +212,10 @@ export function UnifiedLayerTimeline({
     function onUp() {
       const drag = dragRef.current;
       if (!drag) return;
+      if (drag.mode === "phase-in" || drag.mode === "phase-out") {
+        finishPhaseDrag(drag);
+        return;
+      }
       const range = liveRangeRef.current;
       if (range && range.layerId === drag.layerId) {
         finishDrag(drag, range.startMs, range.durationMs);
@@ -160,7 +232,7 @@ export function UnifiedLayerTimeline({
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
     };
-  }, [finishDrag, scene]);
+  }, [finishDrag, finishPhaseDrag, scene]);
 
   function startBlockDrag(
     e: React.PointerEvent,
@@ -172,12 +244,15 @@ export function UnifiedLayerTimeline({
     const track = trackRef.current;
     if (!track || !scene) return;
     const range = getLayerTimelineRange(state, scene.id, layerId);
+    const segments = getLayerPhaseSegments(state, scene.id, layerId);
     dragRef.current = {
       layerId,
       mode,
       startX: e.clientX,
       initialStartMs: range.startMs,
       initialDurationMs: range.durationMs,
+      initialPhaseInMs: segments.inDurationMs,
+      initialPhaseOutMs: segments.outDurationMs,
       trackWidth: track.getBoundingClientRect().width,
     };
     try {
@@ -185,6 +260,20 @@ export function UnifiedLayerTimeline({
     } catch {
       // ignore
     }
+  }
+
+  function getPhaseSegments(layerId: string) {
+    if (!scene) return getLayerPhaseSegments(state, "", layerId);
+    const base = getLayerPhaseSegments(state, scene.id, layerId);
+    if (livePhase?.layerId === layerId) {
+      return {
+        ...base,
+        inDurationMs: livePhase.inMs,
+        outDurationMs: livePhase.outMs,
+        staticMs: Math.max(100, base.rangeDurationMs - livePhase.inMs - livePhase.outMs),
+      };
+    }
+    return base;
   }
 
   function handleTrackScrub(e: React.PointerEvent<HTMLDivElement>) {
@@ -270,6 +359,11 @@ export function UnifiedLayerTimeline({
                 sceneDurationMs > 0 ? (range.durationMs / sceneDurationMs) * 100 : 100;
               const selected = isTimelineLayerSelected(selectedLayer, layer);
               const blockColor = layerTimelineBlockColor(layer);
+              const segments = getPhaseSegments(layer.id);
+              const blockDur = range.durationMs;
+              const inPct = blockDur > 0 ? (segments.inDurationMs / blockDur) * 100 : 0;
+              const outPct = blockDur > 0 ? (segments.outDurationMs / blockDur) * 100 : 0;
+              const midPct = Math.max(0, 100 - inPct - outPct);
 
               return (
                 <div
@@ -316,7 +410,67 @@ export function UnifiedLayerTimeline({
                         className="absolute left-0 top-0 h-full w-1.5 cursor-ew-resize rounded-l bg-white/20 hover:bg-white/40"
                         onPointerDown={(e) => startBlockDrag(e, layer.id, "resize-left")}
                       />
-                      <span className="pointer-events-none truncate px-2 text-[9px] font-medium text-white/90">
+                      {/* In / loop / out segments inside layer block */}
+                      {segments.in.active && inPct > 0 ? (
+                        <div
+                          className="pointer-events-none absolute left-0 top-0 h-full border-r border-white/25 bg-gradient-to-r from-white/25 to-transparent"
+                          style={{ width: `${inPct}%` }}
+                          title={phaseSegmentTooltip(segments.in, "in")}
+                        >
+                          {inPct > 14 ? (
+                            <span className="absolute inset-0 flex items-center justify-center text-[8px] font-semibold text-white/90">
+                              In {(segments.inDurationMs / 1000).toFixed(1)}s
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      {midPct > 0 ? (
+                        <div
+                          className="pointer-events-none absolute top-0 h-full"
+                          style={{ left: `${inPct}%`, width: `${midPct}%` }}
+                          title={
+                            segments.loopActive
+                              ? phaseSegmentTooltip(segments.loop, "loop")
+                              : "Zobrazení vrstvy"
+                          }
+                        >
+                          {segments.loopActive && midPct > 18 ? (
+                            <span className="absolute inset-0 flex items-center justify-center text-[8px] text-white/75">
+                              ⟳ {segments.loop.label}
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      {segments.out.active && outPct > 0 ? (
+                        <div
+                          className="pointer-events-none absolute right-0 top-0 h-full border-l border-white/25 bg-gradient-to-l from-white/25 to-transparent"
+                          style={{ width: `${outPct}%` }}
+                          title={phaseSegmentTooltip(segments.out, "out")}
+                        >
+                          {outPct > 14 ? (
+                            <span className="absolute inset-0 flex items-center justify-center text-[8px] font-semibold text-white/90">
+                              Out {(segments.outDurationMs / 1000).toFixed(1)}s
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      {segments.in.active && onPhaseDurationChange ? (
+                        <div
+                          className="absolute top-0 z-10 h-full w-1 cursor-ew-resize bg-emerald-300/80 hover:bg-emerald-200"
+                          style={{ left: `calc(${inPct}% - 2px)` }}
+                          title="Upravit délku animace dopředu"
+                          onPointerDown={(e) => startBlockDrag(e, layer.id, "phase-in")}
+                        />
+                      ) : null}
+                      {segments.out.active && onPhaseDurationChange ? (
+                        <div
+                          className="absolute top-0 z-10 h-full w-1 cursor-ew-resize bg-rose-300/80 hover:bg-rose-200"
+                          style={{ left: `calc(${100 - outPct}% - 2px)` }}
+                          title="Upravit délku animace dozadu"
+                          onPointerDown={(e) => startBlockDrag(e, layer.id, "phase-out")}
+                        />
+                      ) : null}
+                      <span className="pointer-events-none relative z-[1] truncate px-2 text-[9px] font-medium text-white/90">
                         {formatTimelineSeconds(range.startMs)} –{" "}
                         {formatTimelineSeconds(range.startMs + range.durationMs)}
                       </span>

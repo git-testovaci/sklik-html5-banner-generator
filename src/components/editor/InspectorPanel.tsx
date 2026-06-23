@@ -34,6 +34,7 @@ import {
 import { EffectPresetPicker } from "./EffectPresetPicker";
 import { ParticleLayerControls } from "./ParticleLayerControls";
 import { TextEffectControls } from "./TextEffectControls";
+import { LayerPhaseAnimationControls } from "./LayerPhaseAnimationControls";
 
 interface InspectorPanelProps {
   state: BannerEditorState;
@@ -264,6 +265,7 @@ export function InspectorPanel({
         {layer.type === "underline" ? (
           <UnderlineInspector layer={layer} state={state} onUpdate={onUpdate} />
         ) : null}
+        <LayerPhaseAnimationControls layer={layer} state={state} onUpdate={onUpdate} />
         <CollapsiblePositionFields layer={layer} state={state} onUpdate={onUpdate} />
       </div>
     </section>
