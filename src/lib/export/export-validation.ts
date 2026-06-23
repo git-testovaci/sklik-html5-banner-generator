@@ -1,4 +1,5 @@
 import type { BannerEditorState } from "@/types/editor";
+import { totalStoryboardDurationMs } from "@/lib/animation/storyboard-utils";
 import type {
   ExportValidationReport,
   ExportValidationRow,
@@ -50,6 +51,12 @@ function summarize(rows: ExportValidationRow[]): ExportValidationReport["summary
   return "pass";
 }
 
+function stripComments(text: string): string {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/[^\n]*/g, "");
+}
+
 function scanForbidden(content: string, rules: typeof FORBIDDEN_JS): string[] {
   const found: string[] = [];
   for (const { pattern, label } of rules) {
@@ -82,6 +89,7 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
     fileCount = 3,
   } = input;
   const allText = `${indexHtml}\n${styleCss}\n${scriptJs}`;
+  const scanText = stripComments(`${indexHtml}\n${styleCss}`);
   const rows: ExportValidationRow[] = [];
 
   if (assetErrors.length > 0) {
@@ -245,7 +253,7 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
     ),
   );
 
-  const externalHits = EXTERNAL_PATTERNS.filter((p) => p.test(allText));
+  const externalHits = EXTERNAL_PATTERNS.filter((p) => p.test(scanText));
   rows.push(
     row(
       "external",
@@ -287,7 +295,10 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
     ),
   );
 
-  const maxDuration = state.timeline?.durationMs ?? 3000;
+  const maxDuration =
+    (state.scenes ?? []).length > 1
+      ? totalStoryboardDurationMs(state)
+      : (state.timeline?.durationMs ?? 3000);
   if (maxDuration > 8000) {
     rows.push(
       row(
@@ -295,6 +306,17 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
         "Timeline duration",
         "warn",
         `${maxDuration}ms — keep banner animations short`,
+      ),
+    );
+  }
+
+  if ((state.scenes ?? []).length > 5) {
+    rows.push(
+      row(
+        "scene-count",
+        "Scene count",
+        "warn",
+        `${state.scenes!.length} scenes — may increase complexity and ZIP size`,
       ),
     );
   }

@@ -43,6 +43,7 @@ function PreviewContent({ state }: PreviewContentProps) {
   const [scale, setScale] = useState(1);
   const [replayKey, setReplayKey] = useState(0);
   const [playAll, setPlayAll] = useState(false);
+  const [loopPreview, setLoopPreview] = useState(state.timeline?.loop ?? false);
   const [playbackSceneId, setPlaybackSceneId] = useState<string | null>(null);
   const timerRef = useRef<number[]>([]);
   const sizeLabel = formatBannerSize(state.width, state.height);
@@ -168,7 +169,7 @@ function PreviewContent({ state }: PreviewContentProps) {
             <BannerPreview
               state={state}
               replayKey={replayKey}
-              loopPreview={state.timeline?.loop ?? false}
+              loopPreview={loopPreview}
               playAll={playAll && hasStoryboard}
               playbackSceneId={playbackSceneId}
               publicMode
@@ -178,7 +179,7 @@ function PreviewContent({ state }: PreviewContentProps) {
 
         {hasStoryboard ? (
           <PreviewPlaybackControls
-            loop={state.timeline?.loop ?? false}
+            loop={loopPreview}
             onReplay={() => {
               setPlayAll(false);
               setReplayKey((k) => k + 1);
@@ -189,7 +190,7 @@ function PreviewContent({ state }: PreviewContentProps) {
               setReplayKey((k) => k + 1);
             }}
             onPlayAll={handlePlayAll}
-            onToggleLoop={() => {}}
+            onToggleLoop={() => setLoopPreview((v) => !v)}
             sceneLabel={
               playAll
                 ? `Playing all · ${totalStoryboardDurationMs(state)}ms`

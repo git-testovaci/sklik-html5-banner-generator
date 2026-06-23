@@ -1,7 +1,7 @@
 import type { ExportAssetFile } from "@/lib/assets/asset-export";
 import { presetClassName } from "@/lib/animation/animation-presets";
 import { clampParticleCount } from "@/lib/animation/keyframe-utils";
-import { getLayersForScene, totalStoryboardDurationMs } from "@/lib/animation/storyboard-utils";
+import { buildFlatSliceForScene, getLayersForScene, totalStoryboardDurationMs } from "@/lib/animation/storyboard-utils";
 import { getLayerAnimation } from "@/lib/animation/timeline-utils";
 import type { BannerLayer } from "@/types/animation";
 import type { BannerEditorState } from "@/types/editor";
@@ -62,9 +62,12 @@ function renderSceneLayers(
   sceneId: string,
   paths: Map<string, string>,
 ): string {
-  const headline = escapeHtmlText(sanitizePlainText(state.headline, "Headline", 120));
-  const subheadline = escapeHtmlText(sanitizePlainText(state.subheadline, "Subheadline", 160));
-  const cta = escapeHtmlText(sanitizePlainText(state.cta, "Learn more", 40));
+  const slice = buildFlatSliceForScene(state, sceneId);
+  const sceneState: BannerEditorState = { ...state, ...slice };
+
+  const headline = escapeHtmlText(sanitizePlainText(sceneState.headline, "Headline", 120));
+  const subheadline = escapeHtmlText(sanitizePlainText(sceneState.subheadline, "Subheadline", 160));
+  const cta = escapeHtmlText(sanitizePlainText(sceneState.cta, "Learn more", 40));
   const logo = escapeHtmlText(sanitizePlainText(state.logoLabel, "Logo", 24));
   const product = escapeHtmlText(sanitizePlainText(state.productImageLabel, "Product", 24));
 
@@ -84,8 +87,9 @@ function renderSceneLayers(
     }
 
     if (layer.type === "text" && layer.legacyKey) {
-      const content =
-        layer.legacyKey === "headline"
+      const content = layer.text
+        ? escapeHtmlText(sanitizePlainText(layer.text, "Text", 160))
+        : layer.legacyKey === "headline"
           ? headline
           : layer.legacyKey === "subheadline"
             ? subheadline
@@ -97,7 +101,7 @@ function renderSceneLayers(
             ? "layer--headline"
             : "layer--subheadline";
       parts.push(
-        `<div class="layer ${cls}${animClass(state, layer.legacyKey)}" data-layer="${layer.legacyKey}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)}">${content}</div>`,
+        `<div class="layer ${cls}${animClass(sceneState, layer.legacyKey)}" data-layer="${layer.legacyKey}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)}">${content}</div>`,
       );
       continue;
     }
@@ -115,12 +119,12 @@ function renderSceneLayers(
           : "";
       if (path) {
         parts.push(
-          `<div class="layer layer--${kind}${animClass(state, layerId)}${fxClass}" data-layer="${kind}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)}"><img class="layer__img layer__img--${layer.fit ?? "contain"}" src="${escapeHtmlAttribute(path)}" alt=""></div>`,
+          `<div class="layer layer--${kind}${animClass(sceneState, layerId)}${fxClass}" data-layer="${kind}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)}"><img class="layer__img layer__img--${layer.fit ?? "contain"}" src="${escapeHtmlAttribute(path)}" alt=""></div>`,
         );
       } else {
         const placeholder = kind === "logo" ? logo : kind === "product" ? product : kind;
         parts.push(
-          `<div class="layer layer--${kind} layer--placeholder${animClass(state, layerId)}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)}"><span>${placeholder}</span></div>`,
+          `<div class="layer layer--${kind} layer--placeholder${animClass(sceneState, layerId)}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)}"><span>${placeholder}</span></div>`,
         );
       }
     }

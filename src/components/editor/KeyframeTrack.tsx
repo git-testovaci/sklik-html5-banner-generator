@@ -23,8 +23,9 @@ export function KeyframeTrack({
   onChange,
 }: KeyframeTrackProps) {
   const label = effectPresetDefaults(effect.preset).label;
-  const leftPct = (effect.startMs / timelineDurationMs) * 100;
-  const widthPct = (effect.durationMs / timelineDurationMs) * 100;
+  const safeDuration = Math.max(timelineDurationMs, 1);
+  const leftPct = Math.min(100, Math.max(0, (effect.startMs / safeDuration) * 100));
+  const widthPct = Math.min(100, Math.max(0, (effect.durationMs / safeDuration) * 100));
 
   function onDragStart(clientX: number, mode: "move" | "resize-left" | "resize-right") {
     const startX = clientX;
@@ -32,17 +33,17 @@ export function KeyframeTrack({
 
     function onMove(ev: PointerEvent) {
       const dx = ev.clientX - startX;
-      const msPerPx = timelineDurationMs / 400;
+      const msPerPx = safeDuration / 400;
       const dMs = Math.round(dx * msPerPx);
 
       if (mode === "move") {
-        const timing = clampTiming(origin.startMs + dMs, origin.durationMs, timelineDurationMs);
+        const timing = clampTiming(origin.startMs + dMs, origin.durationMs, safeDuration);
         onChange({ startMs: timing.startMs, durationMs: timing.durationMs });
       } else if (mode === "resize-right") {
-        const timing = clampTiming(origin.startMs, origin.durationMs + dMs, timelineDurationMs);
+        const timing = clampTiming(origin.startMs, origin.durationMs + dMs, safeDuration);
         onChange({ startMs: timing.startMs, durationMs: timing.durationMs });
       } else {
-        const timing = clampTiming(origin.startMs + dMs, origin.durationMs - dMs, timelineDurationMs);
+        const timing = clampTiming(origin.startMs + dMs, origin.durationMs - dMs, safeDuration);
         onChange({ startMs: timing.startMs, durationMs: timing.durationMs });
       }
     }

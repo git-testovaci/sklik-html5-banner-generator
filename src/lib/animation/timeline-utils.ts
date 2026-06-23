@@ -388,6 +388,11 @@ export function projectToEditorState(project: BannerProject): BannerEditorState 
     textPlacements: project.textPlacements,
     timeline: project.timeline,
     layerAnimations: project.layerAnimations,
+    scenes: project.scenes,
+    bannerLayers: project.bannerLayers,
+    layerEffects: project.layerEffects,
+    layerKeyframes: project.layerKeyframes,
+    activeSceneId: project.activeSceneId,
   });
 }
 

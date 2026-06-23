@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  buildAssetWarningKey,
   collectAssetBlobWarnings,
   collectAssetMetadataWarnings,
   type AssetWarningItem,
@@ -20,18 +19,15 @@ const LEVEL_STYLES = {
 };
 
 export function AssetWarningsPanel({ state }: AssetWarningsPanelProps) {
-  const warningKey = buildAssetWarningKey(state);
-  const metadataWarnings = useMemo(
-    () => collectAssetMetadataWarnings(state),
-    [warningKey],
+  const visibleAssetIds = useMemo(
+    () =>
+      (state.assetPlacements ?? [])
+        .filter((p) => p.visible)
+        .map((p) => p.assetId)
+        .sort()
+        .join(","),
+    [state.assetPlacements],
   );
-  const visibleAssetIds = useMemo(() => {
-    return (state.assetPlacements ?? [])
-      .filter((p) => p.visible)
-      .map((p) => p.assetId)
-      .sort()
-      .join(",");
-  }, [warningKey]);
 
   const [blobSnapshot, setBlobSnapshot] = useState<{
     key: string;
@@ -39,9 +35,7 @@ export function AssetWarningsPanel({ state }: AssetWarningsPanelProps) {
   }>({ key: "", warnings: [] });
 
   useEffect(() => {
-    if (!visibleAssetIds) {
-      return;
-    }
+    if (!visibleAssetIds) return;
 
     let cancelled = false;
     const ids = visibleAssetIds.split(",").filter(Boolean);
@@ -57,14 +51,14 @@ export function AssetWarningsPanel({ state }: AssetWarningsPanelProps) {
     };
   }, [visibleAssetIds]);
 
-  const blobWarnings =
-    visibleAssetIds && blobSnapshot.key === visibleAssetIds
-      ? blobSnapshot.warnings
-      : [];
-  const warnings = useMemo(
-    () => [...metadataWarnings, ...blobWarnings],
-    [metadataWarnings, blobWarnings],
-  );
+  const warnings = useMemo(() => {
+    const metadata = collectAssetMetadataWarnings(state);
+    if (!visibleAssetIds) return metadata;
+    const blobWarnings =
+      blobSnapshot.key === visibleAssetIds ? blobSnapshot.warnings : [];
+    return [...metadata, ...blobWarnings];
+  }, [state, visibleAssetIds, blobSnapshot]);
+
   const loading = visibleAssetIds.length > 0 && blobSnapshot.key !== visibleAssetIds;
 
   if (loading && warnings.length === 0) {

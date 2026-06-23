@@ -789,6 +789,10 @@ export function transitionCss(transition: BannerSceneTransition, durationMs: num
       return `animation: scenePushLeft ${dur} ease-out forwards;`;
     case "push-right":
       return `animation: scenePushRight ${dur} ease-out forwards;`;
+    case "swipe-up":
+      return `animation: sceneSwipeUp ${dur} ease-out forwards;`;
+    case "swipe-down":
+      return `animation: sceneSwipeDown ${dur} ease-out forwards;`;
     default:
       return "";
   }
