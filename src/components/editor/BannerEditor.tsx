@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   normalizeEditorState,
   projectToEditorState,
@@ -10,9 +10,11 @@ import {
 } from "@/lib/animation/timeline-utils";
 import {
   clearSelectedEffectIfMissing,
+  duplicateBannerLayerInScene,
   getActiveScene,
   getLayerById,
   getSceneById,
+  resolveBannerLayerForSelection,
   setActiveScene,
 } from "@/lib/animation/storyboard-utils";
 import { createQuickLayer, type QuickAddLayerType } from "@/lib/animation/layer-factory";
@@ -77,6 +79,14 @@ function useProjectLookup(projectId: string) {
   );
 }
 
+function isEditableKeyboardTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (target.isContentEditable) return true;
+  return Boolean(target.closest("[contenteditable='true']"));
+}
+
 interface BannerEditorInnerProps {
   initialState: BannerEditorState;
   projectId: string;
@@ -104,6 +114,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   const [selectedTransitionSceneId, setSelectedTransitionSceneId] = useState<string | null>(null);
   const [expandTiming, setExpandTiming] = useState(false);
   const [dismissedGuidanceId, setDismissedGuidanceId] = useState<string | null>(null);
+  const copiedLayerIdRef = useRef<string | null>(null);
 
   const workflowGuidance = useMemo(() => deriveWorkflowGuidance(state), [state]);
   const activeGuidance =
@@ -128,6 +139,51 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
     setSaveStatus("idle");
     setSaveError(null);
   };
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (isEditableKeyboardTarget(e.target)) return;
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+
+      if (e.key === "c" || e.key === "C") {
+        const layer = resolveBannerLayerForSelection(state, selectedLayer);
+        if (!layer || layer.persistent) return;
+        copiedLayerIdRef.current = layer.id;
+        e.preventDefault();
+        return;
+      }
+
+      if (e.key === "v" || e.key === "V") {
+        const sourceId = copiedLayerIdRef.current;
+        if (!sourceId) return;
+        e.preventDefault();
+        setState((prev) => {
+          const { state: next, layerId } = duplicateBannerLayerInScene(prev, sourceId);
+          if (!layerId) return prev;
+          const normalized = normalizeEditorState(next);
+          const dup = getLayerById(normalized, layerId);
+          if (
+            dup?.type === "text" &&
+            (dup.legacyKey === "headline" ||
+              dup.legacyKey === "subheadline" ||
+              dup.legacyKey === "cta")
+          ) {
+            setSelectedLayer({ type: "text", id: dup.legacyKey });
+          } else {
+            setSelectedLayer({ type: "asset", id: layerId });
+          }
+          setSelectedEffectId(null);
+          setSaveStatus("idle");
+          setSaveError(null);
+          return normalized;
+        });
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [state, selectedLayer]);
 
   const hasUnsavedChanges = !editorStatesEqual(state, savedState);
   const validation = useMemo(() => getValidationSummary(state), [state]);
@@ -432,6 +488,10 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
               setSelectedTransitionSceneId(sceneId);
               setSelectedEffectId(null);
             }}
+            playbackMode={playback.mode}
+            playbackTimeMs={playback.playbackTimeMs}
+            playbackSceneId={playback.playbackSceneId}
+            playAllView={playback.playAllView}
           />
         </div>
 

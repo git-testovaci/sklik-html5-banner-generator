@@ -9,15 +9,19 @@ import {
   getEffectsForScene,
   getLayerById,
   getLayersForScene,
+  getSceneById,
   getSceneTransitionDurationMs,
+  sceneLocalPlaybackTime,
   updateLayerEffect,
 } from "@/lib/animation/storyboard-utils";
 import { duplicateEffect } from "@/lib/animation/keyframe-utils";
 import {
   effectGroupForLayer,
   effectStoryLine,
+  findActiveEffectAtTime,
   transitionFriendlyLabel,
 } from "@/lib/animation/effect-labels";
+import type { PlaybackMode } from "@/types/playback";
 import { KeyframeTrack } from "./KeyframeTrack";
 
 interface KeyframeTimelineProps {
@@ -28,6 +32,11 @@ interface KeyframeTimelineProps {
   forceExpandAdvanced?: boolean;
   onExpanded?: () => void;
   onSelectTransition?: (sceneId: string) => void;
+  /** Live playback sync — same time basis as PlaybackTimeline (future unified track UI). */
+  playbackMode?: PlaybackMode;
+  playbackTimeMs?: number;
+  playbackSceneId?: string | null;
+  playAllView?: boolean;
 }
 
 const STORY_PREVIEW_LIMIT = 6;
@@ -40,8 +49,16 @@ export function KeyframeTimeline({
   forceExpandAdvanced = false,
   onExpanded,
   onSelectTransition,
+  playbackMode = "idle",
+  playbackTimeMs = 0,
+  playbackSceneId = null,
+  playAllView = false,
 }: KeyframeTimelineProps) {
-  const scene = getActiveScene(state);
+  const isPlayback = playbackMode !== "idle";
+  const scene =
+    isPlayback && playbackSceneId
+      ? getSceneById(state, playbackSceneId) ?? getActiveScene(state)
+      : getActiveScene(state);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showAllStory, setShowAllStory] = useState(false);
   const showDetailed = showAdvanced || forceExpandAdvanced;
@@ -68,6 +85,19 @@ export function KeyframeTimeline({
 
   const sortedStory = [...effects].sort((a, b) => a.startMs - b.startMs);
   const transitionAt = Math.max(0, durationMs - getSceneTransitionDurationMs(scene));
+  const playbackLocalTime =
+    isPlayback && scene
+      ? sceneLocalPlaybackTime(
+          playbackTimeMs,
+          state.scenes ?? [],
+          scene.id,
+          playAllView,
+        )
+      : null;
+  const activePlaybackEffect =
+    playbackLocalTime !== null
+      ? findActiveEffectAtTime(sortedStory, playbackLocalTime)
+      : undefined;
   const visibleStory = showAllStory
     ? sortedStory
     : sortedStory.slice(0, STORY_PREVIEW_LIMIT);
@@ -119,13 +149,17 @@ export function KeyframeTimeline({
         ) : (
           <>
             <ul className="space-y-1">
-              {visibleStory.map((effect) => (
+              {visibleStory.map((effect) => {
+                const isActive =
+                  effect.id === selectedEffectId ||
+                  (isPlayback && effect.id === activePlaybackEffect?.id);
+                return (
                 <li key={effect.id}>
                   <button
                     type="button"
                     onClick={() => onSelectEffect(effect.id)}
                     className={`w-full rounded px-2 py-1 text-left text-[11px] ${
-                      effect.id === selectedEffectId
+                      isActive
                         ? "bg-violet-950/40 text-violet-200"
                         : "text-zinc-400 hover:bg-zinc-800/40"
                     }`}
@@ -133,7 +167,7 @@ export function KeyframeTimeline({
                     {effectStoryLine(state, effect)}
                   </button>
                 </li>
-              ))}
+              );})}
               <li>
                 <button
                   type="button"
@@ -166,18 +200,22 @@ export function KeyframeTimeline({
                 {group}
               </p>
               <div className="space-y-1.5">
-                {groupEffects.map((effect) => (
+                {groupEffects.map((effect) => {
+                  const isActive =
+                    effect.id === selectedEffectId ||
+                    (isPlayback && effect.id === activePlaybackEffect?.id);
+                  return (
                   <KeyframeTrack
                     key={effect.id}
                     effect={effect}
                     state={state}
                     timelineDurationMs={durationMs}
-                    selected={effect.id === selectedEffectId}
+                    selected={isActive}
                     persistent={persistentIds.has(effect.layerId)}
                     onSelect={() => onSelectEffect(effect.id)}
                     onChange={(patch) => updateEffect(effect.id, patch)}
                   />
-                ))}
+                );})}
               </div>
             </div>
           ))}

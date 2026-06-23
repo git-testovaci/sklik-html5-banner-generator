@@ -4,6 +4,7 @@ import type { BannerLayer } from "@/types/animation";
 import type { TemplateAssetSlotKind } from "@/types/template-slots";
 import {
   addLayerToScene,
+  ensureLayerInScene,
   getActiveScene,
   getLayerById,
   newId,
@@ -115,7 +116,13 @@ export function assignAssetToSlotLayer(
     patch.slotLabel = layer.slotLabel;
     patch.slotId = layer.slotId;
   }
-  return updateBannerLayer(state, layerId, patch);
+  let next = updateBannerLayer(state, layerId, patch);
+  const sceneId = state.activeSceneId ?? state.scenes?.[0]?.id;
+  if (sceneId && !layer.persistent) {
+    next = ensureLayerInScene(next, layerId, sceneId);
+    next = syncFlatFromActiveScene(next);
+  }
+  return next;
 }
 
 export function clearSlotAsset(

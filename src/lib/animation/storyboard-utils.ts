@@ -617,6 +617,101 @@ export function addLayerToScene(
   return syncFlatFromActiveScene({ ...state, bannerLayers: layers, scenes });
 }
 
+/** Keep bannerLayers registered on a scene — required for preview/layers list consistency. */
+export function ensureLayerInScene(
+  state: BannerEditorState,
+  layerId: string,
+  sceneId: string,
+): BannerEditorState {
+  const layer = getLayerById(state, layerId);
+  if (!layer || layer.persistent) return state;
+  const scene = getSceneById(state, sceneId);
+  if (!scene || scene.layerIds.includes(layerId)) return state;
+  return {
+    ...state,
+    scenes: (state.scenes ?? []).map((s) =>
+      s.id === sceneId
+        ? { ...s, layerIds: [...s.layerIds, layerId], updatedAt: new Date().toISOString() }
+        : s,
+    ),
+  };
+}
+
+/** Scene-local playback time — shared by playback + animation story highlights. */
+export function sceneLocalPlaybackTime(
+  globalMs: number,
+  scenes: BannerScene[],
+  sceneId: string,
+  playAllView: boolean,
+): number {
+  if (!playAllView) return Math.max(0, globalMs);
+  let offset = 0;
+  for (const scene of scenes) {
+    if (scene.id === sceneId) return Math.max(0, globalMs - offset);
+    offset += scene.durationMs;
+  }
+  return 0;
+}
+
+export function resolveBannerLayerForSelection(
+  state: BannerEditorState,
+  selection: SelectedLayer,
+): BannerLayer | undefined {
+  const scene = getActiveScene(state);
+  if (!scene) return undefined;
+  const sceneLayers = getLayersForScene(state, scene.id);
+  if (selection.type === "text") {
+    return sceneLayers.find((l) => l.type === "text" && l.legacyKey === selection.id);
+  }
+  return sceneLayers.find((l) => l.id === selection.id || l.assetId === selection.id);
+}
+
+/** Duplicate one layer in the active scene — future unified timeline: each copy becomes a track. */
+export function duplicateBannerLayerInScene(
+  state: BannerEditorState,
+  sourceLayerId: string,
+  offsetPx = 12,
+): { state: BannerEditorState; layerId: string | null } {
+  const scene = getActiveScene(state);
+  const source = getLayerById(state, sourceLayerId);
+  if (!scene || !source || source.persistent) {
+    return { state, layerId: null };
+  }
+
+  const newLayerId = newId("layer");
+  const newLayer: BannerLayer = {
+    ...source,
+    id: newLayerId,
+    name: `${source.name} copy`,
+    x: source.x + offsetPx,
+    y: source.y + offsetPx,
+    legacyKey: undefined,
+    sceneId: scene.id,
+  };
+
+  const newEffects = getEffectsForScene(state, scene.id)
+    .filter((e) => e.layerId === source.id)
+    .map((e) => ({
+      ...e,
+      id: newId("effect"),
+      layerId: newLayerId,
+      sceneId: scene.id,
+    }));
+
+  const next = syncFlatFromActiveScene({
+    ...state,
+    bannerLayers: [...(state.bannerLayers ?? []), newLayer],
+    layerEffects: [...(state.layerEffects ?? []), ...newEffects],
+    scenes: (state.scenes ?? []).map((s) =>
+      s.id === scene.id
+        ? { ...s, layerIds: [...s.layerIds, newLayerId], updatedAt: new Date().toISOString() }
+        : s,
+    ),
+  });
+
+  return { state: next, layerId: newLayerId };
+}
+
 export function deleteBannerLayer(
   state: BannerEditorState,
   layerId: string,

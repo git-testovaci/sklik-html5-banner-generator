@@ -60,6 +60,8 @@ interface BannerPreviewProps {
   ) => void;
   playAll?: boolean;
   playbackSceneId?: string | null;
+  /** Freezes CSS preview animations while playback RAF is paused. */
+  playbackPaused?: boolean;
   /** When true, render read-only (public preview) with storyboard playback */
   publicMode?: boolean;
   onSlotActivate?: (layerId: string) => void;
@@ -246,6 +248,10 @@ function CanvasContent({
     (a, b) => a.zIndex - b.zIndex,
   );
   const textLayerIds: TextLayerPlacement["layerId"][] = ["headline", "subheadline", "cta"];
+  // Extra text layers (e.g. duplicated copies) — each will map to a future timeline track.
+  const extraTextLayers = storyboardLayers.filter(
+    (l) => l.type === "text" && l.visible && !l.legacyKey,
+  );
 
   const animationCss = useMemo(() => {
     const slice = buildFlatSliceForScene(state, sceneId);
@@ -620,6 +626,58 @@ function CanvasContent({
         );
       })}
 
+      {extraTextLayers.map((layer) => {
+        const anim = (renderState.layerAnimations ?? []).find((a) => a.layerId === layer.id);
+        const animClass =
+          anim?.enabled && anim.preset !== "none"
+            ? presetClassName(layer.id, replayKey)
+            : "";
+        const fontSize = layer.fontSize ?? Math.max(10, Math.round(state.height * 0.055));
+        const fontWeight = layer.fontWeight ?? 400;
+        const lineHeight = layer.lineHeight ?? 1.25;
+        const textAlign = layer.textAlign ?? "left";
+        const content = layer.text ?? "";
+
+        return (
+          <InteractiveCanvasLayer
+            key={`${sceneId}-${layer.id}`}
+            selected={selectedLayer?.type === "asset" && selectedLayer.id === layer.id}
+            interactive={interactive}
+            placement={{ x: layer.x, y: layer.y, width: layer.width, height: layer.height }}
+            rotation={layer.rotation}
+            zIndex={layer.zIndex}
+            opacity={layer.opacity}
+            bannerWidth={state.width}
+            bannerHeight={state.height}
+            canvasScale={canvasScale}
+            replayKey={replayKey}
+            animClassName={interactive ? "" : animClass}
+            onSelect={() => onSelectLayer?.({ type: "asset", id: layer.id })}
+            onPlacementChange={(patch) => onUpdateStoryboardLayer?.(layer.id, patch)}
+          >
+            <span
+              className="flex h-full w-full items-center"
+              style={{
+                margin: 0,
+                color: state.textColor,
+                fontSize,
+                fontWeight,
+                lineHeight,
+                textAlign,
+                justifyContent:
+                  textAlign === "center"
+                    ? "center"
+                    : textAlign === "right"
+                      ? "flex-end"
+                      : "flex-start",
+              }}
+            >
+              {content}
+            </span>
+          </InteractiveCanvasLayer>
+        );
+      })}
+
       <SafeAreaOverlay width={state.width} height={state.height} visible={showSafeArea} />
     </>
   );
@@ -640,6 +698,7 @@ export function BannerPreview({
   onUpdateStoryboardLayer,
   playAll = false,
   playbackSceneId,
+  playbackPaused = false,
   publicMode = false,
   onSlotActivate,
 }: BannerPreviewProps) {
@@ -674,6 +733,10 @@ export function BannerPreview({
     onSlotActivate,
   };
 
+  const pauseStyle = playbackPaused
+    ? ({ animationPlayState: "paused" } as const)
+    : undefined;
+
   if (playAll && scenes.length > 1) {
     return (
       <>
@@ -685,6 +748,7 @@ export function BannerPreview({
             height: state.height,
             backgroundColor: state.backgroundColor,
             color: state.textColor,
+            ...pauseStyle,
           }}
           role="img"
           aria-label={`Banner preview: ${state.name}`}
@@ -713,6 +777,7 @@ export function BannerPreview({
         height: state.height,
         backgroundColor: activeScene?.backgroundColor ?? state.backgroundColor,
         color: state.textColor,
+        ...pauseStyle,
       }}
       role="img"
       aria-label={`Banner preview: ${state.headline}`}

@@ -5,6 +5,7 @@ import {
   getActiveScene,
   getEffectsForScene,
   getSceneById,
+  sceneLocalPlaybackTime,
   totalStoryboardDurationMs,
 } from "@/lib/animation/storyboard-utils";
 import {
@@ -27,19 +28,6 @@ interface PlaybackTimelineProps {
 function formatTime(ms: number): string {
   const s = ms / 1000;
   return s >= 10 ? `${s.toFixed(1)}s` : `${(ms / 1000).toFixed(2)}s`;
-}
-
-function sceneLocalTime(
-  globalMs: number,
-  scenes: { id: string; durationMs: number }[],
-  sceneId: string,
-): number {
-  let offset = 0;
-  for (const scene of scenes) {
-    if (scene.id === sceneId) return Math.max(0, globalMs - offset);
-    offset += scene.durationMs;
-  }
-  return 0;
 }
 
 export function PlaybackTimeline({
@@ -88,9 +76,7 @@ export function PlaybackTimeline({
 
   const sceneEffects = displayScene ? getEffectsForScene(state, displayScene.id) : [];
   const localTime = displayScene
-    ? playAllView
-      ? sceneLocalTime(clampedTime, scenes, displayScene.id)
-      : clampedTime
+    ? sceneLocalPlaybackTime(clampedTime, scenes, displayScene.id, playAllView)
     : 0;
   const activeEffect = findActiveEffectAtTime(sceneEffects, localTime);
 

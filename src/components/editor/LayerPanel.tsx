@@ -10,6 +10,7 @@ import {
   getLayerAnimation,
 } from "@/lib/animation/timeline-utils";
 import type { BannerEditorState, BannerEditorStateUpdater, SelectedLayer } from "@/types/editor";
+import { getActiveScene, getLayersForScene } from "@/lib/animation/storyboard-utils";
 import { LayerControls } from "./LayerControls";
 
 interface LayerPanelProps {
@@ -35,6 +36,23 @@ export function LayerPanel({
   onSelectLayer,
   onUpdate,
 }: LayerPanelProps) {
+  const activeScene = getActiveScene(state);
+  const sceneLayers = activeScene ? getLayersForScene(state, activeScene.id) : [];
+  const textPlacements = state.textPlacements ?? [];
+  const visibleTextLayers = TEXT_LAYERS.filter(({ id }) =>
+    textPlacements.some((p) => p.layerId === id),
+  );
+  const extraTextLayers = sceneLayers.filter(
+    (l) => l.type === "text" && l.visible && !l.legacyKey,
+  );
+  const slotLayersInScene = sceneLayers.filter(
+    (l) =>
+      l.visible &&
+      (l.type === "image" || l.type === "badge") &&
+      (l.isTemplateSlot || l.slotKind) &&
+      !l.assetId,
+  );
+
   const allZ = [
     ...(state.textPlacements ?? []).map((p) => p.zIndex),
     ...(state.assetPlacements ?? []).map((p) => p.zIndex),
@@ -136,7 +154,10 @@ export function LayerPanel({
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <div className="max-h-44 overflow-y-auto border-b border-zinc-800/60 p-2">
         <p className="px-2 py-1 text-[10px] uppercase tracking-wide text-zinc-600">Text</p>
-        {TEXT_LAYERS.map(({ id, label }) => {
+        {visibleTextLayers.length === 0 && extraTextLayers.length === 0 ? (
+          <p className="px-2 py-1 text-[10px] text-zinc-600">Ve scéně není textová vrstva</p>
+        ) : null}
+        {visibleTextLayers.map(({ id, label }) => {
           const anim = getLayerAnimation(state, id);
           const animOn = anim?.enabled && anim.preset !== "none";
           return (
@@ -153,7 +174,27 @@ export function LayerPanel({
             {label} {animOn ? "· anim" : ""}
           </button>
         );})}
-        {(state.assetPlacements ?? []).length > 0 ? (
+        {extraTextLayers.map((layer) => {
+          const anim = getLayerAnimation(state, layer.id);
+          const animOn = anim?.enabled && anim.preset !== "none";
+          return (
+            <button
+              key={layer.id}
+              type="button"
+              onClick={() => onSelectLayer({ type: "asset", id: layer.id })}
+              className={`mb-1 w-full rounded-lg px-3 py-2 text-left text-xs ring-1 ring-transparent ${
+                selectedLayer.type === "asset" && selectedLayer.id === layer.id
+                  ? "bg-violet-950/50 text-violet-200 ring-violet-800/50"
+                  : "text-zinc-400 hover:bg-zinc-800/50"
+              }`}
+            >
+              {layer.name} {animOn ? "· anim" : ""}
+            </button>
+          );
+        })}
+        {(state.assetPlacements ?? []).length > 0 ||
+        slotLayersInScene.length > 0 ||
+        sceneLayers.some((l) => l.type === "particle" || l.type === "underline") ? (
           <>
             <p className="mt-2 px-2 py-1 text-[10px] uppercase tracking-wide text-zinc-600">Obrázky</p>
             {(state.assetPlacements ?? []).map((p) => {
@@ -181,8 +222,26 @@ export function LayerPanel({
             </button>
           );
         })}
+            {slotLayersInScene.map((layer) => (
+              <button
+                key={layer.id}
+                type="button"
+                onClick={() => onSelectLayer({ type: "asset", id: layer.id })}
+                className={`mb-1 w-full rounded-lg px-3 py-2 text-left text-xs ring-1 ring-transparent ${
+                  selectedLayer.type === "asset" && selectedLayer.id === layer.id
+                    ? "bg-violet-950/50 text-violet-200 ring-violet-800/50"
+                    : "text-zinc-400 hover:bg-zinc-800/50"
+                }`}
+              >
+                {layer.slotLabel ?? layer.name} · prázdný slot
+              </button>
+            ))}
         {(state.bannerLayers ?? [])
-          .filter((l) => l.type === "particle" || l.type === "underline")
+          .filter(
+            (l) =>
+              (l.type === "particle" || l.type === "underline") &&
+              sceneLayers.some((sl) => sl.id === l.id),
+          )
           .map((l) => (
             <button
               key={l.id}

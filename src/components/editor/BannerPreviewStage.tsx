@@ -177,6 +177,7 @@ export function BannerPreviewStage({
             onUpdateStoryboardLayer={updateStoryboardLayer}
             playAll={playback.playAllView}
             playbackSceneId={playback.playbackSceneId}
+            playbackPaused={playback.isPaused}
             onSlotActivate={onSlotActivate}
           />
         </div>
