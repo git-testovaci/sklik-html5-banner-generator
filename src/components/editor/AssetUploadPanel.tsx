@@ -101,6 +101,9 @@ export function AssetUploadPanel({ state, onUpdate }: AssetUploadPanelProps) {
           assets: [...withoutKind, asset],
           assetPlacements: [...withoutPlacement, placement],
         });
+        if (validation.warnings.length > 0) {
+          setErrors((prev) => ({ ...prev, [kind]: validation.warnings[0] ?? "" }));
+        }
       } catch {
         setErrors((prev) => ({ ...prev, [kind]: "Upload failed." }));
       } finally {

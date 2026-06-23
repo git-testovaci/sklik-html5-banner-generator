@@ -1,7 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { collectAssetWarnings, type AssetWarningItem } from "@/lib/assets/asset-validation";
+import { useEffect, useMemo, useState } from "react";
+import {
+  buildAssetWarningKey,
+  collectAssetBlobWarnings,
+  collectAssetMetadataWarnings,
+  type AssetWarningItem,
+} from "@/lib/assets/asset-validation";
 import type { BannerEditorState } from "@/types/editor";
 
 interface AssetWarningsPanelProps {
@@ -15,23 +20,52 @@ const LEVEL_STYLES = {
 };
 
 export function AssetWarningsPanel({ state }: AssetWarningsPanelProps) {
-  const assetKey = (state.assets ?? []).map((a) => `${a.id}:${a.size}`).join(",");
-  const [cache, setCache] = useState<Record<string, AssetWarningItem[]>>({});
+  const warningKey = buildAssetWarningKey(state);
+  const metadataWarnings = useMemo(
+    () => collectAssetMetadataWarnings(state),
+    [warningKey],
+  );
+  const visibleAssetIds = useMemo(() => {
+    return (state.assetPlacements ?? [])
+      .filter((p) => p.visible)
+      .map((p) => p.assetId)
+      .sort()
+      .join(",");
+  }, [warningKey]);
+
+  const [blobSnapshot, setBlobSnapshot] = useState<{
+    key: string;
+    warnings: AssetWarningItem[];
+  }>({ key: "", warnings: [] });
 
   useEffect(() => {
+    if (!visibleAssetIds) {
+      return;
+    }
+
     let cancelled = false;
-    void collectAssetWarnings(state).then((items) => {
+    const ids = visibleAssetIds.split(",").filter(Boolean);
+
+    void collectAssetBlobWarnings(ids).then((items) => {
       if (!cancelled) {
-        setCache((prev) => ({ ...prev, [assetKey]: items }));
+        setBlobSnapshot({ key: visibleAssetIds, warnings: items });
       }
     });
+
     return () => {
       cancelled = true;
     };
-  }, [state, assetKey]);
+  }, [visibleAssetIds]);
 
-  const warnings = cache[assetKey] ?? [];
-  const loading = cache[assetKey] === undefined;
+  const blobWarnings =
+    visibleAssetIds && blobSnapshot.key === visibleAssetIds
+      ? blobSnapshot.warnings
+      : [];
+  const warnings = useMemo(
+    () => [...metadataWarnings, ...blobWarnings],
+    [metadataWarnings, blobWarnings],
+  );
+  const loading = visibleAssetIds.length > 0 && blobSnapshot.key !== visibleAssetIds;
 
   if (loading && warnings.length === 0) {
     return (

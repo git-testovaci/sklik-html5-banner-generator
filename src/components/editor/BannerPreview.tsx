@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createAssetObjectUrl } from "@/lib/assets/asset-storage";
+import {
+  buildAssetsMetaKey,
+  loadPreviewAssetUrls,
+  prunePreviewUrls,
+} from "@/lib/assets/asset-storage";
 import {
   buildLayerAnimationStyle,
   collectLayerKeyframes,
@@ -10,8 +14,6 @@ import {
 import {
   getLayerAnimation,
   getTextPlacement,
-  layerAnimIdForAsset,
-  normalizeEditorState,
 } from "@/lib/animation/timeline-utils";
 import type { BannerAssetPlacement, TextLayerPlacement } from "@/types/assets";
 import type { BannerEditorState, SelectedLayer } from "@/types/editor";
@@ -38,42 +40,49 @@ interface BannerPreviewProps {
   ) => void;
 }
 
-function useAssetUrls(assetIdsKey: string) {
-  const [cache, setCache] = useState<
-    Record<string, { urls: Record<string, string>; missing: Set<string> }>
-  >({});
+interface AssetUrlSnapshot {
+  metaKey: string;
+  urls: Record<string, string>;
+  missing: string[];
+}
+
+const EMPTY_SNAPSHOT: AssetUrlSnapshot = { metaKey: "", urls: {}, missing: [] };
+
+function useAssetUrls(metaKey: string) {
+  const [snapshot, setSnapshot] = useState<AssetUrlSnapshot>(EMPTY_SNAPSHOT);
 
   useEffect(() => {
-    if (!assetIdsKey) return;
-    const assetIds = assetIdsKey.split(",").filter(Boolean);
+    if (!metaKey) return;
+
     let cancelled = false;
 
-    async function load() {
-      const next: Record<string, string> = {};
-      const miss = new Set<string>();
-      for (const id of assetIds) {
-        const result = await createAssetObjectUrl(id);
-        if (result.ok) next[id] = result.value;
-        else miss.add(id);
-      }
+    void loadPreviewAssetUrls(metaKey).then((result) => {
       if (!cancelled) {
-        setCache((prev) => ({ ...prev, [assetIdsKey]: { urls: next, missing: miss } }));
+        setSnapshot({ metaKey, urls: result.urls, missing: result.missing });
       }
-    }
+    });
 
-    void load();
+    const keepIds = new Set(
+      metaKey
+        .split("|")
+        .map((part) => {
+          const colon = part.indexOf(":");
+          return colon > 0 ? part.slice(0, colon) : "";
+        })
+        .filter(Boolean),
+    );
+    prunePreviewUrls(keepIds);
+
     return () => {
       cancelled = true;
     };
-  }, [assetIdsKey]);
+  }, [metaKey]);
 
-  const entry = cache[assetIdsKey];
-  const urlsReady = Boolean(assetIdsKey && entry);
-  return {
-    urls: entry?.urls ?? {},
-    missing: entry?.missing ?? new Set<string>(),
-    urlsReady,
-  };
+  if (!metaKey) return EMPTY_SNAPSHOT;
+  if (snapshot.metaKey !== metaKey) {
+    return { metaKey, urls: {}, missing: [] };
+  }
+  return snapshot;
 }
 
 function isLayerSelected(
@@ -85,7 +94,7 @@ function isLayerSelected(
 }
 
 export function BannerPreview({
-  state: rawState,
+  state,
   className = "",
   replayKey = 0,
   loopPreview = false,
@@ -97,10 +106,10 @@ export function BannerPreview({
   onUpdateTextPlacement,
   onUpdateAssetPlacement,
 }: BannerPreviewProps) {
-  const state = useMemo(() => normalizeEditorState(rawState), [rawState]);
   const assets = state.assets ?? [];
-  const assetIdsKey = assets.map((a) => a.id).join(",");
-  const { urls, missing, urlsReady } = useAssetUrls(assetIdsKey);
+  const assetsMetaKey = buildAssetsMetaKey(assets);
+  const { urls, missing, metaKey: urlsMetaKey } = useAssetUrls(assetsMetaKey);
+  const urlsReady = assetsMetaKey === urlsMetaKey;
 
   const animationCss = useMemo(() => {
     const anims = state.layerAnimations ?? [];
@@ -120,6 +129,8 @@ export function BannerPreview({
     return rules.join("\n");
   }, [state.layerAnimations, state.timeline?.loop, loopPreview, replayKey]);
 
+  const missingSet = useMemo(() => new Set(missing), [missing]);
+
   const bgColorOnly = !(state.assetPlacements ?? []).some(
     (p) => p.visible && p.kind === "background",
   );
@@ -136,7 +147,7 @@ export function BannerPreview({
 
   return (
     <>
-      <style key={replayKey}>{animationCss}</style>
+      <style>{animationCss}</style>
       <div
         className={`relative overflow-hidden shadow-2xl ${interactive ? "select-none" : ""} ${className}`}
         style={{
@@ -161,14 +172,8 @@ export function BannerPreview({
         {sortedAssets.map((placement) => {
           if (!placement.visible) return null;
           const asset = assets.find((a) => a.id === placement.assetId);
-          const layerId = layerAnimIdForAsset(placement.kind, placement.assetId);
-          const anim = getLayerAnimation(state, layerId);
-          const animClass =
-            anim?.enabled && anim.preset !== "none"
-              ? presetClassName(layerId, replayKey)
-              : "";
           const url = urls[placement.assetId];
-          const isMissing = missing.has(placement.assetId);
+          const isMissing = missingSet.has(placement.assetId);
           const selected = isLayerSelected(selectedLayer, {
             type: "asset",
             id: placement.assetId,
@@ -191,8 +196,7 @@ export function BannerPreview({
               bannerWidth={state.width}
               bannerHeight={state.height}
               canvasScale={canvasScale}
-              replayKey={replayKey}
-              animClassName={animClass}
+              animClassName=""
               onSelect={() => onSelectLayer?.({ type: "asset", id: placement.assetId })}
               onPlacementChange={(patch) =>
                 onUpdateAssetPlacement?.(placement.assetId, patch)
@@ -215,6 +219,8 @@ export function BannerPreview({
                     className="pointer-events-none h-full w-full"
                     style={{ objectFit: placement.fit }}
                     draggable={false}
+                    loading="lazy"
+                    decoding="async"
                   />
                 ) : (
                   <div

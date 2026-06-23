@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createAssetObjectUrl } from "@/lib/assets/asset-storage";
+import { buildAssetsMetaKey, loadPreviewAssetUrls } from "@/lib/assets/asset-storage";
 import { formatFileSize } from "@/lib/assets/image-utils";
 import {
   assetAtCorner,
@@ -18,32 +18,34 @@ interface AssetLibraryProps {
   onUpdate: BannerEditorStateUpdater;
 }
 
-function useThumbnails(assetIds: string[]) {
-  const key = assetIds.join(",");
+function useThumbnails(metaKey: string) {
   const [urls, setUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      const next: Record<string, string> = {};
-      for (const id of assetIds) {
-        const r = await createAssetObjectUrl(id);
-        if (r.ok) next[id] = r.value;
-      }
-      if (!cancelled) setUrls(next);
+    if (!metaKey) {
+      return;
     }
-    void load();
+
+    let cancelled = false;
+
+    void loadPreviewAssetUrls(metaKey).then((result) => {
+      if (!cancelled) {
+        setUrls(result.urls);
+      }
+    });
+
     return () => {
       cancelled = true;
     };
-  }, [key, assetIds]);
+  }, [metaKey]);
 
-  return urls;
+  return metaKey ? urls : {};
 }
 
 export function AssetLibrary({ state, onUpdate }: AssetLibraryProps) {
   const assets = state.assets ?? [];
-  const urls = useThumbnails(assets.map((a) => a.id));
+  const metaKey = buildAssetsMetaKey(assets);
+  const urls = useThumbnails(metaKey);
 
   if (assets.length === 0) return null;
 
@@ -100,7 +102,14 @@ export function AssetLibrary({ state, onUpdate }: AssetLibraryProps) {
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded bg-zinc-900">
                   {url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={url} alt="" className="max-h-full max-w-full object-contain" />
+                    <img
+                      src={url}
+                      alt=""
+                      className="max-h-full max-w-full object-contain"
+                      loading="lazy"
+                      decoding="async"
+                      draggable={false}
+                    />
                   ) : (
                     <span className="text-[9px] text-zinc-600">…</span>
                   )}

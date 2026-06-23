@@ -27,8 +27,7 @@ export function validateAssetForExport(asset: BannerAsset): {
 export function sanitizeAssetFileName(fileName: string): string {
   const base = fileName.split("/").pop()?.split("\\").pop() ?? "asset";
   const ext = base.includes(".") ? base.split(".").pop() ?? "png" : "png";
-  const name = base.replace(/\.[^.]+$/, "");
-  const safe = name
+  const safe = base
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
@@ -43,9 +42,9 @@ export interface AssetWarningItem {
   message: string;
 }
 
-export async function collectAssetWarnings(
+export function collectAssetMetadataWarnings(
   state: BannerEditorState,
-): Promise<AssetWarningItem[]> {
+): AssetWarningItem[] {
   const warnings: AssetWarningItem[] = [];
   const assets = state.assets ?? [];
   const visiblePlacements = (state.assetPlacements ?? []).filter((p) => p.visible);
@@ -89,6 +88,13 @@ export async function collectAssetWarnings(
         message: `${asset.fileName}: SVG — verify no scripts before export.`,
       });
     }
+    if (asset.mimeType === "image/gif") {
+      warnings.push({
+        id: `gif-${asset.id}`,
+        level: "warn",
+        message: `${asset.fileName}: GIF may use extra memory in browser preview.`,
+      });
+    }
     const maxDim = Math.max(asset.width, asset.height);
     const bannerMax = Math.max(state.width, state.height);
     if (maxDim > bannerMax * 3) {
@@ -108,19 +114,6 @@ export async function collectAssetWarnings(
     });
   }
 
-  for (const placement of visiblePlacements) {
-    const asset = assets.find((a) => a.id === placement.assetId);
-    if (!asset) continue;
-    const blobResult = await getAssetBlob(asset.id);
-    if (!blobResult.ok || !blobResult.value) {
-      warnings.push({
-        id: `missing-${asset.id}`,
-        level: "fail",
-        message: `Missing image blob for "${asset.fileName}" — re-upload or export will fail.`,
-      });
-    }
-  }
-
   if (assets.length > 0) {
     warnings.push({
       id: "local-only",
@@ -131,4 +124,66 @@ export async function collectAssetWarnings(
   }
 
   return warnings;
+}
+
+export async function collectAssetBlobWarnings(
+  visibleAssetIds: string[],
+): Promise<AssetWarningItem[]> {
+  const warnings: AssetWarningItem[] = [];
+  for (const assetId of visibleAssetIds) {
+    const blobResult = await getAssetBlob(assetId);
+    if (!blobResult.ok || !blobResult.value) {
+      warnings.push({
+        id: `missing-${assetId}`,
+        level: "fail",
+        message: `Missing image blob (${assetId}) — re-upload or export will fail.`,
+      });
+    }
+  }
+  return warnings;
+}
+
+export async function collectAssetWarnings(
+  state: BannerEditorState,
+  options?: { checkBlobs?: boolean },
+): Promise<AssetWarningItem[]> {
+  const metadata = collectAssetMetadataWarnings(state);
+  if (options?.checkBlobs === false) {
+    return metadata;
+  }
+
+  const visibleIds = (state.assetPlacements ?? [])
+    .filter((p) => p.visible)
+    .map((p) => p.assetId);
+  const assets = state.assets ?? [];
+  const blobWarnings: AssetWarningItem[] = [];
+
+  for (const placement of (state.assetPlacements ?? []).filter((p) => p.visible)) {
+    const asset = assets.find((a) => a.id === placement.assetId);
+    if (!asset) continue;
+    const blobResult = await getAssetBlob(asset.id);
+    if (!blobResult.ok || !blobResult.value) {
+      blobWarnings.push({
+        id: `missing-${asset.id}`,
+        level: "fail",
+        message: `Missing image blob for "${asset.fileName}" — re-upload or export will fail.`,
+      });
+    }
+  }
+
+  void visibleIds;
+  return [...metadata, ...blobWarnings];
+}
+
+export function buildAssetWarningKey(state: BannerEditorState): string {
+  const assets = (state.assets ?? [])
+    .map((a) => `${a.id}:${a.size}:${a.fileName}`)
+    .sort()
+    .join("|");
+  const visible = (state.assetPlacements ?? [])
+    .filter((p) => p.visible)
+    .map((p) => p.assetId)
+    .sort()
+    .join(",");
+  return `${state.width}x${state.height}|${assets}|v:${visible}`;
 }
