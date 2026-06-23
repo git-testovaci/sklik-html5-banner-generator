@@ -370,7 +370,7 @@ export function UnifiedLayerTimeline({
                   key={layer.id}
                   className={`flex border-b border-zinc-800/30 ${
                     selected ? "bg-violet-950/20" : ""
-                  }`}
+                  } ${!layer.visible ? "opacity-45" : ""}`}
                   style={{ height: ROW_HEIGHT }}
                 >
                   <button

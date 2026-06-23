@@ -597,6 +597,8 @@ function CanvasContent({
         const lineHeight =
           pl.lineHeight ?? sbLayer?.lineHeight ?? (isCta ? 1.2 : layerId === "headline" ? 1.15 : 1.25);
         const textAlign = pl.textAlign ?? sbLayer?.textAlign ?? (isCta ? "center" : "left");
+        const textColor = sbLayer?.color ?? (isCta ? state.ctaTextColor : state.textColor);
+        const letterSpacing = sbLayer?.letterSpacing ?? 0;
 
         return (
           <InteractiveCanvasLayer
@@ -617,14 +619,17 @@ function CanvasContent({
           >
             {isCta ? (
               <span
-                className="flex h-full w-full items-center justify-center rounded px-2.5 py-1"
+                className="flex h-full w-full items-center justify-center"
                 style={{
-                  backgroundColor: state.ctaBackgroundColor,
-                  color: state.ctaTextColor,
+                  backgroundColor: sbLayer?.fill ?? state.ctaBackgroundColor,
+                  color: textColor,
                   fontSize,
                   fontWeight,
                   lineHeight,
                   textAlign,
+                  letterSpacing: letterSpacing ? `${letterSpacing}px` : undefined,
+                  borderRadius: sbLayer?.borderRadius ?? 4,
+                  padding: `${sbLayer?.paddingY ?? 4}px ${sbLayer?.paddingX ?? 10}px`,
                 }}
               >
                 {sbLayer?.highlightWord && content.includes(sbLayer.highlightWord) ? (
@@ -644,11 +649,12 @@ function CanvasContent({
                 className="flex h-full w-full items-center"
                 style={{
                   margin: 0,
-                  color: state.textColor,
+                  color: textColor,
                   fontSize,
                   fontWeight,
                   lineHeight,
                   textAlign,
+                  letterSpacing: letterSpacing ? `${letterSpacing}px` : undefined,
                   justifyContent:
                     textAlign === "center"
                       ? "center"
@@ -672,6 +678,8 @@ function CanvasContent({
         const lineHeight = layer.lineHeight ?? 1.25;
         const textAlign = layer.textAlign ?? "left";
         const content = layer.text ?? "";
+        const textColor = layer.color ?? state.textColor;
+        const letterSpacing = layer.letterSpacing ?? 0;
 
         return (
           <InteractiveCanvasLayer
@@ -694,11 +702,12 @@ function CanvasContent({
               className="flex h-full w-full items-center"
               style={{
                 margin: 0,
-                color: state.textColor,
+                color: textColor,
                 fontSize,
                 fontWeight,
                 lineHeight,
                 textAlign,
+                letterSpacing: letterSpacing ? `${letterSpacing}px` : undefined,
                 justifyContent:
                   textAlign === "center"
                     ? "center"

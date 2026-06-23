@@ -603,6 +603,10 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             onSelectEffect={setSelectedEffectId}
             onOpenAssets={() => setLeftTab("assets")}
             onPreviewTransition={handlePreviewTransition}
+            onLayerRemoved={() => {
+              setSelectedLayer({ type: "text", id: "headline" });
+              setSelectedEffectId(null);
+            }}
           />
           <button
             type="button"

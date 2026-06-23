@@ -43,11 +43,10 @@ export function LayerPanel({
     textPlacements.some((p) => p.layerId === id),
   );
   const extraTextLayers = sceneLayers.filter(
-    (l) => l.type === "text" && l.visible && !l.legacyKey,
+    (l) => l.type === "text" && !l.legacyKey,
   );
   const slotLayersInScene = sceneLayers.filter(
     (l) =>
-      l.visible &&
       (l.type === "image" || l.type === "badge") &&
       (l.isTemplateSlot || l.slotKind) &&
       !l.assetId,
@@ -160,6 +159,8 @@ export function LayerPanel({
         {visibleTextLayers.map(({ id, label }) => {
           const anim = getLayerAnimation(state, id);
           const animOn = anim?.enabled && anim.preset !== "none";
+          const pl = textPlacements.find((p) => p.layerId === id);
+          const hidden = pl && !pl.visible;
           return (
           <button
             key={id}
@@ -168,10 +169,12 @@ export function LayerPanel({
             className={`mb-1 w-full rounded-lg px-3 py-2 text-left text-xs ring-1 ring-transparent ${
               selectedLayer.type === "text" && selectedLayer.id === id
                 ? "bg-violet-950/50 text-violet-200 ring-violet-800/50"
-                : "text-zinc-400 hover:bg-zinc-800/50"
+                : hidden
+                  ? "text-zinc-600 opacity-50 hover:bg-zinc-800/50"
+                  : "text-zinc-400 hover:bg-zinc-800/50"
             }`}
           >
-            {label} {animOn ? "· anim" : ""}
+            {label} {hidden ? "· skryté" : ""} {animOn ? "· anim" : ""}
           </button>
         );})}
         {extraTextLayers.map((layer) => {
@@ -185,10 +188,12 @@ export function LayerPanel({
               className={`mb-1 w-full rounded-lg px-3 py-2 text-left text-xs ring-1 ring-transparent ${
                 selectedLayer.type === "asset" && selectedLayer.id === layer.id
                   ? "bg-violet-950/50 text-violet-200 ring-violet-800/50"
-                  : "text-zinc-400 hover:bg-zinc-800/50"
+                  : !layer.visible
+                    ? "text-zinc-600 opacity-50 hover:bg-zinc-800/50"
+                    : "text-zinc-400 hover:bg-zinc-800/50"
               }`}
             >
-              {layer.name} {animOn ? "· anim" : ""}
+              {layer.name} {!layer.visible ? "· skryté" : ""} {animOn ? "· anim" : ""}
             </button>
           );
         })}
@@ -213,7 +218,9 @@ export function LayerPanel({
               className={`mb-1 w-full rounded-lg px-3 py-2 text-left text-xs capitalize ring-1 ring-transparent ${
                 selectedLayer.type === "asset" && selectedLayer.id === p.assetId
                   ? "bg-violet-950/50 text-violet-200 ring-violet-800/50"
-                  : "text-zinc-400 hover:bg-zinc-800/50"
+                  : !p.visible
+                    ? "text-zinc-600 opacity-50 hover:bg-zinc-800/50"
+                    : "text-zinc-400 hover:bg-zinc-800/50"
               }`}
             >
               {asset?.kind ?? p.kind} {sbLayer?.persistent ? "📌" : ""}{" "}

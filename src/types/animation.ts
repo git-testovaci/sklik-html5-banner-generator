@@ -132,6 +132,11 @@ export interface BannerLayer extends BannerLayerBase {
   lineHeight?: number;
   textAlign?: "left" | "center" | "right";
   color?: string;
+  /** Letter spacing in px (editor-only typography) */
+  letterSpacing?: number;
+  /** CTA / button padding (editor-only) */
+  paddingX?: number;
+  paddingY?: number;
   highlightWord?: string;
   underlineWord?: string;
   assetId?: string;

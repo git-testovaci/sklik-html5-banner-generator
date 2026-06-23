@@ -406,6 +406,131 @@ export function updateBannerLayer(
   return syncFlatFromActiveScene(next);
 }
 
+/** Flat editor patch after updating a banner layer (keeps legacy CTA/headline fields in sync). */
+export function patchBannerLayerSlice(
+  state: BannerEditorState,
+  layerId: string,
+  patch: Partial<BannerLayer>,
+): Partial<BannerEditorState> {
+  const layer = getLayerById(state, layerId);
+  const next = updateBannerLayer(state, layerId, patch);
+  const slice: Partial<BannerEditorState> = {
+    bannerLayers: next.bannerLayers,
+    textPlacements: next.textPlacements,
+    assetPlacements: next.assetPlacements,
+    headline: next.headline,
+    subheadline: next.subheadline,
+    cta: next.cta,
+    layerAnimations: next.layerAnimations,
+    timeline: next.timeline,
+  };
+  if (layer?.legacyKey === "cta") {
+    if (patch.text !== undefined) slice.cta = patch.text;
+    if (patch.fill !== undefined) slice.ctaBackgroundColor = patch.fill;
+    if (patch.color !== undefined) slice.ctaTextColor = patch.color;
+  }
+  return slice;
+}
+
+export type LayerReorderAction = "forward" | "backward" | "front" | "back";
+
+export function reorderLayerInScene(
+  state: BannerEditorState,
+  sceneId: string,
+  layerId: string,
+  action: LayerReorderAction,
+): BannerEditorState {
+  const layer = getLayerById(state, layerId);
+  if (!layer) return state;
+
+  const sceneLayers = getLayersForScene(state, sceneId).filter(
+    (l) =>
+      l.type === "text" ||
+      l.type === "image" ||
+      l.type === "badge" ||
+      l.type === "shape" ||
+      l.type === "particle" ||
+      l.type === "underline",
+  );
+  if (sceneLayers.length < 2) return state;
+
+  const sorted = [...sceneLayers].sort((a, b) => a.zIndex - b.zIndex);
+  const idx = sorted.findIndex((l) => l.id === layerId);
+  if (idx === -1) return state;
+
+  let targetIdx = idx;
+  if (action === "forward") targetIdx = idx + 1;
+  else if (action === "backward") targetIdx = idx - 1;
+  else if (action === "front") targetIdx = sorted.length - 1;
+  else if (action === "back") targetIdx = 0;
+  targetIdx = Math.max(0, Math.min(sorted.length - 1, targetIdx));
+  if (targetIdx === idx) return state;
+
+  const reordered = [...sorted];
+  const [moved] = reordered.splice(idx, 1);
+  reordered.splice(targetIdx, 0, moved!);
+
+  const zById = new Map<string, number>();
+  reordered.forEach((l, i) => zById.set(l.id, 10 + i * 2));
+
+  const scene = getSceneById(state, sceneId);
+  if (!scene) return state;
+
+  const reorderableIds = new Set(reordered.map((l) => l.id));
+  const staticIds = scene.layerIds.filter((id) => !reorderableIds.has(id));
+  const newLayerIds = [...staticIds, ...reordered.map((l) => l.id)];
+
+  const next = syncFlatFromActiveScene({
+    ...state,
+    bannerLayers: (state.bannerLayers ?? []).map((l) =>
+      zById.has(l.id) ? { ...l, zIndex: zById.get(l.id)! } : l,
+    ),
+    scenes: (state.scenes ?? []).map((s) =>
+      s.id === sceneId
+        ? { ...s, layerIds: newLayerIds, updatedAt: new Date().toISOString() }
+        : s,
+    ),
+  });
+  return next;
+}
+
+export function clearLayerAsset(
+  state: BannerEditorState,
+  layerId: string,
+): BannerEditorState {
+  const layer = getLayerById(state, layerId);
+  if (!layer) return state;
+  const patch: Partial<BannerLayer> = { assetId: undefined };
+  if (layer.isTemplateSlot || layer.slotKind) {
+    patch.type = "badge";
+  }
+  return updateBannerLayer(state, layerId, patch);
+}
+
+export function removeLayerFromEditor(
+  state: BannerEditorState,
+  layerId: string,
+): BannerEditorState {
+  const layer = getLayerById(state, layerId);
+  if (!layer) return state;
+
+  if ((layer.isTemplateSlot || layer.slotKind) && layer.assetId) {
+    return clearLayerAsset(state, layerId);
+  }
+  if (
+    layer.legacyKey === "headline" ||
+    layer.legacyKey === "subheadline" ||
+    layer.legacyKey === "cta"
+  ) {
+    return updateBannerLayer(state, layerId, { visible: false });
+  }
+  if (layer.isTemplateSlot || layer.slotKind) {
+    return updateBannerLayer(state, layerId, { visible: false });
+  }
+  if (layer.persistent) return state;
+  return deleteBannerLayer(state, layerId);
+}
+
 export function addScene(state: BannerEditorState, name?: string): BannerEditorState {
   const scenes = [...(state.scenes ?? [])];
   const scene = defaultScene(name ?? `Scene ${scenes.length + 1}`, 3000);
