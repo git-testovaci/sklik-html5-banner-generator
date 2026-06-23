@@ -11,15 +11,32 @@ const ALLOWED_MIME = new Set([
   "image/avif",
 ]);
 
+export function isVideoMimeType(mimeType: string): boolean {
+  return mimeType.startsWith("video/") || mimeType === "application/mp4";
+}
+
+export function isExportableImageMime(mimeType: string): boolean {
+  return ALLOWED_MIME.has(mimeType);
+}
+
 export function validateAssetForExport(asset: BannerAsset): {
   ok: boolean;
   message: string;
 } {
+  if (isVideoMimeType(asset.mimeType)) {
+    return {
+      ok: false,
+      message: `Video není pro Sklik HTML5 ZIP podporované. Použijte obrázek nebo animaci z vrstev (${asset.fileName}).`,
+    };
+  }
   if (!ALLOWED_MIME.has(asset.mimeType)) {
-    return { ok: false, message: `Unsupported MIME type: ${asset.mimeType}` };
+    return {
+      ok: false,
+      message: `Nepodporovaný typ souboru: ${asset.mimeType} (${asset.fileName})`,
+    };
   }
   if (asset.size > 200_000) {
-    return { ok: false, message: `${asset.fileName} exceeds 200 kB per asset.` };
+    return { ok: false, message: `${asset.fileName} překračuje 200 kB na asset.` };
   }
   return { ok: true, message: "OK" };
 }
@@ -61,11 +78,18 @@ export function collectAssetMetadataWarnings(
   let totalSize = 0;
   for (const asset of assets) {
     totalSize += asset.size;
+    if (isVideoMimeType(asset.mimeType)) {
+      warnings.push({
+        id: `video-${asset.id}`,
+        level: "fail",
+        message: `Video není pro Sklik HTML5 ZIP podporované. Použijte obrázek nebo animaci z vrstev (${asset.fileName}).`,
+      });
+    }
     if (!ALLOWED_MIME.has(asset.mimeType)) {
       warnings.push({
         id: `mime-${asset.id}`,
         level: "fail",
-        message: `${asset.fileName}: unsupported type ${asset.mimeType}`,
+        message: `${asset.fileName}: nepodporovaný typ ${asset.mimeType}`,
       });
     }
     if (asset.size > 200_000) {

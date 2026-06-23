@@ -1,8 +1,13 @@
 import { getAssetBlob } from "@/lib/assets/asset-storage";
 import {
+  isExportableImageMime,
+  isVideoMimeType,
   sanitizeAssetFileName,
-  validateAssetForExport,
 } from "@/lib/assets/asset-validation";
+import {
+  collectUsedExportAssetIds,
+  findVideoAssets,
+} from "@/lib/export/export-layer-utils";
 import type { BannerEditorState } from "@/types/editor";
 import type { GeneratedBannerFile } from "@/types/export";
 
@@ -29,36 +34,50 @@ export async function collectExportAssets(
   const warnings: string[] = [];
   const usedNames = new Set<string>();
 
-  const usedAssetIds = new Set<string>();
+  for (const video of findVideoAssets(state)) {
+    errors.push(
+      `Video není pro Sklik HTML5 ZIP podporované: ${video.fileName}. Použijte obrázek nebo animaci z vrstev.`,
+    );
+  }
 
-  for (const layer of state.bannerLayers ?? []) {
-    if (layer.visible && layer.assetId) usedAssetIds.add(layer.assetId);
-  }
-  for (const p of (state.assetPlacements ?? []).filter((pl) => pl.visible)) {
-    usedAssetIds.add(p.assetId);
-  }
+  const usedAssetIds = collectUsedExportAssetIds(state);
 
   for (const assetId of usedAssetIds) {
     const asset = (state.assets ?? []).find((a) => a.id === assetId);
 
     if (!asset) {
-      errors.push(`Missing asset metadata for export (${assetId}).`);
+      errors.push(`Chybí metadata assetu pro export (${assetId}).`);
       continue;
     }
 
-    const validation = validateAssetForExport(asset);
-    if (!validation.ok) {
-      errors.push(validation.message);
+    if (isVideoMimeType(asset.mimeType)) {
+      errors.push(
+        `Video není pro Sklik HTML5 ZIP podporované. Použijte obrázek nebo animaci z vrstev (${asset.fileName}).`,
+      );
+      continue;
+    }
+
+    if (!isExportableImageMime(asset.mimeType)) {
+      errors.push(
+        `Nepodporovaný typ souboru ${asset.fileName}: ${asset.mimeType}. Použijte PNG, JPEG, WebP, GIF, SVG nebo AVIF.`,
+      );
+      continue;
+    }
+
+    if (asset.size > 200_000) {
+      errors.push(
+        `${asset.fileName} překračuje 200 kB — zkomprimujte před exportem.`,
+      );
       continue;
     }
 
     const blobResult = await getAssetBlob(assetId);
     if (!blobResult.ok) {
-      errors.push(`Could not read ${asset.fileName}: ${blobResult.message}`);
+      errors.push(`Nelze načíst ${asset.fileName}: ${blobResult.message}`);
       continue;
     }
     if (!blobResult.value) {
-      errors.push(`Missing image blob for visible asset "${asset.fileName}".`);
+      errors.push(`Chybí soubor obrázku pro viditelný asset „${asset.fileName}".`);
       continue;
     }
 
@@ -75,16 +94,26 @@ export async function collectExportAssets(
     generatedFiles.push({ path, size, kind: "image" });
   }
 
+  const instanceCount = [...usedAssetIds].reduce((sum, id) => {
+    return sum + (state.bannerLayers ?? []).filter((l) => l.visible && l.assetId === id).length;
+  }, 0);
+  const uniqueFiles = files.length;
+  if (instanceCount > uniqueFiles && uniqueFiles > 0) {
+    warnings.push(
+      `${instanceCount} vrstev sdílí ${uniqueFiles} souborů v assets/ — duplicitní soubory nejsou v ZIP.`,
+    );
+  }
+
   const totalAssetSize = files.reduce((sum, f) => sum + f.size, 0);
   if (totalAssetSize > 180_000) {
-    warnings.push("Asset files are large — ZIP may exceed 250 kB Sklik limit.");
+    warnings.push("Assety jsou velké — ZIP může překročit limit Sklik 250 kB.");
   }
 
   return { files, generatedFiles, errors, warnings };
 }
 
 export function assetExportPathForAsset(
-  state: BannerEditorState,
+  _state: BannerEditorState,
   assetId: string,
   exportFiles: ExportAssetFile[],
 ): string | null {

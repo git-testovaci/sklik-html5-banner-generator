@@ -20,7 +20,14 @@ export function validateImageFile(file: File): AssetValidationResult {
   const warnings: string[] = [];
 
   if (REJECTED_MIME_PREFIXES.some((p) => file.type.startsWith(p))) {
-    return { valid: false, message: "Unsupported file type.", warnings };
+    if (file.type.startsWith("video/")) {
+      return {
+        valid: false,
+        message: "Video není pro Sklik HTML5 ZIP podporované. Použijte obrázek nebo animaci z vrstev.",
+        warnings,
+      };
+    }
+    return { valid: false, message: "Nepodporovaný typ souboru.", warnings };
   }
 
   if (file.size > MAX_UPLOAD_BYTES) {

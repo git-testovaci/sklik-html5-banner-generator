@@ -27,6 +27,16 @@ export interface ExportValidationReport {
   rows: ExportValidationRow[];
   summaryStatus: "pass" | "warn" | "fail";
   recommendations: string[];
+  summary?: ExportBundleSummary;
+}
+
+export interface ExportBundleSummary {
+  sceneCount: number;
+  layerCount: number;
+  assetFileCount: number;
+  assetInstanceCount: number;
+  zipSizeKb: number;
+  statusLabel: "připraveno" | "vyžaduje opravu" | "s upozorněním";
 }
 
 export interface SklikZipExportResult {

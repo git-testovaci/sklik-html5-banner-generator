@@ -156,6 +156,24 @@ export function getValidationSummary(
       status: (state.scenes ?? []).length > 5 ? "warn" : "pass",
     },
     {
+      id: "video-assets",
+      label: "Video v projektu",
+      value: (() => {
+        const videos = (state.assets ?? []).filter(
+          (a) => a.mimeType.startsWith("video/") || a.mimeType === "application/mp4",
+        );
+        return videos.length > 0
+          ? `${videos.length} video — nelze exportovat`
+          : "Žádné video";
+      })(),
+      status: (() => {
+        const hasVideo = (state.assets ?? []).some(
+          (a) => a.mimeType.startsWith("video/") || a.mimeType === "application/mp4",
+        );
+        return hasVideo ? "fail" : "pass";
+      })(),
+    },
+    {
       id: "local-preview",
       label: "Lokální náhled assetů",
       value:

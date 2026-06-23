@@ -1,6 +1,12 @@
-import type { BannerEditorState } from "@/types/editor";
+import { isVideoMimeType } from "@/lib/assets/asset-validation";
+import {
+  collectExportProjectStats,
+  findVideoAssets,
+} from "@/lib/export/export-layer-utils";
 import { totalStoryboardDurationMs } from "@/lib/animation/storyboard-utils";
+import type { BannerEditorState } from "@/types/editor";
 import type {
+  ExportBundleSummary,
   ExportValidationReport,
   ExportValidationRow,
 } from "@/types/export";
@@ -65,6 +71,16 @@ function scanForbidden(content: string, rules: typeof FORBIDDEN_JS): string[] {
   return found;
 }
 
+function extractLocalAssetRefs(html: string): string[] {
+  const refs: string[] = [];
+  const re = /src=["'](assets\/[^"']+)["']/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    refs.push(m[1]!);
+  }
+  return refs;
+}
+
 export interface ValidateExportInput {
   state: BannerEditorState;
   indexHtml: string;
@@ -75,6 +91,7 @@ export interface ValidateExportInput {
   assetErrors?: string[];
   assetWarnings?: string[];
   fileCount?: number;
+  assetPaths?: string[];
 }
 
 export function validateExport(input: ValidateExportInput): ExportValidationReport {
@@ -87,10 +104,12 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
     assetErrors = [],
     assetWarnings = [],
     fileCount = 3,
+    assetPaths = [],
   } = input;
   const allText = `${indexHtml}\n${styleCss}\n${scriptJs}`;
   const scanText = stripComments(`${indexHtml}\n${styleCss}`);
   const rows: ExportValidationRow[] = [];
+  const stats = collectExportProjectStats(state, assetPaths.length);
 
   if (assetErrors.length > 0) {
     for (const err of assetErrors) {
@@ -99,12 +118,7 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
   }
 
   rows.push(
-    row(
-      "html-count",
-      "Počet HTML souborů",
-      "pass",
-      "Přesně 1 HTML soubor (index.html)",
-    ),
+    row("html-count", "Počet HTML souborů", "pass", "Přesně 1 soubor index.html"),
   );
 
   const zipSizeKb = Math.max(0, Math.round(zipSize / 1024));
@@ -114,9 +128,9 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
     assetErrors.length && zipSize === 0
       ? "Export blokován — opravte chyby assetů"
       : zipSize > MAX_ZIP_SIZE
-        ? `${zipSizeKb} kB — překračuje limit Sklik 250 kB. Zkomprimujte obrázky, použijte WebP, snižte částice.`
+        ? `${zipSizeKb} kB — překračuje limit Sklik 250 kB. Zkomprimujte obrázky.`
         : zipSize > 200_000
-          ? `${zipSizeKb} kB — blíží se limitu 250 kB. Zvažte kompresi obrázků.`
+          ? `${zipSizeKb} kB — blíží se limitu 250 kB.`
           : `${zipSizeKb} kB (limit 250 kB)`;
 
   rows.push(row("zip-size", "Velikost ZIP", zipSizeStatus, zipSizeMessage));
@@ -126,86 +140,91 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
       "file-count",
       "Počet souborů",
       fileCount <= MAX_FILES ? "pass" : "fail",
-      `${fileCount} / ${MAX_FILES}`,
+      `${fileCount} / ${MAX_FILES} souborů`,
     ),
   );
 
-  rows.push(row("nested-zip", "Vnořený ZIP", "pass", "Žádný"));
+  rows.push(row("nested-zip", "Vnořený ZIP", "pass", "Žádný vnořený ZIP"));
 
-  rows.push(row("video", "Video soubory", "pass", "Žádné"));
-
-  const assetCount = (state.assets ?? []).length;
+  const videoAssets = findVideoAssets(state);
   rows.push(
     row(
-      "asset-count",
-      "Počet assetů",
-      assetCount <= 20 ? "pass" : "warn",
-      `${assetCount} záznamů v metadatech`,
+      "video",
+      "Video soubory",
+      videoAssets.length ? "fail" : "pass",
+      videoAssets.length
+        ? "Video není pro Sklik HTML5 ZIP podporované. Použijte obrázek nebo animaci z vrstev."
+        : "Žádné video soubory",
     ),
   );
 
-  const visibleAssets = (state.assetPlacements ?? []).filter((p) => p.visible);
   rows.push(
     row(
-      "assets-folder",
-      "Složka assets",
-      indexHtml.includes('src="assets/') || visibleAssets.length === 0
-        ? "pass"
-        : "warn",
-      visibleAssets.length
-        ? "Očekávány lokální reference assets/"
-        : "Bez viditelných obrázků",
+      "export-scenes",
+      "Scény v exportu",
+      "pass",
+      `${stats.sceneCount} ${stats.sceneCount === 1 ? "scéna" : stats.sceneCount < 5 ? "scény" : "scén"}`,
     ),
   );
 
-  for (const asset of state.assets ?? []) {
-    if (!ALLOWED_ASSET_MIME.has(asset.mimeType)) {
-      rows.push(
-        row(
-          "asset-mime",
-          "Asset MIME type",
-          "fail",
-          `${asset.fileName}: ${asset.mimeType}`,
-        ),
-      );
-    }
-    if (asset.size > 200_000) {
-      rows.push(
-        row(
-          "asset-size",
-          "Asset file size",
-          "fail",
-          `${asset.fileName}: ${Math.round(asset.size / 1024)} kB`,
-        ),
-      );
-    } else if (asset.size > 0) {
-      rows.push(
-        row(
-          `asset-contrib-${asset.id}`,
-          `Asset: ${asset.fileName}`,
-          asset.size > 80_000 ? "warn" : "pass",
-          `~${Math.round(asset.size / 1024)} kB toward ZIP total`,
-        ),
-      );
-    }
+  rows.push(
+    row(
+      "export-layers",
+      "Vrstvy v exportu",
+      stats.visibleLayerCount === 0 ? "warn" : "pass",
+      stats.visibleLayerCount === 0
+        ? "Žádné viditelné vrstvy — banner může být prázdný"
+        : `${stats.visibleLayerCount} viditelných vrstev`,
+    ),
+  );
+
+  const assetPathSet = new Set(assetPaths);
+  rows.push(
+    row(
+      "asset-files",
+      "Soubory assetů v ZIP",
+      "pass",
+      `${stats.assetFileCount} unikátních souborů · ${stats.assetInstanceCount} vrstev s obrázkem`,
+    ),
+  );
+
+  if (stats.assetInstanceCount > stats.assetFileCount && stats.assetFileCount > 0) {
+    rows.push(
+      row(
+        "asset-dedup",
+        "Sdílené assety",
+        "pass",
+        "Více vrstev sdílí stejný soubor — ZIP neobsahuje duplicitní obrázky",
+      ),
+    );
+  }
+
+  const htmlRefs = extractLocalAssetRefs(indexHtml);
+  const missingRefs = htmlRefs.filter((ref) => !assetPathSet.has(ref));
+  if (htmlRefs.length > 0) {
+    rows.push(
+      row(
+        "asset-refs",
+        "Reference na assety",
+        missingRefs.length ? "fail" : "pass",
+        missingRefs.length
+          ? `Chybí v ZIP: ${missingRefs.join(", ")}`
+          : `Všechny ${htmlRefs.length} reference existují v ZIP`,
+      ),
+    );
   }
 
   rows.push(
     row(
       "depth",
-      "Directory depth",
-      fileCount > 3 ? "pass" : "pass",
-      `assets/ depth 1 · max ${MAX_DEPTH}`,
+      "Hloubka složek",
+      "pass",
+      `assets/ · max ${MAX_DEPTH} úrovně`,
     ),
   );
 
   rows.push(
-    row(
-      "file-types",
-      "Allowed file types",
-      "pass",
-      "html, css, js, images",
-    ),
+    row("file-types", "Povolené typy", "pass", "html, css, js, obrázky"),
   );
 
   const hasAdSize = /<meta[^>]+name=["']ad\.size["'][^>]+content=["']width=\d+,height=\d+["']/i.test(
@@ -216,7 +235,7 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
       "ad-size-meta",
       "Meta ad.size",
       hasAdSize ? "pass" : "fail",
-      hasAdSize ? "Present in index.html" : "Missing meta ad.size",
+      hasAdSize ? "Přítomné v index.html" : "Chybí meta ad.size",
     ),
   );
 
@@ -227,9 +246,9 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
   rows.push(
     row(
       "dimensions",
-      "Banner dimensions",
+      "Rozměry banneru",
       sizeMatch ? "pass" : "fail",
-      `${state.width}×${state.height}`,
+      `${state.width}×${state.height} px`,
     ),
   );
 
@@ -237,9 +256,9 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
   rows.push(
     row(
       "forbidden-js",
-      "Forbidden JS",
+      "Zakázaný JS",
       forbidden.length ? "fail" : "pass",
-      forbidden.length ? forbidden.join(", ") : "None detected",
+      forbidden.length ? forbidden.join(", ") : "Nenalezeno",
     ),
   );
 
@@ -247,9 +266,9 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
   rows.push(
     row(
       "dangerous-js",
-      "Dangerous JS",
+      "Nebezpečný JS",
       dangerous.length ? "fail" : "pass",
-      dangerous.length ? dangerous.join(", ") : "None detected",
+      dangerous.length ? dangerous.join(", ") : "Nenalezeno",
     ),
   );
 
@@ -257,9 +276,9 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
   rows.push(
     row(
       "external",
-      "External resources",
+      "Externí zdroje",
       externalHits.length ? "fail" : "pass",
-      externalHits.length ? "External URLs or imports detected" : "None",
+      externalHits.length ? "Nalezeny externí URL nebo importy" : "Žádné externí zdroje",
     ),
   );
 
@@ -267,9 +286,9 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
     rows.push(
       row(
         "base64",
-        "Base64 bloat",
+        "Base64 v HTML/CSS",
         "warn",
-        "Base64 image data detected — prefer assets/ files",
+        "Nalezen base64 obrázek — preferujte soubory v assets/",
       ),
     );
   }
@@ -280,20 +299,42 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
   rows.push(
     row(
       "forms",
-      "Forms",
+      "Formuláře",
       formHits.length ? "fail" : "pass",
-      formHits.length ? "Form elements detected" : "None",
+      formHits.length ? "Nalezeny formulářové prvky" : "Žádné",
     ),
   );
 
   rows.push(
     row(
       "video-tags",
-      "Video tags",
+      "Video tagy",
       /<video/i.test(indexHtml) ? "fail" : "pass",
-      /<video/i.test(indexHtml) ? "<video> detected" : "None",
+      /<video/i.test(indexHtml) ? "Nalezen tag <video>" : "Žádné",
     ),
   );
+
+  for (const asset of state.assets ?? []) {
+    if (isVideoMimeType(asset.mimeType)) {
+      rows.push(
+        row(
+          `video-asset-${asset.id}`,
+          "Video asset",
+          "fail",
+          `Video není pro Sklik HTML5 ZIP podporované (${asset.fileName}).`,
+        ),
+      );
+    } else if (!ALLOWED_ASSET_MIME.has(asset.mimeType)) {
+      rows.push(
+        row(
+          `asset-mime-${asset.id}`,
+          "Typ assetu",
+          "fail",
+          `${asset.fileName}: nepodporovaný typ ${asset.mimeType}`,
+        ),
+      );
+    }
+  }
 
   const maxDuration =
     (state.scenes ?? []).length > 1
@@ -303,9 +344,9 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
     rows.push(
       row(
         "animation-duration",
-        "Timeline duration",
+        "Délka časové osy",
         "warn",
-        `${maxDuration}ms — keep banner animations short`,
+        `${(maxDuration / 1000).toFixed(1)} s — udržujte animace stručné`,
       ),
     );
   }
@@ -314,51 +355,52 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
     rows.push(
       row(
         "scene-count",
-        "Scene count",
+        "Počet scén",
         "warn",
-        `${state.scenes!.length} scenes — may increase complexity and ZIP size`,
-      ),
-    );
-  }
-
-  const hiddenText =
-    (state.textPlacements ?? []).every((p) => !p.visible || p.opacity <= 0.05) &&
-    !state.headline.trim();
-  if (hiddenText) {
-    rows.push(
-      row(
-        "readable-state",
-        "Readable final state",
-        "warn",
-        "Important text may not be visible",
+        `${state.scenes!.length} scén — může zvýšit složitost a velikost ZIP`,
       ),
     );
   }
 
   for (const warning of assetWarnings) {
-    rows.push(row("asset-warning", "Asset warning", "warn", warning));
+    rows.push(row("asset-warning", "Upozornění assetů", "warn", warning));
   }
 
   if (/<a\s[^>]*href\s*=/i.test(indexHtml)) {
     rows.push(
       row(
         "target-links",
-        "Target links",
+        "Odkazy v HTML",
         "warn",
-        "Anchor href found — Sklik uses ad-level click URL",
+        "Nalezen href — klik URL se nastavuje ve Skliku u reklamy",
       ),
     );
   }
 
   const summaryStatus = summarize(rows);
 
+  const summary: ExportBundleSummary = {
+    sceneCount: stats.sceneCount,
+    layerCount: stats.visibleLayerCount,
+    assetFileCount: stats.assetFileCount,
+    assetInstanceCount: stats.assetInstanceCount,
+    zipSizeKb,
+    statusLabel:
+      summaryStatus === "fail"
+        ? "vyžaduje opravu"
+        : summaryStatus === "warn"
+          ? "s upozorněním"
+          : "připraveno",
+  };
+
   return {
     rows,
     summaryStatus,
+    summary,
     recommendations: [
       "Udržujte exportovaný ZIP pod 250 kB pro nahrání do Skliku.",
       "Zkomprimujte velké obrázky a preferujte WebP.",
-      "Snižte počet assetů nebo částic, pokud je ZIP příliš velký.",
+      "Video není podporované — použijte obrázky a animace vrstev.",
       "Po nahrání ověřte finální velikost banneru ve Skliku.",
       "Klik URL se nastavuje ve Skliku u reklamy, ne uvnitř HTML banneru.",
     ],

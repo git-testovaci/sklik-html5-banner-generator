@@ -12,33 +12,48 @@ import {
 } from "@/lib/animation/effect-presets";
 import { clampParticleCount } from "@/lib/animation/keyframe-utils";
 import { buildSceneSequenceCss } from "@/lib/animation/scene-sequence-css";
-import {
-  getEffectsForScene,
-  totalStoryboardDurationMs,
-} from "@/lib/animation/storyboard-utils";
+import { getEffectsForScene } from "@/lib/animation/storyboard-utils";
 import { getTextPlacement } from "@/lib/animation/timeline-utils";
 import type { BannerLayer } from "@/types/animation";
 import type { BannerEditorState } from "@/types/editor";
+import {
+  collectExportLayerAnimations,
+  collectExportVisibilityCss,
+  getExportLayersForScene,
+  isLegacyFlatScene,
+  projectHasBackgroundImage,
+  resolveExportScenes,
+} from "./export-layer-utils";
 import { sanitizeCssColor } from "./sanitize-export-content";
+import { totalStoryboardDurationMs } from "@/lib/animation/storyboard-utils";
 
 function buildStoryboardRules(state: BannerEditorState): string {
-  const scenes = state.scenes ?? [];
-  if (scenes.length <= 1) return buildAnimationRules(state);
+  const scenes = resolveExportScenes(state);
+  const realScenes = state.scenes ?? [];
+  const multiScene = scenes.length > 1 && !isLegacyFlatScene(scenes[0]!.id);
 
-  const total = totalStoryboardDurationMs(state);
-  const iter = state.timeline?.loop ? "infinite" : 1;
-  const sequenceCss = buildSceneSequenceCss(state, 0, state.timeline?.loop ?? false, "scene");
-  const sceneClassRules = scenes
-    .map(
-      (scene) =>
-        `.scene-${scene.id} { animation: scene-${scene.id}-0 ${total}ms linear ${iter}; will-change: transform, opacity; }`,
-    )
-    .join("\n");
+  const rules: string[] = [];
 
-  const rules: string[] = [sequenceCss, sceneClassRules, buildAnimationRules(state)];
+  if (multiScene && realScenes.length > 1) {
+    const total = totalStoryboardDurationMs(state);
+    const iter = state.timeline?.loop ? "infinite" : 1;
+    rules.push(buildSceneSequenceCss(state, 0, state.timeline?.loop ?? false, "scene"));
+    rules.push(
+      ...realScenes.map(
+        (scene) =>
+          `.scene-${scene.id} { animation: scene-${scene.id}-0 ${total}ms linear ${iter}; will-change: transform, opacity; }`,
+      ),
+    );
+  }
+
+  rules.push(buildAnimationRules(state));
 
   for (const scene of scenes) {
-    for (const effect of getEffectsForScene(state, scene.id)) {
+    const effectSceneId = isLegacyFlatScene(scene.id)
+      ? realScenes[0]?.id ?? scene.id
+      : scene.id;
+    if (isLegacyFlatScene(effectSceneId)) continue;
+    for (const effect of getEffectsForScene(state, effectSceneId)) {
       if (effect.preset === "flip-180") {
         rules.push(badgeFlipKeyframes(`${effect.layerId}-fx`, effect.durationMs));
       }
@@ -51,9 +66,14 @@ function buildStoryboardRules(state: BannerEditorState): string {
     }
   }
 
-  for (const layer of state.bannerLayers ?? []) {
-    if (layer.type === "particle") rules.push(particleExportCss(layer));
+  for (const scene of scenes) {
+    for (const layer of getExportLayersForScene(state, scene.id)) {
+      if (layer.type === "particle") rules.push(particleExportCss(layer));
+    }
   }
+
+  const visCss = collectExportVisibilityCss(state);
+  if (visCss) rules.push(visCss);
 
   return rules.join("\n");
 }
@@ -71,7 +91,7 @@ function particleExportCss(layer: BannerLayer): string {
 }
 
 function buildAnimationRules(state: BannerEditorState): string {
-  const anims = state.layerAnimations ?? [];
+  const anims = collectExportLayerAnimations(state);
   const keyframes = collectLayerKeyframes(anims, true, 0);
   const rules: string[] = keyframes ? [keyframes] : [];
   const grouped = new Map<string, typeof anims>();
@@ -113,10 +133,7 @@ export function generateBannerCss(state: BannerEditorState): string {
   const subPl = getTextPlacement(state, "subheadline");
   const ctaPl = getTextPlacement(state, "cta");
 
-  const hasBgImage = (state.assetPlacements ?? []).some(
-    (p) => p.visible && p.kind === "background" && (state.assets ?? []).some((a) => a.id === p.assetId),
-  );
-
+  const hasBgImage = projectHasBackgroundImage(state);
   const bannerBg = hasBgImage ? "transparent" : bg;
   const animationBlock = buildStoryboardRules(state);
 

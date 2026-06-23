@@ -1,10 +1,17 @@
 import type { ExportAssetFile } from "@/lib/assets/asset-export";
 import { layerAnimGroupClassName, presetClassName } from "@/lib/animation/animation-presets";
 import { clampParticleCount } from "@/lib/animation/keyframe-utils";
-import { animationTargetIdForLayer } from "@/lib/animation/layer-instance-utils";
-import { buildFlatSliceForScene, getLayersForScene, totalStoryboardDurationMs } from "@/lib/animation/storyboard-utils";
+import { totalStoryboardDurationMs } from "@/lib/animation/storyboard-utils";
 import type { BannerLayer } from "@/types/animation";
 import type { BannerEditorState } from "@/types/editor";
+import {
+  collectExportLayerAnimations,
+  exportAnimationTargetId,
+  exportLayerVisibilityClass,
+  getExportLayersForScene,
+  isLegacyFlatScene,
+  resolveExportScenes,
+} from "./export-layer-utils";
 import {
   escapeHtmlAttribute,
   escapeHtmlText,
@@ -35,16 +42,17 @@ function layerStyle(
   ].join(";");
 }
 
-function animClass(state: BannerEditorState, layerId: string): string {
-  const matched = (state.layerAnimations ?? []).filter(
-    (a) => a.enabled && a.preset !== "none" && a.layerId === layerId,
+function animClass(anims: ReturnType<typeof collectExportLayerAnimations>, layer: BannerLayer): string {
+  const animKey = exportAnimationTargetId(layer);
+  const matched = anims.filter(
+    (a) => a.enabled && a.preset !== "none" && a.layerId === animKey,
   );
   if (matched.length === 0) return "";
-  if (matched.length > 1) return ` ${layerAnimGroupClassName(layerId, 0)}`;
-  return ` ${presetClassName(layerId, 0)}`;
+  if (matched.length > 1) return ` ${layerAnimGroupClassName(animKey, 0)}`;
+  return ` ${presetClassName(animKey, 0)}`;
 }
 
-function renderParticleLayer(layer: BannerLayer): string {
+function renderParticleLayer(layer: BannerLayer, visClass: string): string {
   const count = clampParticleCount(layer.particleCount ?? 16);
   const dots = Array.from({ length: count })
     .map(
@@ -52,40 +60,45 @@ function renderParticleLayer(layer: BannerLayer): string {
         `<span class="p-${layer.id}-${i}" style="left:${(i * 17 + 5) % 95}%;top:${(i * 23 + 10) % 90}%;"></span>`,
     )
     .join("");
-  return `<div class="layer layer--particle" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)}">${dots}</div>`;
+  return `<div class="layer layer--particle ${visClass}" data-layer="${layer.id}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)}">${dots}</div>`;
 }
 
-function renderUnderlineLayer(layer: BannerLayer, state: BannerEditorState): string {
+function renderUnderlineLayer(
+  layer: BannerLayer,
+  state: BannerEditorState,
+  visClass: string,
+): string {
   const color = layer.underlineColor ?? state.accentColor;
-  return `<div class="layer layer--underline ul-${layer.id}" style="${layerStyle(layer.x, layer.y, layer.width, layer.thickness ?? 3, layer.zIndex, layer.opacity, layer.rotation)};background:${color};"></div>`;
+  return `<div class="layer layer--underline ul-${layer.id} ${visClass}" data-layer="${layer.id}" style="${layerStyle(layer.x, layer.y, layer.width, layer.thickness ?? 3, layer.zIndex, layer.opacity, layer.rotation)};background:${color};"></div>`;
 }
 
 function renderSceneLayers(
   state: BannerEditorState,
   sceneId: string,
   paths: Map<string, string>,
+  anims: ReturnType<typeof collectExportLayerAnimations>,
 ): string {
-  const slice = buildFlatSliceForScene(state, sceneId);
-  const sceneState: BannerEditorState = { ...state, ...slice };
-
-  const headline = escapeHtmlText(sanitizePlainText(sceneState.headline, "Nadpis", 120));
-  const subheadline = escapeHtmlText(sanitizePlainText(sceneState.subheadline, "Podnadpis", 160));
-  const cta = escapeHtmlText(sanitizePlainText(sceneState.cta, "Zjistit více", 40));
+  const headline = escapeHtmlText(sanitizePlainText(state.headline, "Nadpis", 120));
+  const subheadline = escapeHtmlText(sanitizePlainText(state.subheadline, "Podnadpis", 160));
+  const cta = escapeHtmlText(sanitizePlainText(state.cta, "Zjistit více", 40));
   const logo = escapeHtmlText(sanitizePlainText(state.logoLabel, "Logo", 24));
   const product = escapeHtmlText(sanitizePlainText(state.productImageLabel, "Produkt", 24));
 
-  const layers = getLayersForScene(state, sceneId);
+  const layers = getExportLayersForScene(state, sceneId);
   const parts: string[] = [];
+  const effectsSceneId = isLegacyFlatScene(sceneId)
+    ? state.scenes?.[0]?.id ?? sceneId
+    : sceneId;
 
-  for (const layer of layers.sort((a, b) => a.zIndex - b.zIndex)) {
-    if (!layer.visible) continue;
+  for (const layer of layers) {
+    const visClass = exportLayerVisibilityClass(layer);
 
     if (layer.type === "particle") {
-      parts.push(renderParticleLayer(layer));
+      parts.push(renderParticleLayer(layer, visClass));
       continue;
     }
     if (layer.type === "underline") {
-      parts.push(renderUnderlineLayer(layer, state));
+      parts.push(renderUnderlineLayer(layer, state, visClass));
       continue;
     }
 
@@ -107,9 +120,8 @@ function renderSceneLayers(
             : layer.legacyKey === "subheadline"
               ? "layer--subheadline"
               : "layer--text";
-      const animKey = layer.legacyKey ?? layer.id;
       parts.push(
-        `<div class="layer ${cls}${animClass(sceneState, animKey)}" data-layer="${animKey}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)}">${content}</div>`,
+        `<div class="layer ${cls} ${visClass}${animClass(anims, layer)}" data-layer="${layer.id}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)}">${content}</div>`,
       );
       continue;
     }
@@ -117,7 +129,7 @@ function renderSceneLayers(
     if ((layer.type === "badge" || layer.type === "shape") && !layer.assetId && !layer.isTemplateSlot) {
       const label = escapeHtmlText(sanitizePlainText(layer.text ?? layer.name, "Badge", 40));
       const fx = (state.layerEffects ?? []).find(
-        (e) => e.layerId === layer.id && e.sceneId === sceneId,
+        (e) => e.layerId === layer.id && e.sceneId === effectsSceneId,
       );
       const fxClass =
         fx?.preset === "flip-180" || fx?.preset === "zoom-rotate-badge"
@@ -125,7 +137,7 @@ function renderSceneLayers(
           : "";
       const fill = layer.fill ?? state.accentColor;
       parts.push(
-        `<div class="layer layer--badge${fxClass}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)};background:${fill};border-radius:${layer.shapeType === "circle" ? "999px" : "8px"};display:flex;align-items:center;justify-content:center;font-size:${layer.fontSize ?? 11}px;font-weight:700;color:${layer.color ?? "#fff"};">${label}</div>`,
+        `<div class="layer layer--badge ${visClass}${fxClass}" data-layer="${layer.id}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)};background:${fill};border-radius:${layer.shapeType === "circle" ? "999px" : "8px"};display:flex;align-items:center;justify-content:center;font-size:${layer.fontSize ?? 11}px;font-weight:700;color:${layer.color ?? "#fff"};">${label}</div>`,
       );
       continue;
     }
@@ -139,7 +151,7 @@ function renderSceneLayers(
       const radius = layer.shapeType === "circle" ? "999px" : `${layer.borderRadius ?? 10}px`;
       const grad = `linear-gradient(135deg, ${accent}22 0%, ${accent}08 100%)`;
       parts.push(
-        `<div class="layer layer--slot-placeholder" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)};background:${grad};border:1px solid ${accent}44;border-radius:${radius};"></div>`,
+        `<div class="layer layer--slot-placeholder ${visClass}" data-layer="${layer.id}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)};background:${grad};border:1px solid ${accent}44;border-radius:${radius};"></div>`,
       );
       continue;
     }
@@ -147,7 +159,7 @@ function renderSceneLayers(
     if (layer.type === "image" && !layer.assetId) {
       const label = escapeHtmlText(sanitizePlainText(layer.name, "Frame", 24));
       parts.push(
-        `<div class="layer layer--product layer--placeholder" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)};border:1px dashed ${state.accentColor};display:flex;align-items:center;justify-content:center;">${label}</div>`,
+        `<div class="layer layer--product layer--placeholder ${visClass}" data-layer="${layer.id}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)};border:1px dashed ${state.accentColor};display:flex;align-items:center;justify-content:center;">${label}</div>`,
       );
       continue;
     }
@@ -155,9 +167,8 @@ function renderSceneLayers(
     if ((layer.type === "image" || layer.type === "badge") && layer.assetId) {
       const path = paths.get(layer.assetId);
       const kind = layer.legacyKey ?? "decoration";
-      const animKey = animationTargetIdForLayer(layer, layer.id);
       const fx = (state.layerEffects ?? []).find(
-        (e) => e.layerId === layer.id && e.sceneId === sceneId,
+        (e) => e.layerId === layer.id && e.sceneId === effectsSceneId,
       );
       const fxClass =
         fx?.preset === "flip-180" || fx?.preset === "zoom-rotate-badge"
@@ -166,12 +177,12 @@ function renderSceneLayers(
       const borderRadius = layer.borderRadius ? `border-radius:${layer.borderRadius}px;` : "";
       if (path) {
         parts.push(
-          `<div class="layer layer--${kind}${animClass(sceneState, animKey)}${fxClass}" data-layer="${layer.id}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)};${borderRadius}"><img class="layer__img layer__img--${layer.fit ?? "contain"}" src="${escapeHtmlAttribute(path)}" alt=""></div>`,
+          `<div class="layer layer--${kind} ${visClass}${animClass(anims, layer)}${fxClass}" data-layer="${layer.id}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)};${borderRadius}"><img class="layer__img layer__img--${layer.fit ?? "contain"}" src="${escapeHtmlAttribute(path)}" alt=""></div>`,
         );
       } else {
         const placeholder = kind === "logo" ? logo : kind === "product" ? product : kind;
         parts.push(
-          `<div class="layer layer--${kind} layer--placeholder${animClass(sceneState, animKey)}" data-layer="${layer.id}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)}"><span>${placeholder}</span></div>`,
+          `<div class="layer layer--${kind} layer--placeholder ${visClass}${animClass(anims, layer)}" data-layer="${layer.id}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)}"><span>${placeholder}</span></div>`,
         );
       }
     }
@@ -186,23 +197,26 @@ export function generateBannerHtml(
 ): string {
   const paths = assetPathMap(assetFiles);
   const title = escapeHtmlText(sanitizePlainText(state.name, "Banner", 80));
-  const scenes = state.scenes ?? [];
+  const scenes = resolveExportScenes(state);
+  const anims = collectExportLayerAnimations(state);
 
   let bodyLayers: string;
 
-  if (scenes.length > 1) {
+  if (scenes.length > 1 && !isLegacyFlatScene(scenes[0]!.id)) {
     bodyLayers = scenes
       .map(
         (scene) =>
-          `    <div class="scene-layer scene-${scene.id}" data-scene="${escapeHtmlAttribute(scene.name)}">\n${renderSceneLayers(state, scene.id, paths)}\n    </div>`,
+          `    <div class="scene-layer scene-${scene.id}" data-scene="${escapeHtmlAttribute(scene.name)}">\n${renderSceneLayers(state, scene.id, paths, anims)}\n    </div>`,
       )
       .join("\n");
   } else {
-    const sceneId = scenes[0]?.id ?? "default";
-    bodyLayers = renderSceneLayers(state, sceneId, paths);
+    bodyLayers = renderSceneLayers(state, scenes[0]!.id, paths, anims);
   }
 
-  const totalMs = scenes.length > 1 ? totalStoryboardDurationMs(state) : state.timeline?.durationMs ?? 3000;
+  const totalMs =
+    scenes.length > 1 && (state.scenes ?? []).length > 1
+      ? totalStoryboardDurationMs(state)
+      : scenes[0]?.durationMs ?? state.timeline?.durationMs ?? 3000;
 
   return `<!doctype html>
 <html lang="cs">

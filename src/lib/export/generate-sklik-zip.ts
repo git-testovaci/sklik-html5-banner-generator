@@ -62,6 +62,7 @@ export async function generateSklikZip(
       assetErrors,
       assetWarnings,
       fileCount: bundle.files.length,
+      assetPaths: assetFiles.map((f) => f.path),
     });
     return {
       zipBlob: new Blob([], { type: "application/zip" }),
@@ -98,6 +99,7 @@ export async function generateSklikZip(
     assetErrors: [],
     assetWarnings,
     fileCount: bundle.files.length,
+    assetPaths: assetFiles.map((f) => f.path),
   });
 
   return {

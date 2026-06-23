@@ -266,6 +266,18 @@ export function ValidationExportPanel({
                   {exportResult.fileCount === 1 ? "soubor" : "souborů"}
                 </p>
 
+                {exportResult.validationReport.summary ? (
+                  <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-zinc-800/60 pt-2 text-[10px] text-zinc-500">
+                    <span>Scény: {exportResult.validationReport.summary.sceneCount}</span>
+                    <span>Vrstvy: {exportResult.validationReport.summary.layerCount}</span>
+                    <span>Assety: {exportResult.validationReport.summary.assetFileCount}</span>
+                    <span>Velikost: {exportResult.validationReport.summary.zipSizeKb} kB</span>
+                    <span className="col-span-2 font-medium text-zinc-400">
+                      Stav: {exportResult.validationReport.summary.statusLabel}
+                    </span>
+                  </div>
+                ) : null}
+
                 {exportResult.generatedFiles.length > 0 ? (
                   <ul className="space-y-1 border-t border-zinc-800/60 pt-2 text-xs text-zinc-500">
                     {exportResult.generatedFiles.map((file) => (
