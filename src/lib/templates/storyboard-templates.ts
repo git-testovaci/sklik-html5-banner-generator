@@ -693,7 +693,7 @@ function buildFlashSale(state: BannerEditorState): BannerEditorState {
     {
       name: "Sleva",
       durationMs: 2800,
-      transitionOut: "swipe-left",
+      transitionOut: "push-left",
       buildLayers: (ctx, sceneId, refs) => {
         refs.set("discount", "fs-discount");
         return [
@@ -726,7 +726,7 @@ function buildFlashSale(state: BannerEditorState): BannerEditorState {
     {
       name: "Produkt",
       durationMs: 3000,
-      transitionOut: "swipe-left",
+      transitionOut: "push-left",
       buildLayers: (ctx, sceneId, refs) => {
         refs.set("product", "fs-product");
         refs.set("deadline", "fs-deadline");
@@ -791,9 +791,9 @@ function buildFlashSale(state: BannerEditorState): BannerEditorState {
 function buildGenericThreeScene(
   state: BannerEditorState,
   config: {
-    s1: { title: string; sub: string; transition: BannerSceneTransition };
-    s2: { title: string; sub: string; transition: BannerSceneTransition };
-    s3: { title: string; cta: string; transition: BannerSceneTransition };
+    s1: { title: string; sub: string; transition: BannerSceneTransition; name?: string };
+    s2: { title: string; sub: string; transition: BannerSceneTransition; name?: string };
+    s3: { title: string; cta: string; transition: BannerSceneTransition; name?: string };
     accent?: string;
   },
 ): BannerEditorState {
@@ -805,8 +805,8 @@ function buildGenericThreeScene(
     state,
     [
       {
-        name: "Scéna 1",
-        durationMs: 3000,
+        name: config.s1.name ?? "Úvod",
+        durationMs: 3200,
         transitionOut: config.s1.transition,
         buildLayers: (ctx, sceneId, refs) => {
           refs.set("h1", "g-h1");
@@ -830,7 +830,7 @@ function buildGenericThreeScene(
         ],
       },
       {
-        name: "Scéna 2",
+        name: config.s2.name ?? "Detail",
         durationMs: 3200,
         transitionOut: config.s2.transition,
         buildLayers: (ctx, sceneId, refs) => {
@@ -858,7 +858,7 @@ function buildGenericThreeScene(
         ],
       },
       {
-        name: "Scéna 3",
+        name: config.s3.name ?? "Výzva",
         durationMs: 3300,
         transitionOut: config.s3.transition,
         buildLayers: (ctx, sceneId, refs) => {
@@ -892,39 +892,39 @@ const BUILDERS: Record<StoryboardTemplateId, (state: BannerEditorState) => Banne
   "flash-sale": buildFlashSale,
   "premium-launch": (s) =>
     buildGenericThreeScene(s, {
-      s1: { title: "Novinka, která zaujme", sub: "Prémiový design. Chytré funkce.", transition: "fade" },
-      s2: { title: "Detaily, které cítíte", sub: "Kvalita v každém detailu.", transition: "swipe-left" },
-      s3: { title: "Objevte více", cta: "Objevte více", transition: "fade" },
+      s1: { title: "Novinka, která zaujme", sub: "Prémiový design. Chytré funkce.", transition: "fade", name: "Odhalení" },
+      s2: { title: "Detaily, které cítíte", sub: "Kvalita v každém detailu.", transition: "push-left", name: "Funkce" },
+      s3: { title: "Objevte více", cta: "Objevte více", transition: "fade", name: "Hero" },
     }),
   "health-wellness": (s) =>
     buildGenericThreeScene(s, {
-      s1: { title: "Každý nádech se počítá", sub: "Méně prachu. Více klidu.", transition: "swipe-left" },
-      s2: { title: "Čistší prostředí", sub: "Jemné částice pryč z domova.", transition: "swipe-left" },
-      s3: { title: "Začněte dnes", cta: "Začněte dnes", transition: "fade" },
+      s1: { title: "Každý nádech se počítá", sub: "Méně prachu. Více klidu.", transition: "swipe-left", name: "Problém" },
+      s2: { title: "Čistší prostředí", sub: "Jemné částice pryč z domova.", transition: "swipe-left", name: "Řešení" },
+      s3: { title: "Začněte dnes", cta: "Začněte dnes", transition: "fade", name: "Výzva" },
     }),
   "finance-trust": (s) =>
     buildGenericThreeScene(s, {
-      s1: { title: "Mějte jistotu v každé situaci", sub: "Rychlé sjednání online.", transition: "fade" },
-      s2: { title: "Transparentní podmínky", sub: "Bez skrytých poplatků.", transition: "swipe-right" },
-      s3: { title: "Spočítat nabídku", cta: "Spočítat nabídku", transition: "fade" },
+      s1: { title: "Mějte jistotu v každé situaci", sub: "Rychlé sjednání online.", transition: "fade", name: "Důvěra" },
+      s2: { title: "Transparentní podmínky", sub: "Bez skrytých poplatků.", transition: "push-left", name: "Čísla" },
+      s3: { title: "Spočítat nabídku", cta: "Spočítat nabídku", transition: "fade", name: "Akce" },
     }),
   "travel-holiday": (s) =>
     buildGenericThreeScene(s, {
-      s1: { title: "Léto začíná tady", sub: "Vyberte si dovolenou snů.", transition: "swipe-left" },
-      s2: { title: "Last minute nabídky", sub: "Oblíbené destinace.", transition: "swipe-left" },
-      s3: { title: "Zobrazit nabídky", cta: "Zobrazit nabídky", transition: "fade" },
+      s1: { title: "Léto začíná tady", sub: "Vyberte si dovolenou snů.", transition: "swipe-left", name: "Destinace" },
+      s2: { title: "Last minute nabídky", sub: "Oblíbené destinace.", transition: "swipe-right", name: "Cena" },
+      s3: { title: "Zobrazit nabídky", cta: "Zobrazit nabídky", transition: "swipe-left", name: "Rezervace" },
     }),
   "saas-app": (s) =>
     buildGenericThreeScene(s, {
-      s1: { title: "Zjednodušte každodenní práci", sub: "Přehled. Automatizace. Výsledky.", transition: "swipe-left" },
-      s2: { title: "Vše na jednom místě", sub: "Rychlejší workflow pro tým.", transition: "swipe-left" },
-      s3: { title: "Vyzkoušet zdarma", cta: "Vyzkoušet zdarma", transition: "fade" },
+      s1: { title: "Zjednodušte každodenní práci", sub: "Přehled. Automatizace. Výsledky.", transition: "push-left", name: "UI karta" },
+      s2: { title: "Vše na jednom místě", sub: "Rychlejší workflow pro tým.", transition: "push-left", name: "Funkce" },
+      s3: { title: "Vyzkoušet zdarma", cta: "Vyzkoušet zdarma", transition: "push-left", name: "Trial" },
     }),
   "local-service": (s) =>
     buildGenericThreeScene(s, {
-      s1: { title: "Potřebujete rychlé řešení?", sub: "Domluva online. Férová cena.", transition: "fade" },
-      s2: { title: "Spolehlivý servis", sub: "Rychlá reakce a jasná nabídka.", transition: "swipe-left" },
-      s3: { title: "Nezávazně poptat", cta: "Nezávazně poptat", transition: "fade" },
+      s1: { title: "Potřebujete rychlé řešení?", sub: "Domluva online. Férová cena.", transition: "swipe-left", name: "Problém" },
+      s2: { title: "Spolehlivý servis", sub: "Rychlá reakce a jasná nabídka.", transition: "swipe-left", name: "Benefity" },
+      s3: { title: "Nezávazně poptat", cta: "Nezávazně poptat", transition: "fade", name: "Kontakt" },
     }),
 };
 

@@ -6,6 +6,7 @@ import { formatBannerSize } from "@/lib/banner-sizes";
 import { projectToEditorState } from "@/lib/animation/timeline-utils";
 import { totalStoryboardDurationMs } from "@/lib/animation/storyboard-utils";
 import { collectAssetWarnings } from "@/lib/assets/asset-validation";
+import { usePlaybackController } from "@/lib/playback/use-playback-controller";
 import {
   getProjectByShareIdSnapshot,
   subscribeProjects,
@@ -42,17 +43,19 @@ interface PreviewContentProps {
 function PreviewContent({ state }: PreviewContentProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
-  const [replayKey, setReplayKey] = useState(0);
-  const [playAll, setPlayAll] = useState(false);
   const [loopPreview, setLoopPreview] = useState(state.timeline?.loop ?? false);
-  const [playbackSceneId, setPlaybackSceneId] = useState<string | null>(null);
-  const [playbackTimeMs, setPlaybackTimeMs] = useState(0);
-  const playbackRafRef = useRef<number | null>(null);
   const sizeLabel = formatBannerSize(state.width, state.height);
   const hasAssets = (state.assets ?? []).length > 0;
   const hasStoryboard = (state.scenes ?? []).length > 1;
   const assetNoteKey = (state.assets ?? []).map((a) => a.id).join(",");
   const [assetNoteCache, setAssetNoteCache] = useState<Record<string, string>>({});
+
+  const playback = usePlaybackController({
+    scenes: state.scenes,
+    loop: loopPreview,
+    timelineDurationMs: state.timeline?.durationMs ?? 3000,
+    activeSceneId: state.activeSceneId,
+  });
 
   useEffect(() => {
     function updateScale() {
@@ -84,109 +87,11 @@ function PreviewContent({ state }: PreviewContentProps) {
     };
   }, [state, hasAssets, assetNoteKey]);
 
-  useEffect(() => {
-    return () => {
-      if (playbackRafRef.current !== null) {
-        cancelAnimationFrame(playbackRafRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    const scenes = state.scenes ?? [];
-    const timelineDurationMs = state.timeline?.durationMs ?? 3000;
-    const scene =
-      scenes.find((s) => s.id === (state.activeSceneId ?? scenes[0]?.id)) ?? scenes[0];
-    const totalDurationMs = scenes.reduce((sum, s) => sum + s.durationMs, 0);
-    const duration = playAll ? totalDurationMs : scene?.durationMs ?? timelineDurationMs;
-
-    if (!playAll && replayKey === 0) {
-      return;
-    }
-
-    if (playbackRafRef.current !== null) {
-      cancelAnimationFrame(playbackRafRef.current);
-      playbackRafRef.current = null;
-    }
-
-    const start = performance.now();
-    let cancelled = false;
-
-    function resolveSceneAt(elapsed: number) {
-      if (!playAll || scenes.length <= 1) {
-        setPlaybackSceneId(scene?.id ?? null);
-        return;
-      }
-      let offset = 0;
-      for (const s of scenes) {
-        if (elapsed >= offset && elapsed < offset + s.durationMs) {
-          setPlaybackSceneId(s.id);
-          return;
-        }
-        offset += s.durationMs;
-      }
-      setPlaybackSceneId(scenes[scenes.length - 1]?.id ?? null);
-    }
-
-    function tick(now: number) {
-      if (cancelled) return;
-      let elapsed = now - start;
-
-      if (playAll && loopPreview && duration > 0) {
-        elapsed = elapsed % duration;
-      }
-
-      if (elapsed >= duration) {
-        setPlaybackTimeMs(duration);
-        if (playAll && loopPreview && duration > 0) {
-          playbackRafRef.current = requestAnimationFrame(tick);
-          return;
-        }
-        if (playAll) {
-          setPlayAll(false);
-          setPlaybackSceneId(null);
-        }
-        setPlaybackTimeMs(0);
-        return;
-      }
-
-      setPlaybackTimeMs(elapsed);
-      resolveSceneAt(elapsed);
-      playbackRafRef.current = requestAnimationFrame(tick);
-    }
-
-    playbackRafRef.current = requestAnimationFrame(tick);
-
-    return () => {
-      cancelled = true;
-      if (playbackRafRef.current !== null) {
-        cancelAnimationFrame(playbackRafRef.current);
-        playbackRafRef.current = null;
-      }
-    };
-  }, [
-    playAll,
-    replayKey,
-    loopPreview,
-    state.scenes,
-    state.timeline?.durationMs,
-    state.activeSceneId,
-  ]);
-
   const assetNote = hasAssets ? (assetNoteCache[assetNoteKey] ?? null) : null;
-  const activeScene = state.scenes?.find((s) => s.id === (playbackSceneId ?? state.activeSceneId));
-  const sceneLabel = activeScene
-    ? `${activeScene.name}${playAll ? " · playing" : ""}`
-    : undefined;
-
-  function handlePlayAll() {
-    setPlayAll(true);
-    setPlaybackTimeMs(0);
-    setPlaybackSceneId(state.scenes?.[0]?.id ?? null);
-    setReplayKey((k) => k + 1);
-  }
-
-  const replaySceneMode = !playAll && replayKey > 0;
+  const activeScene = state.scenes?.find(
+    (s) => s.id === (playback.playbackSceneId ?? state.activeSceneId),
+  );
+  const sceneLabel = activeScene ? activeScene.name : undefined;
 
   return (
     <>
@@ -229,10 +134,10 @@ function PreviewContent({ state }: PreviewContentProps) {
           <div style={{ transform: `scale(${scale})`, transformOrigin: "center center" }}>
             <BannerPreview
               state={state}
-              replayKey={replayKey}
+              replayKey={playback.replayKey}
               loopPreview={loopPreview}
-              playAll={playAll && hasStoryboard}
-              playbackSceneId={playbackSceneId}
+              playAll={playback.playAllView && hasStoryboard}
+              playbackSceneId={playback.playbackSceneId}
               publicMode
             />
           </div>
@@ -240,31 +145,28 @@ function PreviewContent({ state }: PreviewContentProps) {
 
         {hasStoryboard ? (
           <>
-            <PlaybackTimeline
-              state={state}
-              playAll={playAll}
-              playbackTimeMs={playbackTimeMs}
-              playbackSceneId={playbackSceneId}
-              replaySceneMode={replaySceneMode}
-            />
+            <div className="mt-4">
+              <PlaybackTimeline
+                state={state}
+                mode={playback.mode}
+                playAllView={playback.playAllView}
+                playbackTimeMs={playback.playbackTimeMs}
+                playbackSceneId={playback.playbackSceneId}
+              />
+            </div>
             <PreviewPlaybackControls
+              mode={playback.mode}
               loop={loopPreview}
-              onReplay={() => {
-                setPlayAll(false);
-                setPlaybackTimeMs(0);
-                setReplayKey((k) => k + 1);
-              }}
-              onReplayScene={() => {
-                setPlayAll(false);
-                setPlaybackTimeMs(0);
-                setPlaybackSceneId(state.activeSceneId ?? state.scenes?.[0]?.id ?? null);
-                setReplayKey((k) => k + 1);
-              }}
-              onPlayAll={handlePlayAll}
-              onToggleLoop={() => setLoopPreview((v) => !v)}
+              playbackTimeMs={playback.playbackTimeMs}
+              onPlayAll={playback.playAll}
+              onReplayScene={playback.replayScene}
+              onPause={playback.pause}
+              onResume={playback.resume}
+              onStop={playback.stop}
+              onToggleLoop={setLoopPreview}
               sceneLabel={
-                playAll
-                  ? `Playing all · ${totalStoryboardDurationMs(state)}ms`
+                playback.mode === "playing-all"
+                  ? `Přehrávání vše · ${(totalStoryboardDurationMs(state) / 1000).toFixed(1)} s`
                   : sceneLabel
               }
             />

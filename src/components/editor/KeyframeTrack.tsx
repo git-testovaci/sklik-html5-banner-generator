@@ -1,12 +1,13 @@
 "use client";
 
 import type { LayerEffect } from "@/types/animation";
-import { effectPresetDefaults } from "@/lib/animation/effect-presets";
+import type { BannerEditorState } from "@/types/editor";
+import { describeLayerEffect } from "@/lib/animation/effect-labels";
 import { clampTiming } from "@/lib/animation/timeline-utils";
-import { getLayerById } from "@/lib/animation/storyboard-utils";
 
 interface KeyframeTrackProps {
   effect: LayerEffect;
+  state: BannerEditorState;
   timelineDurationMs: number;
   selected: boolean;
   persistent?: boolean;
@@ -16,13 +17,14 @@ interface KeyframeTrackProps {
 
 export function KeyframeTrack({
   effect,
+  state,
   timelineDurationMs,
   selected,
   persistent,
   onSelect,
   onChange,
 }: KeyframeTrackProps) {
-  const label = effectPresetDefaults(effect.preset).label;
+  const label = describeLayerEffect(state, effect);
   const safeDuration = Math.max(timelineDurationMs, 1);
   const leftPct = Math.min(100, Math.max(0, (effect.startMs / safeDuration) * 100));
   const widthPct = Math.min(100, Math.max(0, (effect.durationMs / safeDuration) * 100));
@@ -61,7 +63,10 @@ export function KeyframeTrack({
 
   return (
     <div className="flex items-center gap-2">
-      <span className="w-24 shrink-0 truncate text-[10px] text-zinc-500">
+      <span
+        className="w-36 shrink-0 truncate text-[10px] text-zinc-400"
+        title={label}
+      >
         {label}
         {persistent ? " 📌" : ""}
       </span>
@@ -81,7 +86,7 @@ export function KeyframeTrack({
             width: `${Math.max(widthPct, 4)}%`,
           }}
         >
-          {effect.durationMs}ms
+          {(effect.durationMs / 1000).toFixed(1)}s
         </button>
         <span
           className="absolute top-0.5 h-6 w-1.5 cursor-ew-resize rounded bg-violet-400/80"
@@ -106,7 +111,4 @@ export function KeyframeTrack({
   );
 }
 
-export function layerEffectLabel(effect: LayerEffect, state: { bannerLayers?: { id: string; name: string }[] }) {
-  const layer = getLayerById(state as Parameters<typeof getLayerById>[0], effect.layerId);
-  return `${layer?.name ?? effect.layerId} · ${effectPresetDefaults(effect.preset).label}`;
-}
+export { describeLayerEffect as layerEffectLabel } from "@/lib/animation/effect-labels";

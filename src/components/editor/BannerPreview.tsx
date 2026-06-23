@@ -17,14 +17,12 @@ import {
   presetClassName,
 } from "@/lib/animation/animation-presets";
 import { clampParticleCount } from "@/lib/animation/keyframe-utils";
+import { buildSceneSequenceCss } from "@/lib/animation/scene-sequence-css";
 import {
   buildFlatSliceForScene,
   getActiveScene,
   getEffectsForScene,
   getLayersForScene,
-  sceneStartOffsetMs,
-  totalStoryboardDurationMs,
-  transitionKeyframes,
 } from "@/lib/animation/storyboard-utils";
 import {
   getLayerAnimation,
@@ -107,39 +105,6 @@ function isLayerSelected(
 ): boolean {
   if (!selected) return false;
   return selected.type === layer.type && selected.id === layer.id;
-}
-
-function buildSceneSequenceCss(
-  state: BannerEditorState,
-  replayKey: number,
-  loop: boolean,
-): string {
-  const scenes = state.scenes ?? [];
-  if (scenes.length <= 1) return transitionKeyframes();
-
-  const total = totalStoryboardDurationMs(state);
-  const iter = loop ? "infinite" : 1;
-  const rules: string[] = [transitionKeyframes()];
-
-  for (const scene of scenes) {
-    const start = sceneStartOffsetMs(state, scene.id);
-    const end = start + scene.durationMs;
-    const startPct = (start / total) * 100;
-    const endPct = (end / total) * 100;
-    const cls = `scene-seq-${scene.id}-${replayKey}`;
-    rules.push(`
-@keyframes ${cls} {
-  0%, ${startPct > 0 ? `${startPct - 0.1}%` : "0%"} { opacity: 0; visibility: hidden; pointer-events: none; }
-  ${startPct}% { opacity: 1; visibility: visible; }
-  ${endPct}% { opacity: 1; visibility: visible; }
-  ${Math.min(endPct + 0.1, 100)}%, 100% { opacity: 0; visibility: hidden; pointer-events: none; }
-}
-.${cls} {
-  animation: ${cls} ${total}ms linear ${iter};
-}`);
-  }
-
-  return rules.join("\n");
 }
 
 function ParticleRender({ layer, replayKey }: { layer: BannerLayer; replayKey: number }) {

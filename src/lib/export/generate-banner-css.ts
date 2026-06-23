@@ -9,11 +9,10 @@ import {
   zoomRotateKeyframes,
 } from "@/lib/animation/effect-presets";
 import { clampParticleCount } from "@/lib/animation/keyframe-utils";
+import { buildSceneSequenceCss } from "@/lib/animation/scene-sequence-css";
 import {
   getEffectsForScene,
-  sceneStartOffsetMs,
   totalStoryboardDurationMs,
-  transitionKeyframes,
 } from "@/lib/animation/storyboard-utils";
 import { getTextPlacement } from "@/lib/animation/timeline-utils";
 import type { BannerLayer } from "@/types/animation";
@@ -25,24 +24,18 @@ function buildStoryboardRules(state: BannerEditorState): string {
   if (scenes.length <= 1) return buildAnimationRules(state);
 
   const total = totalStoryboardDurationMs(state);
-  const loop = state.timeline?.loop ?? false;
-  const iter = loop ? "infinite" : 1;
-  const rules: string[] = [transitionKeyframes(), buildAnimationRules(state)];
+  const iter = state.timeline?.loop ? "infinite" : 1;
+  const sequenceCss = buildSceneSequenceCss(state, 0, state.timeline?.loop ?? false, "scene");
+  const sceneClassRules = scenes
+    .map(
+      (scene) =>
+        `.scene-${scene.id} { animation: scene-${scene.id}-0 ${total}ms linear ${iter}; will-change: transform, opacity; }`,
+    )
+    .join("\n");
+
+  const rules: string[] = [sequenceCss, sceneClassRules, buildAnimationRules(state)];
 
   for (const scene of scenes) {
-    const start = sceneStartOffsetMs(state, scene.id);
-    const end = start + scene.durationMs;
-    const startPct = (start / total) * 100;
-    const endPct = (end / total) * 100;
-    rules.push(`
-@keyframes sceneShow-${scene.id} {
-  0%, ${startPct > 0 ? `${startPct - 0.1}%` : "0%"} { opacity: 0; visibility: hidden; }
-  ${startPct}% { opacity: 1; visibility: visible; }
-  ${endPct}% { opacity: 1; visibility: visible; }
-  ${Math.min(endPct + 0.1, 100)}%, 100% { opacity: 0; visibility: hidden; }
-}
-.scene-${scene.id} { animation: sceneShow-${scene.id} ${total}ms linear ${iter}; }`);
-
     for (const effect of getEffectsForScene(state, scene.id)) {
       if (effect.preset === "flip-180") {
         rules.push(badgeFlipKeyframes(`${effect.layerId}-fx`, effect.durationMs));

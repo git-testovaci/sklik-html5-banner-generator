@@ -12,6 +12,7 @@ import {
   updateBannerLayer,
   updateLayerGeometryFromCanvas,
 } from "@/lib/animation/storyboard-utils";
+import type { PlaybackController } from "@/lib/playback/use-playback-controller";
 import type { BannerAssetPlacement, TextLayerPlacement } from "@/types/assets";
 import type { BannerEditorState, BannerEditorStateUpdater, SelectedLayer } from "@/types/editor";
 import { BannerPreview } from "./BannerPreview";
@@ -23,13 +24,9 @@ interface BannerPreviewStageProps {
   onUpdate?: BannerEditorStateUpdater;
   selectedLayer: SelectedLayer;
   onSelectLayer: (layer: SelectedLayer) => void;
-  replayKey: number;
-  onReplay: () => void;
-  onReplayScene?: () => void;
+  playback: PlaybackController;
   onPlayAll?: () => void;
-  playAll?: boolean;
-  playbackSceneId?: string | null;
-  playbackTimeMs?: number;
+  onReplayScene?: () => void;
 }
 
 export function BannerPreviewStage({
@@ -37,13 +34,9 @@ export function BannerPreviewStage({
   onUpdate,
   selectedLayer,
   onSelectLayer,
-  replayKey,
-  onReplay,
-  onReplayScene,
+  playback,
   onPlayAll,
-  playAll = false,
-  playbackSceneId,
-  playbackTimeMs = 0,
+  onReplayScene,
 }: BannerPreviewStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -120,9 +113,15 @@ export function BannerPreviewStage({
   }
 
   const sizeLabel = formatBannerSize(state.width, state.height);
-  const sceneLabel = activeScene
-    ? `${activeScene.name} · ${activeScene.durationMs}ms`
-    : undefined;
+  const playbackScene = state.scenes?.find((s) => s.id === playback.playbackSceneId);
+  const sceneLabel =
+    playback.mode === "playing-all"
+      ? `Přehrávání · ${playbackScene?.name ?? "všechny scény"}`
+      : playback.mode === "playing-scene" || playback.mode === "paused"
+        ? playbackScene?.name ?? activeScene?.name
+        : activeScene
+          ? `${activeScene.name} · ${(activeScene.durationMs / 1000).toFixed(1)} s`
+          : undefined;
 
   return (
     <section
@@ -131,7 +130,7 @@ export function BannerPreviewStage({
     >
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/60 px-4 py-3">
         <h2 id="preview-heading" className="text-sm font-medium text-zinc-300">
-          Canvas preview
+          Náhled plátna
         </h2>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-1.5 text-xs text-zinc-500">
@@ -159,7 +158,7 @@ export function BannerPreviewStage({
         <div style={{ transform: `scale(${scale})`, transformOrigin: "center center" }}>
           <BannerPreview
             state={state}
-            replayKey={replayKey}
+            replayKey={playback.replayKey}
             loopPreview={loopPreview}
             showSafeArea={showSafeArea}
             interactive
@@ -169,17 +168,21 @@ export function BannerPreviewStage({
             onUpdateTextPlacement={updateTextPlacement}
             onUpdateAssetPlacement={updateAssetPlacement}
             onUpdateStoryboardLayer={updateStoryboardLayer}
-            playAll={playAll}
-            playbackSceneId={playbackSceneId}
+            playAll={playback.playAllView}
+            playbackSceneId={playback.playbackSceneId}
           />
         </div>
       </div>
 
       <PreviewPlaybackControls
+        mode={playback.mode}
         loop={loopPreview}
-        onReplay={onReplay}
-        onReplayScene={onReplayScene}
+        playbackTimeMs={playback.playbackTimeMs}
         onPlayAll={onPlayAll}
+        onReplayScene={onReplayScene}
+        onPause={playback.pause}
+        onResume={playback.resume}
+        onStop={playback.stop}
         onToggleLoop={(loop) =>
           onUpdate?.({
             timeline: {
@@ -190,8 +193,8 @@ export function BannerPreviewStage({
           })
         }
         sceneLabel={
-          playAll
-            ? `Playing all · ${totalStoryboardDurationMs(state)}ms`
+          playback.mode === "playing-all"
+            ? `Přehrávání vše · ${(totalStoryboardDurationMs(state) / 1000).toFixed(1)} s`
             : sceneLabel
         }
       />
@@ -199,15 +202,15 @@ export function BannerPreviewStage({
       <div className="border-t border-zinc-800/60 px-4 py-3">
         <PlaybackTimeline
           state={state}
-          playAll={playAll}
-          playbackTimeMs={playbackTimeMs}
-          playbackSceneId={playbackSceneId ?? null}
-          replaySceneMode={!playAll && replayKey > 0}
+          mode={playback.mode}
+          playAllView={playback.playAllView}
+          playbackTimeMs={playback.playbackTimeMs}
+          playbackSceneId={playback.playbackSceneId}
         />
       </div>
 
       <p className="border-t border-zinc-800/60 px-4 py-2 text-center text-xs text-zinc-600">
-        Drag layers · corner handles resize · {Math.round(scale * 100)}% scale
+        Přetáhněte vrstvy · rohy mění velikost · {Math.round(scale * 100)} %
       </p>
     </section>
   );

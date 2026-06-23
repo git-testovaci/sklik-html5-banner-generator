@@ -8,6 +8,12 @@ import type {
   EditorSelection,
 } from "@/types/editor";
 import {
+  describeLayerEffect,
+  effectFriendlyLabel,
+  layerDisplayName,
+  transitionFriendlyLabel,
+} from "@/lib/animation/effect-labels";
+import {
   getActiveScene,
   getLayerById,
   getSceneById,
@@ -37,9 +43,9 @@ export function InspectorPanel({
     if (!scene) return <EmptyInspector message="Scene not found" />;
     return (
       <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
-        <Header title="Scene" subtitle={scene.name} />
+        <Header title="Scéna" subtitle={scene.name} />
         <div className="space-y-3 p-4">
-          <Field label="Name">
+          <Field label="Název">
             <input
               type="text"
               value={scene.name}
@@ -49,7 +55,7 @@ export function InspectorPanel({
               className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs"
             />
           </Field>
-          <Field label="Duration (ms)">
+          <Field label="Délka scény (ms)">
             <input
               type="number"
               min={500}
@@ -63,7 +69,7 @@ export function InspectorPanel({
               className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs"
             />
           </Field>
-          <Field label="Transition out">
+          <Field label="Přechod na další scénu">
             <select
               value={scene.transitionOut}
               onChange={(e) =>
@@ -77,12 +83,12 @@ export function InspectorPanel({
             >
               {SCENE_TRANSITIONS.map((t) => (
                 <option key={t.value} value={t.value}>
-                  {t.label}
+                  {transitionFriendlyLabel(t.value)}
                 </option>
               ))}
             </select>
           </Field>
-          <Field label="Background">
+          <Field label="Pozadí scény">
             <input
               type="color"
               value={scene.backgroundColor ?? state.backgroundColor}
@@ -100,11 +106,26 @@ export function InspectorPanel({
   if (selection.type === "effect") {
     const effect = (state.layerEffects ?? []).find((e) => e.id === selection.effectId);
     if (!effect) return <EmptyInspector message="Effect not found" />;
+    const layer = getLayerById(state, effect.layerId);
+    const scene = getSceneById(state, effect.sceneId);
+    const friendly = describeLayerEffect(state, effect);
     return (
       <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
-        <Header title="Effect" subtitle={effect.preset} />
+        <Header title="Animace" subtitle={friendly} />
         <div className="space-y-3 p-4">
-          <Field label="Preset">
+          <p className="text-[11px] text-zinc-500">
+            Vrstva: <span className="text-zinc-300">{layerDisplayName(layer)}</span>
+            {scene ? (
+              <>
+                {" "}
+                · Scéna: <span className="text-zinc-300">{scene.name}</span>
+              </>
+            ) : null}
+          </p>
+          <p className="text-[11px] text-zinc-500">
+            Efekt: <span className="text-zinc-300">{effectFriendlyLabel(effect.preset)}</span>
+          </p>
+          <Field label="Typ animace">
             <EffectPresetPicker
               value={effect.preset}
               onChange={(preset) =>
@@ -113,7 +134,7 @@ export function InspectorPanel({
             />
           </Field>
           <div className="grid grid-cols-2 gap-2">
-            <Field label="Start (ms)">
+            <Field label="Začátek (ms)">
               <input
                 type="number"
                 value={effect.startMs}
@@ -125,7 +146,7 @@ export function InspectorPanel({
                 className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
               />
             </Field>
-            <Field label="Duration (ms)">
+            <Field label="Délka (ms)">
               <input
                 type="number"
                 value={effect.durationMs}
@@ -140,7 +161,7 @@ export function InspectorPanel({
               />
             </Field>
           </div>
-          <Field label="Intensity">
+          <Field label="Intenzita">
             <input
               type="range"
               min={0.1}
@@ -160,7 +181,7 @@ export function InspectorPanel({
             onClick={() => onSelectEffect(effect.id)}
             className="text-[10px] text-violet-400 hover:underline"
           >
-            Focus on timeline
+            Zaměřit v časové ose
           </button>
         </div>
       </section>
