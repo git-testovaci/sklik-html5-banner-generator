@@ -11,6 +11,7 @@ import type {
 import type { BannerAssetPlacement, TextLayerPlacement } from "@/types/assets";
 import type { BannerEditorState, SelectedLayer } from "@/types/editor";
 import type { BannerProject } from "@/types/project";
+import { repairEditorInvariants } from "@/lib/editor/editor-invariants";
 import { effectPresetDefaults } from "./effect-presets";
 import { buildPhaseLayerAnimationsForScene } from "./layer-phase-utils";
 import {
@@ -226,13 +227,19 @@ function animationPresetToEffect(preset: AnimationPreset): EffectPreset {
 
 export function migrateToStoryboard(state: BannerEditorState): BannerEditorState {
   if ((state.scenes ?? []).length > 0) {
-    const activeSceneId = state.activeSceneId ?? state.scenes![0]!.id;
+    const scenes = state.scenes ?? [];
+    let activeSceneId = state.activeSceneId ?? scenes[0]!.id;
+    if (!scenes.some((s) => s.id === activeSceneId)) {
+      activeSceneId = scenes[0]!.id;
+    }
     if ((state.bannerLayers ?? []).length > 0) {
-      return { ...state, activeSceneId };
+      return syncFlatFromActiveScene(repairEditorInvariants({ ...state, activeSceneId }));
     }
     const scene = getSceneById({ ...state, activeSceneId }, activeSceneId);
-    if (!scene) return { ...state, activeSceneId };
-    return rebuildLayersFromFlat(state, scene);
+    if (!scene) {
+      return syncFlatFromActiveScene(repairEditorInvariants({ ...state, activeSceneId }));
+    }
+    return syncFlatFromActiveScene(repairEditorInvariants(rebuildLayersFromFlat(state, scene)));
   }
 
   const scene = defaultScene("Scene 1", state.timeline?.durationMs ?? 3000);
@@ -258,14 +265,16 @@ export function migrateToStoryboard(state: BannerEditorState): BannerEditorState
 
   const timedLayers = ensureDefaultLayerTimings(layers, scene.durationMs);
 
-  return {
-    ...state,
-    scenes: [scene],
-    bannerLayers: timedLayers,
-    layerEffects: effects,
-    layerKeyframes: state.layerKeyframes ?? [],
-    activeSceneId: scene.id,
-  };
+  return syncFlatFromActiveScene(
+    repairEditorInvariants({
+      ...state,
+      scenes: [scene],
+      bannerLayers: timedLayers,
+      layerEffects: effects,
+      layerKeyframes: state.layerKeyframes ?? [],
+      activeSceneId: scene.id,
+    }),
+  );
 }
 
 function ensureDefaultLayerTimings(
@@ -848,10 +857,20 @@ export function duplicateBannerLayerInScene(
       sceneId: scene.id,
     }));
 
+  const newKeyframes = (state.layerKeyframes ?? [])
+    .filter((k) => k.layerId === source.id && k.sceneId === scene.id)
+    .map((k) => ({
+      ...k,
+      id: newId("kf"),
+      layerId: newLayerId,
+      sceneId: scene.id,
+    }));
+
   let next = syncFlatFromActiveScene({
     ...state,
     bannerLayers: [...(state.bannerLayers ?? []), newLayer],
     layerEffects: [...(state.layerEffects ?? []), ...newEffects],
+    layerKeyframes: [...(state.layerKeyframes ?? []), ...newKeyframes],
     scenes: (state.scenes ?? []).map((s) =>
       s.id === scene.id
         ? { ...s, layerIds: [...s.layerIds, newLayerId], updatedAt: new Date().toISOString() }
@@ -867,7 +886,7 @@ export function duplicateBannerLayerInScene(
     range.durationMs,
   );
 
-  return { state: next, layerId: newLayerId };
+  return { state: syncFlatFromActiveScene(repairEditorInvariants(next)), layerId: newLayerId };
 }
 
 export function deleteBannerLayer(
@@ -881,12 +900,15 @@ export function deleteBannerLayer(
     bannerLayers: (state.bannerLayers ?? []).filter((l) => l.id !== layerId),
     layerEffects: (state.layerEffects ?? []).filter((e) => e.layerId !== layerId),
     layerKeyframes: (state.layerKeyframes ?? []).filter((k) => k.layerId !== layerId),
+    assetPlacements: (state.assetPlacements ?? []).filter(
+      (p) => p.bannerLayerId !== layerId,
+    ),
     scenes: (state.scenes ?? []).map((s) => ({
       ...s,
       layerIds: s.layerIds.filter((id) => id !== layerId),
     })),
   };
-  return syncFlatFromActiveScene(next);
+  return syncFlatFromActiveScene(repairEditorInvariants(next));
 }
 
 export function addLayerEffect(
@@ -1073,23 +1095,23 @@ export function resolveStoryboardSelection(
   const scene = getActiveScene(state);
   if (!scene) return selected;
 
+  if (selected.type === "asset" && selected.id === "__none__") {
+    return selected;
+  }
+
   if (selected.type === "text") {
     const exists = getLayersForScene(state, scene.id).some(
-      (l) => l.type === "text" && l.legacyKey === selected.id,
+      (l) => l.type === "text" && l.legacyKey === selected.id && l.visible,
     );
-    return exists ? selected : { type: "text", id: "headline" };
+    return exists ? selected : { type: "asset", id: "__none__" };
   }
 
   const exists = getLayersForScene(state, scene.id).some(
-    (l) => l.assetId === selected.id || l.id === selected.id,
+    (l) => l.id === selected.id || l.assetId === selected.id,
   );
   if (exists) return selected;
 
-  const firstImage = getLayersForScene(state, scene.id).find(
-    (l) => l.type === "image" || l.type === "badge",
-  );
-  if (firstImage?.assetId) return { type: "asset", id: firstImage.assetId };
-  return { type: "text", id: "headline" };
+  return { type: "asset", id: "__none__" };
 }
 
 export function editorStateToProjectWithStoryboard(

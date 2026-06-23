@@ -25,6 +25,7 @@ import {
   newId,
   syncFlatFromActiveScene,
 } from "@/lib/animation/storyboard-utils";
+import { repairEditorInvariants } from "@/lib/editor/editor-invariants";
 import { effectToLayerAnimation } from "@/lib/animation/effect-presets";
 
 export const MIN_STATIC_SEGMENT_MS = 100;
@@ -287,7 +288,11 @@ export function setLayerPhaseAnimation(
   );
 
   if (uiPresetId === "none" || !def || def.animationPreset === "none") {
-    return layoutPhaseEffectsOnLayer({ ...state, layerEffects: others }, sceneId, layerId);
+    return syncFlatFromActiveScene(
+      repairEditorInvariants(
+        layoutPhaseEffectsOnLayer({ ...state, layerEffects: others }, sceneId, layerId),
+      ),
+    );
   }
 
   const defaultDur =
@@ -305,7 +310,13 @@ export function setLayerPhaseAnimation(
     layerEffects: [...others, newEffect],
   };
 
-  return layoutPhaseEffectsOnLayer(withEffect, sceneId, layerId);
+  return syncFlatFromActiveScene(
+    layoutPhaseEffectsOnLayer(
+      repairEditorInvariants(withEffect),
+      sceneId,
+      layerId,
+    ),
+  );
 }
 
 export function updateLayerPhaseDuration(
@@ -335,7 +346,11 @@ export function updateLayerPhaseDuration(
     return { ...e, durationMs: phase === "in" ? inMs : outMs };
   });
 
-  return layoutPhaseEffectsOnLayer({ ...state, layerEffects: nextEffects }, sceneId, layerId);
+  return syncFlatFromActiveScene(
+    repairEditorInvariants(
+      layoutPhaseEffectsOnLayer({ ...state, layerEffects: nextEffects }, sceneId, layerId),
+    ),
+  );
 }
 
 export function clearLayerPhaseAnimation(

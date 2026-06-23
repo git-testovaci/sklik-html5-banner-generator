@@ -8,7 +8,7 @@ import {
 import {
   clampTimelineRange,
 } from "@/lib/animation/layer-timeline-utils";
-import { layoutPhaseEffectsOnLayer } from "@/lib/animation/layer-phase-utils";
+import { repairEditorInvariants } from "@/lib/editor/editor-invariants";
 import {
   getLayerById,
   newId,
@@ -280,65 +280,10 @@ export function applyTemplateSceneTimings(
 export function normalizeStoryboardTemplateState(
   state: BannerEditorState,
 ): BannerEditorState {
-  let next = syncFlatFromActiveScene(state);
-  const layerIds = new Set((next.bannerLayers ?? []).map((l) => l.id));
-
-  const scenes = (next.scenes ?? []).map((scene) => {
-    const validIds = scene.layerIds.filter((id) => layerIds.has(id));
-    const sceneLayers = (next.bannerLayers ?? []).filter(
-      (l) => l.sceneId === scene.id && !l.persistent,
-    );
-    for (const layer of sceneLayers) {
-      if (!validIds.includes(layer.id)) {
-        validIds.push(layer.id);
-      }
-    }
-    return { ...scene, layerIds: validIds };
-  });
-
-  const effects = (next.layerEffects ?? []).filter(
-    (e) => layerIds.has(e.layerId) && scenes.some((s) => s.id === e.sceneId),
+  const activeSceneId = state.activeSceneId ?? state.scenes?.[0]?.id;
+  return syncFlatFromActiveScene(
+    repairEditorInvariants({ ...state, activeSceneId }),
   );
-
-  const bannerLayers = (next.bannerLayers ?? []).map((layer) => {
-    if (!layer.sceneId) return layer;
-    const scene = scenes.find((s) => s.id === layer.sceneId);
-    if (!scene) return layer;
-    if (layer.timelineStartMs === undefined || layer.timelineDurationMs === undefined) {
-      const range = clampTimelineRange(0, scene.durationMs, scene.durationMs);
-      return {
-        ...layer,
-        timelineStartMs: range.startMs,
-        timelineDurationMs: range.durationMs,
-      };
-    }
-    const range = clampTimelineRange(
-      layer.timelineStartMs,
-      layer.timelineDurationMs,
-      scene.durationMs,
-    );
-    return {
-      ...layer,
-      timelineStartMs: range.startMs,
-      timelineDurationMs: range.durationMs,
-    };
-  });
-
-  next = { ...next, scenes, bannerLayers, layerEffects: effects };
-
-  for (const scene of scenes) {
-    for (const layerId of scene.layerIds) {
-      if ((next.layerEffects ?? []).some((e) => e.sceneId === scene.id && e.layerId === layerId)) {
-        next = layoutPhaseEffectsOnLayer(next, scene.id, layerId);
-      }
-    }
-    const logo = (next.bannerLayers ?? []).find((l) => l.persistent && l.legacyKey === "logo");
-    if (logo && (next.layerEffects ?? []).some((e) => e.sceneId === scene.id && e.layerId === logo.id)) {
-      next = layoutPhaseEffectsOnLayer(next, scene.id, logo.id);
-    }
-  }
-
-  return syncFlatFromActiveScene(next);
 }
 
 export function fullSceneTiming(

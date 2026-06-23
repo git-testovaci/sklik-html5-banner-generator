@@ -126,7 +126,10 @@ export function getExportLayersForScene(
 
   const ordered = getOrderedSceneLayersForUi(state, sceneId);
   const fromOrder = ordered.filter(
-    (l) => l.visible && RENDERABLE_TYPES.has(l.type),
+    (l) =>
+      l.visible &&
+      RENDERABLE_TYPES.has(l.type) &&
+      getLayerById(state, l.id),
   );
   if (fromOrder.length > 0) {
     return [...fromOrder].sort((a, b) => a.zIndex - b.zIndex);
@@ -168,6 +171,7 @@ export function collectExportLayerAnimations(state: BannerEditorState): LayerAni
     }
     for (const anim of buildPhaseLayerAnimationsForScene(state, scene.id)) {
       if (!anim.enabled || anim.preset === "none") continue;
+      if (!getLayerById(state, anim.layerId)) continue;
       const key = `${scene.id}:${anim.layerId}:${anim.preset}:${anim.startMs}:${anim.phase ?? ""}:${anim.phaseUiPresetId ?? ""}`;
       if (seen.has(key)) continue;
       seen.add(key);

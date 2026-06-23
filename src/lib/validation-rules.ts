@@ -1,4 +1,5 @@
 import { BANNER_SIZES, formatBannerSize } from "@/lib/banner-sizes";
+import { isVideoMimeType } from "@/lib/assets/asset-validation";
 import type { BannerEditorState } from "@/types/editor";
 import type { ValidationRow, ValidationSummary } from "@/types/validation";
 
@@ -132,6 +133,28 @@ export function getValidationSummary(
         const total = (state.scenes ?? []).reduce((s, sc) => s + sc.durationMs, 0);
         if (total > 15000) return "warn";
         return "pass";
+      })(),
+    },
+    {
+      id: "missing-media",
+      label: "Chybějící média",
+      value: (() => {
+        const assetIds = new Set((state.assets ?? []).map((a) => a.id));
+        const missing = (state.bannerLayers ?? []).filter(
+          (l) => l.assetId && !assetIds.has(l.assetId),
+        );
+        const video = (state.assets ?? []).filter((a) => isVideoMimeType(a.mimeType));
+        if (video.length > 0) return `${video.length} video soubor — nelze exportovat`;
+        if (missing.length > 0) return `${missing.length} vrstev bez souboru v knihovně`;
+        return "Všechna média nalezena";
+      })(),
+      status: (() => {
+        const assetIds = new Set((state.assets ?? []).map((a) => a.id));
+        if ((state.assets ?? []).some((a) => isVideoMimeType(a.mimeType))) return "fail";
+        const missing = (state.bannerLayers ?? []).filter(
+          (l) => l.assetId && !assetIds.has(l.assetId),
+        );
+        return missing.length > 0 ? "warn" : "pass";
       })(),
     },
     {

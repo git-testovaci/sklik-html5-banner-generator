@@ -1,5 +1,6 @@
 import type { BannerLayer } from "@/types/animation";
 import type { BannerEditorState, SelectedLayer } from "@/types/editor";
+import { repairEditorInvariants } from "@/lib/editor/editor-invariants";
 import { layoutPhaseEffectsOnLayer } from "@/lib/animation/layer-phase-utils";
 import {
   getEffectsForScene,
@@ -121,20 +122,26 @@ export function updateLayerTimelineRange(
       return { ...e, startMs: bounded.startMs, durationMs: bounded.durationMs };
     });
 
-    return layoutPhaseEffectsOnLayer(
-      syncFlatFromActiveScene({ ...state, layerEffects: nextEffects }),
-      sceneId,
-      layerId,
+    return syncFlatFromActiveScene(
+      layoutPhaseEffectsOnLayer(
+        repairEditorInvariants(
+          syncFlatFromActiveScene({ ...state, layerEffects: nextEffects }),
+        ),
+        sceneId,
+        layerId,
+      ),
     );
   }
 
-  const withLayer = syncFlatFromActiveScene(
-    updateBannerLayer(state, layerId, {
-      timelineStartMs: clamped.startMs,
-      timelineDurationMs: clamped.durationMs,
-    }),
+  const withLayer = repairEditorInvariants(
+    syncFlatFromActiveScene(
+      updateBannerLayer(state, layerId, {
+        timelineStartMs: clamped.startMs,
+        timelineDurationMs: clamped.durationMs,
+      }),
+    ),
   );
-  return layoutPhaseEffectsOnLayer(withLayer, sceneId, layerId);
+  return syncFlatFromActiveScene(layoutPhaseEffectsOnLayer(withLayer, sceneId, layerId));
 }
 
 export function defaultInsertDurationMs(
@@ -406,15 +413,17 @@ export function moveLayerInSceneStack(
   const backToFront = [...reordered].reverse();
   const newLayerIds = [...staticIds, ...backToFront.map((l) => l.id)];
 
-  return syncFlatFromActiveScene({
-    ...state,
-    bannerLayers: (state.bannerLayers ?? []).map((l) =>
-      zById.has(l.id) ? { ...l, zIndex: zById.get(l.id)! } : l,
-    ),
-    scenes: (state.scenes ?? []).map((s) =>
-      s.id === sceneId
-        ? { ...s, layerIds: newLayerIds, updatedAt: new Date().toISOString() }
-        : s,
-    ),
-  });
+  return syncFlatFromActiveScene(
+    repairEditorInvariants({
+      ...state,
+      bannerLayers: (state.bannerLayers ?? []).map((l) =>
+        zById.has(l.id) ? { ...l, zIndex: zById.get(l.id)! } : l,
+      ),
+      scenes: (state.scenes ?? []).map((s) =>
+        s.id === sceneId
+          ? { ...s, layerIds: newLayerIds, updatedAt: new Date().toISOString() }
+          : s,
+      ),
+    }),
+  );
 }
