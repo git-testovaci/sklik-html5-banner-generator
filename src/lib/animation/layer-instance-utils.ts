@@ -24,11 +24,9 @@ export function countLayerInstancesUsingAsset(
   state: BannerEditorState,
   assetId: string,
 ): number {
-  const scene = getActiveScene(state);
-  if (!scene) {
-    return (state.bannerLayers ?? []).filter((l) => l.assetId === assetId).length;
-  }
-  return getLayersForScene(state, scene.id).filter((l) => l.assetId === assetId).length;
+  return (state.bannerLayers ?? []).filter(
+    (l) => l.assetId === assetId && !l.persistent,
+  ).length;
 }
 
 export function nextMediaLayerInstanceName(

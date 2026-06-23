@@ -809,11 +809,24 @@ export function resolveBannerLayerForSelection(
 ): BannerLayer | undefined {
   const scene = getActiveScene(state);
   if (!scene) return undefined;
-  const sceneLayers = getLayersForScene(state, scene.id);
-  if (selection.type === "text") {
-    return sceneLayers.find((l) => l.type === "text" && l.legacyKey === selection.id);
+
+  if (selection.type === "asset" && selection.id === "__none__") {
+    return undefined;
   }
-  return sceneLayers.find((l) => l.id === selection.id || l.assetId === selection.id);
+
+  if (selection.type === "text") {
+    return getLayersForScene(state, scene.id).find(
+      (l) => l.type === "text" && l.legacyKey === selection.id,
+    );
+  }
+
+  const sceneLayers = getLayersForScene(state, scene.id);
+  const byId = sceneLayers.find((l) => l.id === selection.id);
+  if (byId) return byId;
+
+  const byAsset = sceneLayers.filter((l) => l.assetId === selection.id);
+  if (byAsset.length === 1) return byAsset[0];
+  return undefined;
 }
 
 /** Duplicate one layer in the active scene — copies timing, effects, and media reference. */

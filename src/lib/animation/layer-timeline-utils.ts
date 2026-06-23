@@ -209,6 +209,7 @@ export function isTimelineLayerSelected(
   selected: SelectedLayer,
   layer: BannerLayer,
 ): boolean {
+  if (selected.type === "asset" && selected.id === "__none__") return false;
   const target = selectionForBannerLayer(layer);
   return selected.type === target.type && selected.id === target.id;
 }

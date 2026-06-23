@@ -278,9 +278,23 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   const showInspectorHelp =
     !selectedEffectId && !selectedTransitionSceneId && !resolvedInspectorLayer;
 
-  const editorSelection: EditorSelection = selectedEffectId
-    ? { type: "effect", effectId: selectedEffectId }
-    : selectedLayer;
+  const inspectorSelection: EditorSelection = useMemo(() => {
+    if (selectedTransitionSceneId) {
+      return { type: "scene", sceneId: selectedTransitionSceneId };
+    }
+    if (selectedEffectId) {
+      return { type: "effect", effectId: selectedEffectId };
+    }
+    if (resolvedInspectorLayer) {
+      return selectionForBannerLayer(resolvedInspectorLayer);
+    }
+    return selectedLayer;
+  }, [
+    selectedTransitionSceneId,
+    selectedEffectId,
+    resolvedInspectorLayer,
+    selectedLayer,
+  ]);
 
   function handleSave() {
     if (!getStoredProjectById(projectId)) {
@@ -687,11 +701,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             <InspectorPanel
               state={state}
               onUpdate={onUpdate}
-              selection={
-                selectedTransitionSceneId
-                  ? { type: "scene", sceneId: selectedTransitionSceneId }
-                  : editorSelection
-              }
+              selection={inspectorSelection}
               onSelectEffect={setSelectedEffectId}
               onOpenAssets={() => setLeftTab("assets")}
               onPreviewTransition={handlePreviewTransition}
