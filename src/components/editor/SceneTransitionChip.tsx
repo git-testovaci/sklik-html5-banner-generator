@@ -41,7 +41,13 @@ export function SceneTransitionChip({
   onChange,
 }: SceneTransitionChipProps) {
   if (isLast && !loopEnabled) {
-    return <div className="w-3 shrink-0" aria-hidden />;
+    return (
+      <div className="flex shrink-0 flex-col items-center px-1">
+        <span className="rounded-full border border-zinc-800/80 bg-zinc-950/60 px-2 py-1 text-[8px] text-zinc-600">
+          Konec banneru
+        </span>
+      </div>
+    );
   }
 
   const durSec = (getSceneTransitionDurationMs(scene) / 1000).toFixed(1);
@@ -49,24 +55,28 @@ export function SceneTransitionChip({
 
   return (
     <div className="flex shrink-0 flex-col items-center px-0.5">
+      {isLast && loopEnabled ? (
+        <span className="mb-0.5 text-[8px] text-zinc-600">Loop zpět</span>
+      ) : null}
       <button
         type="button"
         onClick={onSelect}
-        className={`rounded-full border px-2 py-1 text-[9px] leading-tight transition-colors ${
+        className={`rounded-full border px-2.5 py-1 text-[9px] font-medium leading-tight transition-colors ${
           active
-            ? "border-violet-500 bg-violet-950/50 text-violet-200"
-            : "border-zinc-700 bg-zinc-900/80 text-zinc-400 hover:border-zinc-600"
+            ? "border-violet-500 bg-violet-950/50 text-violet-200 ring-1 ring-violet-500/40"
+            : "border-zinc-600 bg-zinc-900/90 text-zinc-300 hover:border-violet-700/60"
         }`}
-        title={`${label} · ${durSec}s`}
+        title={`${label} · ${durSec} s`}
+        aria-label={`Přechod: ${label}`}
       >
-        <span className="mr-0.5">{transitionArrow(scene.transitionOut)}</span>
-        {label.split(" ")[0]} {durSec}s
+        <span className="mr-1 text-[11px]">{transitionArrow(scene.transitionOut)}</span>
+        {label} · {durSec} s
       </button>
       <select
         value={scene.transitionOut}
         onChange={(e) => onChange(e.target.value as BannerSceneTransition)}
         onClick={(e) => e.stopPropagation()}
-        className="mt-0.5 max-w-[72px] truncate rounded border-0 bg-transparent text-[8px] text-zinc-600 outline-none"
+        className="mt-0.5 max-w-[88px] truncate rounded border-0 bg-transparent text-[8px] text-zinc-500 outline-none"
         aria-label="Typ přechodu"
       >
         {SCENE_TRANSITIONS.map((t) => (

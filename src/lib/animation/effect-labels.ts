@@ -37,12 +37,12 @@ const FRIENDLY_CS: Partial<Record<EffectPreset, string>> = {
 const TRANSITION_CS: Record<BannerSceneTransition, string> = {
   none: "Bez přechodu",
   fade: "Prolnutí",
-  "swipe-left": "Přechod doleva",
-  "swipe-right": "Přechod doprava",
-  "swipe-up": "Přechod nahoru",
-  "swipe-down": "Přechod dolů",
-  "push-left": "Posun doleva",
-  "push-right": "Posun doprava",
+  "swipe-left": "Swipe doleva",
+  "swipe-right": "Swipe doprava",
+  "swipe-up": "Swipe nahoru",
+  "swipe-down": "Swipe dolů",
+  "push-left": "Push doleva",
+  "push-right": "Push doprava",
 };
 
 export function effectFriendlyLabel(preset: EffectPreset): string {
@@ -78,7 +78,7 @@ export function describeLayerEffect(
   return `${layerDisplayName(layer)} — ${effectFriendlyLabel(effect.preset)}`;
 }
 
-/** Compact line for animation story summary, e.g. "Nadpis přijede shora · 0.0 s" */
+/** Compact line for animation story summary, e.g. "0.0 s — Nadpis přijede shora" */
 export function effectStoryLine(
   state: BannerEditorState,
   effect: LayerEffect,
@@ -87,7 +87,7 @@ export function effectStoryLine(
   const name = layerDisplayName(layer);
   const action = effectFriendlyLabel(effect.preset);
   const at = (effect.startMs / 1000).toFixed(1);
-  return `${name} ${action.charAt(0).toLowerCase()}${action.slice(1)} · ${at} s`;
+  return `${at} s — ${name} ${action.charAt(0).toLowerCase()}${action.slice(1)}`;
 }
 
 export function findActiveEffectAtTime(

@@ -1,7 +1,15 @@
 "use client";
 
 import type { BannerEditorState } from "@/types/editor";
-import { getTemplateSlotLayers, hasFilledSlot, isSlotEmpty } from "@/lib/assets/slot-utils";
+import {
+  allTransitionsNone,
+  hasAnimations,
+  hasStoryboardTemplate,
+  logoChecklistStatus,
+  productChecklistStatus,
+  textsLookEdited,
+  transitionsConfigured,
+} from "@/lib/editor/checklist-utils";
 import { getValidationSummary } from "@/lib/validation-rules";
 
 export type ChecklistAction =
@@ -9,12 +17,12 @@ export type ChecklistAction =
   | "logo-slot"
   | "product-slot"
   | "text"
+  | "transitions"
   | "timing"
   | "export";
 
 interface BannerChecklistProps {
   state: BannerEditorState;
-  hasTemplate: boolean;
   onAction: (action: ChecklistAction) => void;
 }
 
@@ -39,19 +47,13 @@ function statusClass(status: Status): string {
   return "text-zinc-500";
 }
 
-export function BannerChecklist({ state, hasTemplate, onAction }: BannerChecklistProps) {
-  const slots = getTemplateSlotLayers(state);
-  const hasLogoSlot = slots.some((s) => s.slotKind === "logo");
-  const hasProductSlot = slots.some((s) => s.slotKind === "product" || s.slotKind === "image");
-  const logoDone = hasLogoSlot ? hasFilledSlot(state, "logo") : (state.assets ?? []).some((a) => a.kind === "logo");
-  const productDone = hasProductSlot
-    ? slots.some((s) => (s.slotKind === "product" || s.slotKind === "image") && !isSlotEmpty(s))
-    : (state.assets ?? []).some((a) => a.kind === "product");
-  const textEdited =
-    state.headline !== "Váš nadpis zde" &&
-    state.headline.length > 0 &&
-    !state.headline.toLowerCase().includes("headline here");
-  const hasEffects = (state.layerEffects ?? []).length > 0 || (state.scenes ?? []).length > 1;
+export function BannerChecklist({ state, onAction }: BannerChecklistProps) {
+  const hasTemplate = hasStoryboardTemplate(state);
+  const logoStatus = logoChecklistStatus(state);
+  const productStatus = productChecklistStatus(state);
+  const textEdited = textsLookEdited(state);
+  const transitionsOk = transitionsConfigured(state);
+  const hasEffects = hasAnimations(state);
   const validation = getValidationSummary(state);
 
   const items: Item[] = [
@@ -64,26 +66,42 @@ export function BannerChecklist({ state, hasTemplate, onAction }: BannerChecklis
     {
       id: "logo-slot",
       label: "Logo",
-      status: logoDone ? "done" : hasLogoSlot ? "warn" : "missing",
-      hint: logoDone ? "Logo v banneru" : "Nahrát logo",
+      status: logoStatus,
+      hint:
+        logoStatus === "done"
+          ? "Logo v banneru"
+          : logoStatus === "warn"
+            ? "Nahrát logo"
+            : "Volitelné",
     },
     {
       id: "product-slot",
       label: "Produkt / obrázek",
-      status: productDone ? "done" : hasProductSlot ? "warn" : "missing",
-      hint: productDone ? "Obrázek v banneru" : "Nahrát produkt",
+      status: productStatus,
+      hint:
+        productStatus === "done"
+          ? "Obrázek v banneru"
+          : productStatus === "warn"
+            ? "Nahrát produkt"
+            : "Volitelné",
     },
     {
       id: "text",
-      label: "Text upraven",
+      label: "Texty",
       status: textEdited ? "done" : "warn",
-      hint: textEdited ? "Copy vypadá hotově" : "Upravte nadpis",
+      hint: textEdited ? "Copy vypadá hotově" : "Upravte texty",
+    },
+    {
+      id: "transitions",
+      label: "Přechody",
+      status: transitionsOk ? "done" : allTransitionsNone(state) ? "warn" : "missing",
+      hint: transitionsOk ? "Přechody nastaveny" : "Nastavte přechod scén",
     },
     {
       id: "timing",
       label: "Animace",
-      status: hasEffects ? "done" : "missing",
-      hint: hasEffects ? "Motion připraven" : "Zkontrolovat časování",
+      status: hasEffects ? "done" : "warn",
+      hint: hasEffects ? "Motion připraven" : "Zkontrolujte animace",
     },
     {
       id: "export",
@@ -113,7 +131,7 @@ export function BannerChecklist({ state, hasTemplate, onAction }: BannerChecklis
                 <span className="block text-[11px] text-zinc-300">{item.label}</span>
                 <span className="block truncate text-[9px] text-zinc-600">{item.hint}</span>
               </span>
-              <span className="text-[9px] text-zinc-600">Zkontrolovat</span>
+              <span className="text-[9px] text-zinc-600">Hotovo</span>
             </button>
           </li>
         ))}

@@ -3,7 +3,10 @@ import type { BannerEditorState } from "@/types/editor";
 import type { BannerLayer } from "@/types/animation";
 import type { TemplateAssetSlotKind } from "@/types/template-slots";
 import {
+  addLayerToScene,
+  getActiveScene,
   getLayerById,
+  newId,
   syncFlatFromActiveScene,
   updateBannerLayer,
 } from "@/lib/animation/storyboard-utils";
@@ -16,17 +19,83 @@ export function getTemplateSlotLayers(state: BannerEditorState): BannerLayer[] {
   return (state.bannerLayers ?? []).filter((l) => l.isTemplateSlot || l.slotKind);
 }
 
+function slotKindMatches(
+  layer: BannerLayer,
+  kind: TemplateAssetSlotKind | BannerAssetKind,
+): boolean {
+  if (kind === "decoration") {
+    return layer.slotKind === "image" || layer.slotKind === "badge";
+  }
+  if (layer.slotKind === kind) return true;
+  if (layer.legacyKey === kind) return true;
+  return false;
+}
+
+function layerInScene(state: BannerEditorState, layer: BannerLayer, sceneId: string): boolean {
+  if (layer.persistent) return true;
+  const scene = state.scenes?.find((s) => s.id === sceneId);
+  return scene ? scene.layerIds.includes(layer.id) : layer.sceneId === sceneId;
+}
+
+export interface ResolveSlotOptions {
+  selectedLayerId?: string;
+  activeSceneId?: string;
+  /** When true, filled slots can be targeted (replace flow). */
+  allowFilled?: boolean;
+}
+
+export function resolveSlotForKind(
+  state: BannerEditorState,
+  kind: BannerAssetKind | TemplateAssetSlotKind,
+  options: ResolveSlotOptions = {},
+): BannerLayer | undefined {
+  const slotKind: TemplateAssetSlotKind | BannerAssetKind =
+    kind === "decoration" ? "image" : kind;
+  const slots = getTemplateSlotLayers(state).filter((s) => slotKindMatches(s, slotKind));
+  const sceneId =
+    options.activeSceneId ?? state.activeSceneId ?? state.scenes?.[0]?.id;
+
+  if (options.selectedLayerId) {
+    const selected =
+      getLayerById(state, options.selectedLayerId) ??
+      (state.bannerLayers ?? []).find((l) => l.assetId === options.selectedLayerId);
+    if (
+      selected &&
+      slotKindMatches(selected, slotKind) &&
+      (options.allowFilled || isSlotEmpty(selected))
+    ) {
+      return selected;
+    }
+  }
+
+  if (sceneId && slotKind !== "logo") {
+    const inScene = slots.find(
+      (s) =>
+        !s.persistent &&
+        layerInScene(state, s, sceneId) &&
+        (options.allowFilled || isSlotEmpty(s)),
+    );
+    if (inScene) return inScene;
+  }
+
+  if (slotKind === "logo") {
+    const logoSlot = slots.find((s) => s.slotKind === "logo" || s.legacyKey === "logo");
+    if (logoSlot && (options.allowFilled || isSlotEmpty(logoSlot))) return logoSlot;
+  }
+
+  if (slotKind === "background") {
+    const bgSlot = slots.find((s) => s.slotKind === "background" && (options.allowFilled || isSlotEmpty(s)));
+    if (bgSlot) return bgSlot;
+  }
+
+  return slots.find((s) => options.allowFilled || isSlotEmpty(s));
+}
+
 export function findEmptySlotForKind(
   state: BannerEditorState,
   kind: TemplateAssetSlotKind | BannerAssetKind,
 ): BannerLayer | undefined {
-  const slots = getTemplateSlotLayers(state).filter(isSlotEmpty);
-  const match = slots.find((s) => s.slotKind === kind || s.legacyKey === kind);
-  if (match) return match;
-  if (kind === "decoration") {
-    return slots.find((s) => s.slotKind === "image" || s.slotKind === "badge");
-  }
-  return undefined;
+  return resolveSlotForKind(state, kind, { allowFilled: false });
 }
 
 export function assignAssetToSlotLayer(
@@ -38,9 +107,65 @@ export function assignAssetToSlotLayer(
   if (!layer) return state;
   const patch: Partial<BannerLayer> = {
     assetId,
-    type: layer.type === "badge" ? "badge" : "image",
+    type: "image",
   };
+  if (layer.isTemplateSlot || layer.slotKind) {
+    patch.isTemplateSlot = layer.isTemplateSlot ?? true;
+    patch.slotKind = layer.slotKind;
+    patch.slotLabel = layer.slotLabel;
+    patch.slotId = layer.slotId;
+  }
   return updateBannerLayer(state, layerId, patch);
+}
+
+export function clearSlotAsset(
+  state: BannerEditorState,
+  layerId: string,
+): BannerEditorState {
+  const layer = getLayerById(state, layerId);
+  if (!layer) return state;
+  const patch: Partial<BannerLayer> = { assetId: undefined };
+  if (layer.isTemplateSlot || layer.slotKind) {
+    patch.type = "badge";
+  }
+  return updateBannerLayer(state, layerId, patch);
+}
+
+function placementMessageForKind(kind: BannerAssetKind, placed: boolean): string {
+  if (!placed) return "Obrázek nahrán do knihovny";
+  switch (kind) {
+    case "logo":
+      return "Logo vloženo do banneru";
+    case "product":
+      return "Produkt vložen do scény";
+    case "background":
+      return "Pozadí vloženo do scény";
+    default:
+      return "Obrázek vložen do banneru";
+  }
+}
+
+export function placeAssetInSlot(
+  state: BannerEditorState,
+  assetId: string,
+  kind: BannerAssetKind,
+  options: ResolveSlotOptions = {},
+): { state: BannerEditorState; layerId: string | null; message: string } {
+  const slot = resolveSlotForKind(state, kind, { ...options, allowFilled: true });
+  if (slot) {
+    const next = assignAssetToSlotLayer(state, slot.id, assetId);
+    const label = slot.slotLabel ?? slot.name;
+    return {
+      state: next,
+      layerId: slot.id,
+      message: `${label} — ${placementMessageForKind(kind, true).toLowerCase()}`,
+    };
+  }
+  return {
+    state,
+    layerId: null,
+    message: placementMessageForKind(kind, false),
+  };
 }
 
 export function autoPlaceUploadedAsset(
@@ -48,31 +173,51 @@ export function autoPlaceUploadedAsset(
   assetId: string,
   kind: BannerAssetKind,
 ): { state: BannerEditorState; layerId: string | null; message: string } {
-  const slotKind: TemplateAssetSlotKind | BannerAssetKind =
-    kind === "decoration" ? "image" : kind;
-  const slot = findEmptySlotForKind(state, slotKind);
+  if (kind === "decoration") {
+    return { state, layerId: null, message: "Obrázek nahrán do knihovny" };
+  }
+  const slot = resolveSlotForKind(state, kind, { allowFilled: false });
   if (slot) {
     const next = assignAssetToSlotLayer(state, slot.id, assetId);
-    const label = slot.slotLabel ?? slot.name;
     return {
       state: next,
       layerId: slot.id,
-      message: `${label} vloženo do banneru`,
+      message: placementMessageForKind(kind, true),
     };
   }
+  return { state, layerId: null, message: placementMessageForKind(kind, false) };
+}
 
-  const assets = state.assets ?? [];
-  const asset = assets.find((a) => a.id === assetId);
-  if (!asset) {
-    return { state, layerId: null, message: "Obrázek nahrán do knihovny" };
-  }
-
-  const placement = (state.assetPlacements ?? []).find((p) => p.assetId === assetId);
-  if (placement) {
-    return { state, layerId: assetId, message: "Obrázek nahrán a umístěn" };
-  }
-
-  return { state, layerId: null, message: "Obrázek nahrán do knihovny" };
+export function insertImageLayerInScene(
+  state: BannerEditorState,
+  assetId: string,
+  name = "Obrázek",
+): { state: BannerEditorState; layer: BannerLayer } {
+  const w = state.width;
+  const h = state.height;
+  const iw = Math.round(w * 0.35);
+  const ih = Math.round(h * 0.35);
+  const layer: BannerLayer = {
+    id: newId("layer"),
+    sceneId: getActiveScene(state)?.id,
+    persistent: false,
+    name,
+    type: "image",
+    visible: true,
+    locked: false,
+    x: Math.round((w - iw) / 2),
+    y: Math.round((h - ih) / 2),
+    width: iw,
+    height: ih,
+    opacity: 1,
+    rotation: 0,
+    scale: 1,
+    zIndex: 22,
+    assetId,
+    fit: "contain",
+    shadow: false,
+  };
+  return { state: addLayerToScene(state, layer), layer };
 }
 
 export function slotLayerSelection(layer: BannerLayer): {
@@ -92,6 +237,20 @@ export function resolveLayerFromSelection(
   );
 }
 
+export function isSelectedSlotLayer(
+  state: BannerEditorState,
+  selection: { type: string; id: string } | null | undefined,
+): boolean {
+  const layer = resolveLayerFromSelection(state, selection);
+  if (!layer) return false;
+  return Boolean(
+    layer.isTemplateSlot ||
+      layer.slotKind ||
+      layer.type === "image" ||
+      layer.type === "badge",
+  );
+}
+
 export function hasFilledSlot(
   state: BannerEditorState,
   kind: TemplateAssetSlotKind,
@@ -108,4 +267,16 @@ export function syncAssetsIntoStoryboard(
     return state;
   }
   return syncFlatFromActiveScene(state);
+}
+
+export function findFirstMissingRequiredSlot(
+  state: BannerEditorState,
+): BannerLayer | undefined {
+  const slots = getTemplateSlotLayers(state);
+  const logo = slots.find((s) => s.slotKind === "logo" && isSlotEmpty(s));
+  if (logo) return logo;
+  return slots.find(
+    (s) =>
+      (s.slotKind === "product" || s.slotKind === "image") && isSlotEmpty(s),
+  );
 }

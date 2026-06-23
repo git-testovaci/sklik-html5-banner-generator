@@ -117,7 +117,7 @@ function persistentLogo(ctx: TemplateCtx): BannerLayer {
   return {
     id: logoAssetId ?? "logo-wordmark",
     persistent: true,
-    name: "Persistent logo",
+    name: "Logo",
     type: logoAssetId ? "image" : "badge",
     visible: true,
     locked: false,
@@ -132,7 +132,7 @@ function persistentLogo(ctx: TemplateCtx): BannerLayer {
     assetId: logoAssetId,
     fit: "contain",
     legacyKey: "logo",
-    text: logoAssetId ? undefined : "Značka",
+    text: logoAssetId ? undefined : undefined,
     fontSize: Math.round(height * 0.045),
     fontWeight: 700,
     textAlign: "center",
@@ -529,7 +529,7 @@ function buildCleanAirProduct(state: BannerEditorState): BannerEditorState {
             textLayer(
               "s1-headline",
               sceneId,
-              "Headline",
+              "Nadpis",
               "Čistší vzduch za pár minut",
               pad,
               pad,
@@ -595,7 +595,7 @@ function buildCleanAirProduct(state: BannerEditorState): BannerEditorState {
             textLayer(
               "s2-headline",
               sceneId,
-              "Headline",
+              "Nadpis",
               "Dýchejte lehčeji doma i v práci",
               pad,
               pad,
@@ -664,7 +664,7 @@ function buildCleanAirProduct(state: BannerEditorState): BannerEditorState {
             textLayer(
               "s3-headline",
               sceneId,
-              "Headline",
+              "Nadpis",
               "Vyberte čističku pro svůj prostor",
               pad,
               pad,
@@ -854,7 +854,7 @@ function buildGenericThreeScene(
           refs.set("h1", "g-h1");
           refs.set("p1", "g-p1");
           return [
-            textLayer("g-h1", sceneId, "Headline", config.s1.title, pad, pad, width - pad * 2, Math.round(height * 0.14), {
+            textLayer("g-h1", sceneId, "Nadpis", config.s1.title, pad, pad, width - pad * 2, Math.round(height * 0.14), {
               fontSize: Math.round(height * 0.06),
               legacyKey: "headline",
             }),
@@ -879,7 +879,7 @@ function buildGenericThreeScene(
           refs.set("h2", "g-h2");
           refs.set("frame", "g-frame");
           return [
-            textLayer("g-h2", sceneId, "Headline", config.s2.title, pad, pad, width - pad * 2, Math.round(height * 0.14), {
+            textLayer("g-h2", sceneId, "Nadpis", config.s2.title, pad, pad, width - pad * 2, Math.round(height * 0.14), {
               fontSize: Math.round(height * 0.058),
               textAlign: "center",
               legacyKey: "headline",
@@ -908,7 +908,7 @@ function buildGenericThreeScene(
           refs.set("cta", "g-cta");
           refs.set("badge", "g-badge");
           return [
-            textLayer("g-h3", sceneId, "Headline", config.s3.title, pad, pad, width - pad * 2, Math.round(height * 0.12), {
+            textLayer("g-h3", sceneId, "Nadpis", config.s3.title, pad, pad, width - pad * 2, Math.round(height * 0.12), {
               fontSize: Math.round(height * 0.055),
               textAlign: "center",
               legacyKey: "headline",

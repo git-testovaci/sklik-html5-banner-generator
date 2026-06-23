@@ -25,7 +25,7 @@ import {
   updateLayerEffect,
   updateScene,
 } from "@/lib/animation/storyboard-utils";
-import { isSlotEmpty } from "@/lib/assets/slot-utils";
+import { isSlotEmpty, clearSlotAsset } from "@/lib/assets/slot-utils";
 import {
   centerHorizontally,
   centerVertically,
@@ -285,63 +285,78 @@ function LayerQuickActions({
   const emptySlot = isImageSlot && isSlotEmpty(layer);
 
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {emptySlot ? (
-        <ActionButton onClick={onOpenAssets}>
-          {layer.slotLabel ?? "Nahrát obrázek"}
-        </ActionButton>
-      ) : null}
-      {isImageSlot && layer.assetId ? (
-        <ActionButton onClick={onOpenAssets}>Nahradit obrázek</ActionButton>
-      ) : null}
-      <ActionButton
-        onClick={() => {
-          let placement = {
-            x: layer.x,
-            y: layer.y,
-            width: layer.width,
-            height: layer.height,
-          };
-          placement = centerHorizontally(placement, state.width);
-          placement = centerVertically(placement, state.height);
-          patch({ x: placement.x, y: placement.y });
-        }}
-      >
-        Vycentrovat
-      </ActionButton>
-      {layer.legacyKey === "background" || layer.slotKind === "background" ? (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-1.5">
+        {emptySlot ? (
+          <>
+            <ActionButton onClick={onOpenAssets}>
+              {layer.slotLabel ?? "Nahrát / vybrat obrázek"}
+            </ActionButton>
+            <ActionButton onClick={onOpenAssets}>Použít z knihovny</ActionButton>
+          </>
+        ) : null}
+        {isImageSlot && layer.assetId ? (
+          <>
+            <ActionButton onClick={onOpenAssets}>Nahradit obrázek</ActionButton>
+            <ActionButton onClick={() => onUpdate(clearSlotAsset(state, layer.id))}>
+              Odebrat z vrstvy
+            </ActionButton>
+          </>
+        ) : null}
         <ActionButton
           onClick={() => {
-            if (!layer.assetId) return;
-            const fit = fitBackgroundPlacement(layer.assetId, state.width, state.height);
-            patch({ x: fit.x, y: fit.y, width: fit.width, height: fit.height });
+            let placement = {
+              x: layer.x,
+              y: layer.y,
+              width: layer.width,
+              height: layer.height,
+            };
+            placement = centerHorizontally(placement, state.width);
+            placement = centerVertically(placement, state.height);
+            patch({ x: placement.x, y: placement.y });
           }}
         >
-          Vyplnit banner
+          Vycentrovat
         </ActionButton>
-      ) : (
-        <ActionButton onClick={() => patch({ fit: "contain" })}>Vejít se</ActionButton>
-      )}
-      <ActionButton onClick={() => patch({ zIndex: layer.zIndex + 1 })}>Dopředu</ActionButton>
-      <ActionButton onClick={() => patch({ zIndex: Math.max(1, layer.zIndex - 1) })}>
-        Dozadu
-      </ActionButton>
-      {isImageSlot ? (
-        <label className="flex w-full items-center gap-2 rounded border border-zinc-800/60 px-2 py-1.5 text-[10px] text-zinc-400">
-          <input
-            type="checkbox"
-            checked={layer.persistent}
-            onChange={(e) => patch({ persistent: e.target.checked })}
-          />
-          Přes všechny scény
-        </label>
+        {layer.legacyKey === "background" || layer.slotKind === "background" ? (
+          <ActionButton
+            onClick={() => {
+              if (!layer.assetId) return;
+              const fit = fitBackgroundPlacement(layer.assetId, state.width, state.height);
+              patch({ x: fit.x, y: fit.y, width: fit.width, height: fit.height });
+            }}
+          >
+            Přizpůsobit do rámečku
+          </ActionButton>
+        ) : (
+          <ActionButton onClick={() => patch({ fit: "contain" })}>Přizpůsobit</ActionButton>
+        )}
+        <ActionButton onClick={() => patch({ zIndex: layer.zIndex + 1 })}>Dopředu</ActionButton>
+        <ActionButton onClick={() => patch({ zIndex: Math.max(1, layer.zIndex - 1) })}>
+          Dozadu
+        </ActionButton>
+        {isImageSlot ? (
+          <label className="flex w-full items-center gap-2 rounded border border-zinc-800/60 px-2 py-1.5 text-[10px] text-zinc-400">
+            <input
+              type="checkbox"
+              checked={layer.persistent}
+              onChange={(e) => patch({ persistent: e.target.checked })}
+            />
+            Nastavit jako persistentní
+          </label>
+        ) : null}
+        <ActionButton
+          variant="danger"
+          onClick={() => onUpdate(deleteBannerLayer(state, layer.id))}
+        >
+          Smazat vrstvu
+        </ActionButton>
+      </div>
+      {emptySlot && onOpenAssets ? (
+        <p className="text-[10px] text-zinc-500">
+          Vyberte nebo nahrajte obrázek v panelu Assety.
+        </p>
       ) : null}
-      <ActionButton
-        variant="danger"
-        onClick={() => onUpdate(deleteBannerLayer(state, layer.id))}
-      >
-        Smazat vrstvu
-      </ActionButton>
     </div>
   );
 }

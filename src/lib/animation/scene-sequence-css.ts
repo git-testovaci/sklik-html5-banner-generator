@@ -3,6 +3,7 @@ import type { BannerEditorState } from "@/types/editor";
 import {
   sceneStartOffsetMs,
   totalStoryboardDurationMs,
+  transitionDurationForScene,
   transitionKeyframes,
 } from "@/lib/animation/storyboard-utils";
 
@@ -173,7 +174,15 @@ export function buildSceneSequenceCss(
   return rules.join("\n");
 }
 
-export function sceneTransitionWindowMs(sceneDurationMs: number, scene?: { transitionDurationMs?: number }): number {
-  const configured = scene?.transitionDurationMs ?? SCENE_TRANSITION_MS;
-  return Math.min(configured, Math.max(320, Math.round(sceneDurationMs * 0.22)));
+export function sceneTransitionWindowMs(
+  sceneDurationMs: number,
+  scene?: { transitionDurationMs?: number; durationMs?: number },
+): number {
+  if (scene) {
+    return transitionDurationForScene(
+      scene.durationMs ?? sceneDurationMs,
+      scene.transitionDurationMs,
+    );
+  }
+  return Math.min(SCENE_TRANSITION_MS, Math.max(320, Math.round(sceneDurationMs * 0.22)));
 }

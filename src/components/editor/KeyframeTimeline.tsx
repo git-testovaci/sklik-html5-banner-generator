@@ -25,16 +25,24 @@ interface KeyframeTimelineProps {
   onUpdate: BannerEditorStateUpdater;
   selectedEffectId: string | null;
   onSelectEffect: (effectId: string | null) => void;
+  forceExpandAdvanced?: boolean;
+  onExpanded?: () => void;
 }
+
+const STORY_PREVIEW_LIMIT = 6;
 
 export function KeyframeTimeline({
   state,
   onUpdate,
   selectedEffectId,
   onSelectEffect,
+  forceExpandAdvanced = false,
+  onExpanded,
 }: KeyframeTimelineProps) {
   const scene = getActiveScene(state);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showAllStory, setShowAllStory] = useState(false);
+  const showDetailed = showAdvanced || forceExpandAdvanced;
 
   const durationMs = scene?.durationMs ?? 3000;
   const effects = scene ? getEffectsForScene(state, scene.id) : [];
@@ -58,6 +66,9 @@ export function KeyframeTimeline({
 
   const sortedStory = [...effects].sort((a, b) => a.startMs - b.startMs);
   const transitionAt = Math.max(0, durationMs - getSceneTransitionDurationMs(scene));
+  const visibleStory = showAllStory
+    ? sortedStory
+    : sortedStory.slice(0, STORY_PREVIEW_LIMIT);
 
   return (
     <section
@@ -104,31 +115,42 @@ export function KeyframeTimeline({
         {sortedStory.length === 0 ? (
           <p className="text-xs text-zinc-500">Zatím žádné animace — použijte rychlé presety.</p>
         ) : (
-          <ul className="space-y-1">
-            {sortedStory.map((effect) => (
-              <li key={effect.id}>
-                <button
-                  type="button"
-                  onClick={() => onSelectEffect(effect.id)}
-                  className={`w-full rounded px-2 py-1 text-left text-[11px] ${
-                    effect.id === selectedEffectId
-                      ? "bg-violet-950/40 text-violet-200"
-                      : "text-zinc-400 hover:bg-zinc-800/40"
-                  }`}
-                >
-                  {effectStoryLine(state, effect)}
-                </button>
+          <>
+            <ul className="space-y-1">
+              {visibleStory.map((effect) => (
+                <li key={effect.id}>
+                  <button
+                    type="button"
+                    onClick={() => onSelectEffect(effect.id)}
+                    className={`w-full rounded px-2 py-1 text-left text-[11px] ${
+                      effect.id === selectedEffectId
+                        ? "bg-violet-950/40 text-violet-200"
+                        : "text-zinc-400 hover:bg-zinc-800/40"
+                    }`}
+                  >
+                    {effectStoryLine(state, effect)}
+                  </button>
+                </li>
+              ))}
+              <li className="rounded px-2 py-1 text-[11px] text-zinc-500">
+                {(transitionAt / 1000).toFixed(1)} s — Přechod:{" "}
+                {transitionFriendlyLabel(scene.transitionOut)}
               </li>
-            ))}
-            <li className="rounded px-2 py-1 text-[11px] text-zinc-500">
-              Přechod: {transitionFriendlyLabel(scene.transitionOut)} ·{" "}
-              {(transitionAt / 1000).toFixed(1)} s
-            </li>
-          </ul>
+            </ul>
+            {sortedStory.length > STORY_PREVIEW_LIMIT && !showAllStory ? (
+              <button
+                type="button"
+                onClick={() => setShowAllStory(true)}
+                className="mt-2 text-[10px] text-violet-400 hover:underline"
+              >
+                Zobrazit vše ({sortedStory.length - STORY_PREVIEW_LIMIT} dalších)
+              </button>
+            ) : null}
+          </>
         )}
       </div>
 
-      {showAdvanced ? (
+      {showDetailed ? (
         <div className="max-h-56 space-y-3 overflow-y-auto p-4">
           {[...grouped.entries()].map(([group, groupEffects]) => (
             <div key={group}>
@@ -157,10 +179,13 @@ export function KeyframeTimeline({
       <div className="border-t border-zinc-800/60 px-4 py-2">
         <button
           type="button"
-          onClick={() => setShowAdvanced((v) => !v)}
+          onClick={() => {
+            setShowAdvanced((v) => !v);
+            onExpanded?.();
+          }}
           className="text-[10px] text-violet-400 hover:underline"
         >
-          {showAdvanced ? "Skrýt detailní časování" : "Detailní časování"}
+          {showDetailed ? "Skrýt detailní časování" : "Upravit detailní časování"}
         </button>
       </div>
     </section>

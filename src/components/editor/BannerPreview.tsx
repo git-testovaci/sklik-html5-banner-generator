@@ -105,9 +105,32 @@ function useAssetUrls(metaKey: string) {
 function isLayerSelected(
   selected: SelectedLayer | null | undefined,
   layer: SelectedLayer,
+  storyboardLayers?: BannerLayer[],
 ): boolean {
   if (!selected) return false;
-  return selected.type === layer.type && selected.id === layer.id;
+  if (selected.type !== layer.type) return false;
+  if (selected.id === layer.id) return true;
+  if (
+    selected.type === "asset" &&
+    layer.type === "asset" &&
+    storyboardLayers
+  ) {
+    const sb = storyboardLayers.find((l) => l.id === selected.id);
+    if (sb?.assetId && sb.assetId === layer.id) return true;
+  }
+  return false;
+}
+
+function isAssetPlacementSelected(
+  selected: SelectedLayer | null | undefined,
+  assetId: string,
+  storyboardLayers: BannerLayer[],
+): boolean {
+  if (!selected || selected.type !== "asset") return false;
+  if (selected.id === assetId) return true;
+  return storyboardLayers.some(
+    (l) => l.id === selected.id && l.assetId === assetId,
+  );
 }
 
 function ParticleRender({ layer, replayKey }: { layer: BannerLayer; replayKey: number }) {
@@ -270,7 +293,12 @@ function CanvasContent({
         const asset = assets.find((a) => a.id === placement.assetId);
         const url = urls[placement.assetId];
         const isMissing = missingSet.has(placement.assetId);
-        const selected = isLayerSelected(selectedLayer, { type: "asset", id: placement.assetId });
+        const selected = isAssetPlacementSelected(
+          selectedLayer,
+          placement.assetId,
+          storyboardLayers,
+        );
+        const sbLayer = storyboardLayers.find((l) => l.assetId === placement.assetId);
         const layerId =
           placement.kind === "decoration" ? `decoration-${placement.assetId}` : placement.kind;
         const anim = getLayerAnimation(renderState, layerId);
@@ -303,7 +331,12 @@ function CanvasContent({
             canvasScale={canvasScale}
             replayKey={replayKey}
             animClassName={interactive ? "" : animClass}
-            onSelect={() => onSelectLayer?.({ type: "asset", id: placement.assetId })}
+            onSelect={() =>
+              onSelectLayer?.({
+                type: "asset",
+                id: sbLayer?.id ?? placement.assetId,
+              })
+            }
             onPlacementChange={(patch) => onUpdateAssetPlacement?.(placement.assetId, patch)}
           >
             <div
@@ -325,12 +358,45 @@ function CanvasContent({
                   decoding="async"
                 />
               ) : (
-                <div
-                  className="flex h-full w-full items-center justify-center border border-dashed text-[10px] uppercase"
-                  style={{ borderColor: `${state.accentColor}66`, color: state.accentColor }}
-                >
-                  {urlsReady && isMissing ? "Chybí obrázek" : asset?.kind === "product" ? "Produkt" : asset?.kind === "logo" ? "Logo" : "Rámec"}
-                </div>
+                <SlotPlaceholder
+                  layer={{
+                    id: placement.assetId,
+                    slotKind:
+                      placement.kind === "logo"
+                        ? "logo"
+                        : placement.kind === "product"
+                          ? "product"
+                          : placement.kind === "background"
+                            ? "background"
+                            : "image",
+                    slotLabel:
+                      urlsReady && isMissing
+                        ? "Chybí soubor"
+                        : asset?.kind === "product"
+                          ? "Produkt"
+                          : asset?.kind === "logo"
+                            ? "Logo"
+                            : "Obrázek",
+                    name: asset?.kind ?? "asset",
+                    type: "image",
+                    persistent: false,
+                    visible: true,
+                    locked: false,
+                    x: placement.x,
+                    y: placement.y,
+                    width: placement.width,
+                    height: placement.height,
+                    opacity: placement.opacity,
+                    rotation: placement.rotation,
+                    scale: 1,
+                    zIndex: placement.zIndex,
+                    isTemplateSlot: true,
+                  }}
+                  accentColor={state.accentColor}
+                  interactive={interactive && !publicMode}
+                  publicMode={publicMode}
+                  missingAsset={urlsReady && isMissing}
+                />
               )}
             </div>
           </InteractiveCanvasLayer>

@@ -105,7 +105,7 @@ function PreviewContent({ state }: PreviewContentProps) {
             <p className="mt-1 font-mono text-sm text-zinc-500">{sizeLabel}</p>
           </div>
           <Link href="/dashboard" className="text-sm text-zinc-500 hover:text-zinc-300">
-            Back to studio
+            Zpět do studia
           </Link>
         </div>
       </header>
@@ -192,15 +192,15 @@ export function PublicPreviewShell({ shareId }: PublicPreviewShellProps) {
   if (!project) {
     return (
       <div className="flex min-h-full flex-col items-center justify-center px-4 py-16 text-center">
-        <h1 className="text-xl font-semibold text-zinc-100">Preview not found</h1>
+        <h1 className="text-xl font-semibold text-zinc-100">Náhled nenalezen</h1>
         <p className="mt-2 max-w-md text-sm text-zinc-500">
-          This preview link is invalid or the banner project was removed.
+          Odkaz na náhled je neplatný nebo byl projekt odstraněn.
         </p>
         <Link
           href="/dashboard"
           className="mt-6 inline-flex items-center rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-violet-500"
         >
-          Back to dashboard
+          Zpět na dashboard
         </Link>
       </div>
     );

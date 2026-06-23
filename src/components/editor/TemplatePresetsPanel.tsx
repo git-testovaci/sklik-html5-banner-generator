@@ -8,15 +8,25 @@ import {
 import { applyTemplateToState } from "@/lib/templates/apply-template";
 import { BANNER_TEMPLATES } from "@/lib/templates/banner-templates";
 import { getLayersForScene, setActiveScene } from "@/lib/animation/storyboard-utils";
+import { findFirstMissingRequiredSlot } from "@/lib/assets/slot-utils";
 import type { StoryboardTemplateId } from "@/types/storyboard-templates";
 import type { BannerEditorState, BannerEditorStateUpdater, SelectedLayer } from "@/types/editor";
 import type { BannerTemplateId } from "@/types/templates";
+
+export interface TemplateApplyMeta {
+  message?: string;
+  switchToAssets?: boolean;
+}
 
 interface TemplatePresetsPanelProps {
   state: BannerEditorState;
   onUpdate: BannerEditorStateUpdater;
   hasUnsavedChanges: boolean;
-  onAfterApply?: (next: BannerEditorState, selection: SelectedLayer) => void;
+  onAfterApply?: (
+    next: BannerEditorState,
+    selection: SelectedLayer,
+    meta?: TemplateApplyMeta,
+  ) => void;
 }
 
 const SLOT_LABELS: Record<string, string> = {
@@ -28,14 +38,10 @@ const SLOT_LABELS: Record<string, string> = {
 };
 
 function firstEditableSelection(state: BannerEditorState): SelectedLayer {
+  const missing = findFirstMissingRequiredSlot(state);
+  if (missing) return { type: "asset", id: missing.id };
   const sceneId = state.activeSceneId ?? state.scenes?.[0]?.id;
   if (!sceneId) return { type: "text", id: "headline" };
-  const logoSlot = (state.bannerLayers ?? []).find((l) => l.slotKind === "logo" && !l.assetId);
-  if (logoSlot) return { type: "asset", id: logoSlot.id };
-  const productSlot = (state.bannerLayers ?? []).find(
-    (l) => (l.slotKind === "product" || l.slotKind === "image") && !l.assetId,
-  );
-  if (productSlot) return { type: "asset", id: productSlot.id };
   const layers = getLayersForScene(state, sceneId)
     .filter((l) => l.visible && l.type !== "particle")
     .sort((a, b) => a.zIndex - b.zIndex);
@@ -64,7 +70,14 @@ export function TemplatePresetsPanel({
       next = setActiveScene(next, firstSceneId);
     }
     onUpdate(next);
-    onAfterApply?.(next, firstEditableSelection(next));
+    const missing = findFirstMissingRequiredSlot(next);
+    const selection = firstEditableSelection(next);
+    onAfterApply?.(next, selection, {
+      message: missing
+        ? "Šablona připravena. Teď nahrajte logo a produkt."
+        : "Šablona připravena. Upravte texty a spusťte náhled.",
+      switchToAssets: Boolean(missing),
+    });
   }
 
   function applyLayout(templateId: BannerTemplateId) {

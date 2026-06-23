@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   deleteAssetBlob,
   invalidateAssetObjectUrl,
@@ -36,6 +36,12 @@ export function AssetUploadPanel({ state, onUpdate, onPlaced }: AssetUploadPanel
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!success) return;
+    const t = window.setTimeout(() => setSuccess(null), 4000);
+    return () => window.clearTimeout(t);
+  }, [success]);
 
   const handleUpload = useCallback(
     async (kind: BannerAssetKind, file: File) => {
@@ -96,9 +102,11 @@ export function AssetUploadPanel({ state, onUpdate, onPlaced }: AssetUploadPanel
         };
 
         const hasStoryboard = (state.scenes ?? []).length > 0;
+        let placedInSlot = false;
         if (hasStoryboard) {
           const placed = autoPlaceUploadedAsset(nextState, assetId, kind);
           nextState = placed.state;
+          placedInSlot = Boolean(placed.layerId);
           onUpdate(nextState);
           setSuccess(placed.message);
           if (placed.layerId) {
@@ -124,7 +132,7 @@ export function AssetUploadPanel({ state, onUpdate, onPlaced }: AssetUploadPanel
           onPlaced?.({ type: "asset", id: assetId }, "Obrázek nahrán a umístěn");
         }
 
-        if (validation.warnings.length > 0) {
+        if (validation.warnings.length > 0 && !placedInSlot) {
           setErrors((prev) => ({ ...prev, [kind]: validation.warnings[0] ?? "" }));
         }
       } catch {
@@ -143,7 +151,13 @@ export function AssetUploadPanel({ state, onUpdate, onPlaced }: AssetUploadPanel
       assets: (state.assets ?? []).filter((a) => a.id !== assetId),
       assetPlacements: (state.assetPlacements ?? []).filter((p) => p.assetId !== assetId),
       bannerLayers: (state.bannerLayers ?? []).map((l) =>
-        l.assetId === assetId ? { ...l, assetId: undefined } : l,
+        l.assetId === assetId
+          ? {
+              ...l,
+              assetId: undefined,
+              type: l.isTemplateSlot || l.slotKind ? "badge" : l.type,
+            }
+          : l,
       ),
     });
     setSuccess(null);
@@ -154,7 +168,7 @@ export function AssetUploadPanel({ state, onUpdate, onPlaced }: AssetUploadPanel
       <div className="border-b border-zinc-800/60 px-4 py-3">
         <h2 className="text-sm font-medium text-zinc-300">Nahrát assety</h2>
         <p className="mt-1 text-xs text-zinc-500">
-          PNG, JPEG, WebP · max 200 kB · lokálně v prohlížeči
+          PNG, JPEG nebo WebP · max 200 kB · doporučeno 300×300 px a více
         </p>
         {success ? (
           <p className="mt-2 rounded bg-emerald-950/40 px-2 py-1 text-[11px] text-emerald-300">

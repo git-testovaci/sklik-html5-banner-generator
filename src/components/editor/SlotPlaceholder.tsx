@@ -1,5 +1,6 @@
 "use client";
 
+import type { MouseEvent } from "react";
 import type { BannerLayer } from "@/types/animation";
 
 interface SlotPlaceholderProps {
@@ -7,6 +8,7 @@ interface SlotPlaceholderProps {
   accentColor: string;
   interactive?: boolean;
   publicMode?: boolean;
+  missingAsset?: boolean;
   onActivate?: () => void;
 }
 
@@ -15,51 +17,75 @@ export function SlotPlaceholder({
   accentColor,
   interactive = false,
   publicMode = false,
+  missingAsset = false,
   onActivate,
 }: SlotPlaceholderProps) {
-  const label = layer.slotLabel ?? layer.name;
   const kind = layer.slotKind ?? layer.legacyKey ?? "image";
   const isLogo = kind === "logo";
   const isProduct = kind === "product" || kind === "image";
   const isBackground = kind === "background";
+  const isBadge = kind === "badge";
+
+  const editorLabel = isLogo
+    ? "Nahrát logo"
+    : isProduct
+      ? "Nahrát produkt"
+      : isBackground
+        ? "Nahrát pozadí"
+        : layer.slotLabel ?? "Nahrát obrázek";
 
   const gradient = isBackground
-    ? `linear-gradient(135deg, ${accentColor}22 0%, ${accentColor}08 100%)`
+    ? `linear-gradient(135deg, ${accentColor}18 0%, ${accentColor}06 50%, #ffffff04 100%)`
     : isProduct
-      ? `linear-gradient(160deg, ${accentColor}18 0%, #ffffff08 50%, ${accentColor}10 100%)`
-      : `linear-gradient(135deg, ${accentColor}15 0%, #ffffff06 100%)`;
+      ? `linear-gradient(160deg, ${accentColor}14 0%, #ffffff06 45%, ${accentColor}08 100%)`
+      : isLogo
+        ? `linear-gradient(180deg, #ffffff08 0%, ${accentColor}10 100%)`
+        : `linear-gradient(135deg, ${accentColor}12 0%, #ffffff05 100%)`;
+
+  const borderRadius =
+    layer.shapeType === "circle" ? "9999px" : layer.borderRadius ?? (isLogo ? 6 : isProduct ? 12 : 10);
+
+  const Wrapper = interactive ? "button" : "div";
 
   return (
-    <button
-      type="button"
-      disabled={!interactive}
-      onClick={(e) => {
+    <Wrapper
+      type={interactive ? "button" : undefined}
+      disabled={interactive ? false : undefined}
+      onClick={(e: MouseEvent) => {
         if (!interactive) return;
         e.stopPropagation();
         onActivate?.();
       }}
-      className={`flex h-full w-full flex-col items-center justify-center gap-1.5 border-2 border-dashed p-2 text-center transition-colors ${
-        interactive ? "cursor-pointer hover:border-violet-400/80 hover:bg-violet-950/20" : "cursor-default"
+      className={`flex h-full w-full flex-col items-center justify-center gap-1 border border-dashed p-2 text-center ${
+        interactive ? "cursor-pointer hover:border-violet-400/70 hover:bg-violet-950/15" : "cursor-default"
       }`}
       style={{
-        borderColor: `${accentColor}66`,
-        borderRadius: layer.shapeType === "circle" ? "9999px" : layer.borderRadius ?? 10,
+        borderColor: `${accentColor}44`,
+        borderRadius,
         background: gradient,
-        boxShadow: layer.shadow ? "0 4px 16px rgba(0,0,0,0.15)" : undefined,
+        boxShadow: layer.shadow ? "inset 0 0 0 1px rgba(255,255,255,0.04)" : undefined,
+        opacity: layer.opacity,
       }}
     >
-      <span
-        className="text-lg leading-none opacity-70"
-        aria-hidden
-      >
-        {isLogo ? "◆" : isProduct ? "▢" : isBackground ? "▤" : "●"}
+      <span className="text-base leading-none opacity-50" aria-hidden>
+        {isLogo ? "◆" : isProduct ? "▢" : isBackground ? "▤" : isBadge ? "●" : "▢"}
       </span>
-      <span className="text-[11px] font-semibold" style={{ color: accentColor }}>
-        {label}
-      </span>
-      {interactive && !publicMode ? (
-        <span className="text-[9px] text-zinc-400">Klikněte pro nahrání</span>
-      ) : null}
-    </button>
+      {!publicMode ? (
+        <>
+          <span className="text-[10px] font-semibold leading-tight" style={{ color: `${accentColor}cc` }}>
+            {missingAsset ? "Chybí soubor" : editorLabel}
+          </span>
+          {interactive && !missingAsset ? (
+            <span className="text-[9px] text-zinc-500">Klikněte pro nahrání</span>
+          ) : null}
+        </>
+      ) : (
+        <span
+          className="block h-2 w-2/3 rounded-full opacity-30"
+          style={{ background: `${accentColor}55` }}
+          aria-hidden
+        />
+      )}
+    </Wrapper>
   );
 }

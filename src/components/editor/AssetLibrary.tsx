@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { buildAssetsMetaKey, loadPreviewAssetUrls } from "@/lib/assets/asset-storage";
 import { formatFileSize } from "@/lib/assets/image-utils";
 import {
-  assignAssetToSlotLayer,
-  findEmptySlotForKind,
+  insertImageLayerInScene,
+  isSelectedSlotLayer,
+  placeAssetInSlot,
   resolveLayerFromSelection,
   slotLayerSelection,
 } from "@/lib/assets/slot-utils";
@@ -26,6 +27,13 @@ interface AssetLibraryProps {
   onPlaced?: (selection: SelectedLayer, message: string) => void;
 }
 
+const KIND_LABELS: Record<BannerAssetKind, string> = {
+  logo: "Logo",
+  product: "Produkt",
+  background: "Pozadí",
+  decoration: "Obrázek",
+};
+
 function useThumbnails(metaKey: string) {
   const [urls, setUrls] = useState<Record<string, string>>({});
 
@@ -43,6 +51,13 @@ function useThumbnails(metaKey: string) {
   return metaKey ? urls : {};
 }
 
+function slotActionLabel(kind: BannerAssetKind): string {
+  if (kind === "logo") return "Použít jako logo";
+  if (kind === "product") return "Použít jako produkt";
+  if (kind === "background") return "Použít jako pozadí";
+  return "Použít v banneru";
+}
+
 export function AssetLibrary({
   state,
   onUpdate,
@@ -53,8 +68,15 @@ export function AssetLibrary({
   const metaKey = buildAssetsMetaKey(assets);
   const urls = useThumbnails(metaKey);
   const hasStoryboard = (state.scenes ?? []).length > 0;
+  const canReplaceSlot = isSelectedSlotLayer(state, selectedLayer ?? null);
 
-  if (assets.length === 0) return null;
+  if (assets.length === 0) {
+    return (
+      <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 px-4 py-6 text-center">
+        <p className="text-xs text-zinc-500">Zatím žádné assety — nahrajte logo nebo produkt výše.</p>
+      </section>
+    );
+  }
 
   function updatePlacement(assetId: string, patch: Partial<BannerAssetPlacement>) {
     onUpdate({
@@ -66,16 +88,30 @@ export function AssetLibrary({
 
   function placeInSlot(assetId: string, kind: BannerAssetKind) {
     if (!hasStoryboard) return;
-    const selectedSlot = resolveLayerFromSelection(state, selectedLayer ?? null);
-    const slot =
-      (selectedSlot && (selectedSlot.isTemplateSlot || selectedSlot.type === "image" || selectedSlot.type === "badge")
-        ? selectedSlot
-        : undefined) ??
-      findEmptySlotForKind(state, kind === "decoration" ? "image" : kind);
-    if (!slot) return;
-    const next = assignAssetToSlotLayer(state, slot.id, assetId);
+    const selectedId =
+      selectedLayer?.type === "asset" ? selectedLayer.id : undefined;
+    const result = placeAssetInSlot(state, assetId, kind, {
+      selectedLayerId: selectedId,
+      activeSceneId: state.activeSceneId,
+      allowFilled: kind === "logo",
+    });
+    if (result.layerId) {
+      onUpdate(result.state);
+      onPlaced?.(
+        { type: "asset", id: result.layerId },
+        result.message,
+      );
+    } else {
+      onPlaced?.({ type: "asset", id: assetId }, result.message);
+    }
+  }
+
+  function insertIntoScene(assetId: string) {
+    const asset = assets.find((a) => a.id === assetId);
+    const name = asset ? KIND_LABELS[asset.kind] ?? "Obrázek" : "Obrázek";
+    const { state: next, layer } = insertImageLayerInScene(state, assetId, name);
     onUpdate(next);
-    onPlaced?.(slotLayerSelection(slot), "Použito v banneru");
+    onPlaced?.(slotLayerSelection(layer), `${name} vložen do scény`);
   }
 
   function quickPlace(assetId: string, kind: BannerAssetKind, corner: Parameters<typeof assetAtCorner>[2]) {
@@ -115,7 +151,7 @@ export function AssetLibrary({
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <div className="border-b border-zinc-800/60 px-4 py-3">
         <h2 className="text-sm font-medium text-zinc-300">Knihovna assetů</h2>
-        <p className="mt-1 text-xs text-zinc-500">{assets.length} obrázků</p>
+        <p className="mt-1 text-xs text-zinc-500">{assets.length} obrázků · klikněte pro vložení</p>
       </div>
       <ul className="max-h-64 space-y-3 overflow-y-auto p-3">
         {assets.map((asset) => {
@@ -143,7 +179,7 @@ export function AssetLibrary({
                   )}
                 </div>
                 <div className="min-w-0 flex-1 text-xs">
-                  <p className="font-medium capitalize text-zinc-300">{asset.kind}</p>
+                  <p className="font-medium text-zinc-300">{KIND_LABELS[asset.kind]}</p>
                   <p className="truncate text-zinc-500">{asset.fileName}</p>
                   <p className="text-zinc-600">
                     {asset.width}×{asset.height} · {formatFileSize(asset.size)}
@@ -152,42 +188,44 @@ export function AssetLibrary({
               </div>
               {hasStoryboard ? (
                 <div className="mt-2 flex flex-wrap gap-1">
-                  {asset.kind === "logo" ? (
-                    <button
-                      type="button"
-                      onClick={() => placeInSlot(asset.id, "logo")}
-                      className="rounded border border-violet-800/60 bg-violet-950/30 px-2 py-0.5 text-[10px] text-violet-200"
-                    >
-                      Použít jako logo
-                    </button>
-                  ) : null}
-                  {asset.kind === "product" ? (
-                    <button
-                      type="button"
-                      onClick={() => placeInSlot(asset.id, "product")}
-                      className="rounded border border-violet-800/60 bg-violet-950/30 px-2 py-0.5 text-[10px] text-violet-200"
-                    >
-                      Použít jako produkt
-                    </button>
-                  ) : null}
-                  {asset.kind === "background" ? (
-                    <button
-                      type="button"
-                      onClick={() => placeInSlot(asset.id, "background")}
-                      className="rounded border border-violet-800/60 bg-violet-950/30 px-2 py-0.5 text-[10px] text-violet-200"
-                    >
-                      Použít jako pozadí
-                    </button>
-                  ) : null}
-                  {selectedLayer?.type === "asset" ? (
-                    <button
-                      type="button"
-                      onClick={() => placeInSlot(asset.id, asset.kind)}
-                      className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800"
-                    >
-                      Nahradit vybraný slot
-                    </button>
-                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => placeInSlot(asset.id, asset.kind === "decoration" ? "decoration" : asset.kind)}
+                    className="rounded border border-violet-800/60 bg-violet-950/30 px-2 py-0.5 text-[10px] text-violet-200"
+                  >
+                    {slotActionLabel(asset.kind)}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertIntoScene(asset.id)}
+                    className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800"
+                  >
+                    Vložit do aktuální scény
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canReplaceSlot}
+                    title={
+                      canReplaceSlot
+                        ? "Nahradí vybraný slot"
+                        : "Nejdříve vyberte slot na plátně"
+                    }
+                    onClick={() => {
+                      const slot = resolveLayerFromSelection(state, selectedLayer ?? null);
+                      if (!slot) return;
+                      const result = placeAssetInSlot(state, asset.id, asset.kind, {
+                        selectedLayerId: slot.id,
+                        allowFilled: true,
+                      });
+                      if (result.layerId) {
+                        onUpdate(result.state);
+                        onPlaced?.({ type: "asset", id: result.layerId }, "Slot nahrazen");
+                      }
+                    }}
+                    className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Nahradit vybraný slot
+                  </button>
                 </div>
               ) : null}
               {placement && asset.kind !== "decoration" && !hasStoryboard ? (

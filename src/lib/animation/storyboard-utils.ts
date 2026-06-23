@@ -33,9 +33,35 @@ export function defaultScene(name = "Scene 1", durationMs = 3000): BannerScene {
 }
 
 export const DEFAULT_SCENE_TRANSITION_MS = 700;
+export const MIN_SCENE_TRANSITION_MS = 250;
+export const MAX_SCENE_TRANSITION_MS = 1200;
+
+export function clampSceneTransitionDurationMs(scene: BannerScene): number {
+  const raw = scene.transitionDurationMs ?? DEFAULT_SCENE_TRANSITION_MS;
+  const maxForScene = Math.min(MAX_SCENE_TRANSITION_MS, Math.floor(scene.durationMs / 2));
+  return Math.max(MIN_SCENE_TRANSITION_MS, Math.min(raw, maxForScene));
+}
 
 export function getSceneTransitionDurationMs(scene: BannerScene): number {
-  return scene.transitionDurationMs ?? DEFAULT_SCENE_TRANSITION_MS;
+  return clampSceneTransitionDurationMs(scene);
+}
+
+/** Clamp transition ms from duration + optional stored value (export/preview CSS). */
+export function transitionDurationForScene(
+  sceneDurationMs: number,
+  transitionDurationMs?: number,
+): number {
+  return clampSceneTransitionDurationMs({
+    id: "_",
+    name: "_",
+    durationMs: sceneDurationMs,
+    transitionIn: "none",
+    transitionOut: "fade",
+    transitionDurationMs,
+    layerIds: [],
+    createdAt: "",
+    updatedAt: "",
+  });
 }
 
 export function getActiveScene(state: BannerEditorState): BannerScene | undefined {
@@ -514,11 +540,33 @@ export function updateScene(
   sceneId: string,
   patch: Partial<BannerScene>,
 ): BannerEditorState {
+  const target = getSceneById(state, sceneId);
+  let normalizedPatch = patch;
+  if (target && patch.transitionDurationMs !== undefined) {
+    normalizedPatch = {
+      ...patch,
+      transitionDurationMs: clampSceneTransitionDurationMs({
+        ...target,
+        transitionDurationMs: patch.transitionDurationMs,
+      }),
+    };
+  }
+  if (target && patch.durationMs !== undefined && target.transitionDurationMs !== undefined) {
+    normalizedPatch = {
+      ...normalizedPatch,
+      transitionDurationMs: clampSceneTransitionDurationMs({
+        ...target,
+        durationMs: patch.durationMs,
+        transitionDurationMs:
+          normalizedPatch.transitionDurationMs ?? target.transitionDurationMs,
+      }),
+    };
+  }
   const next = {
     ...state,
     scenes: (state.scenes ?? []).map((s) =>
       s.id === sceneId
-        ? { ...s, ...patch, updatedAt: new Date().toISOString() }
+        ? { ...s, ...normalizedPatch, updatedAt: new Date().toISOString() }
         : s,
     ),
   };
@@ -536,12 +584,21 @@ export function applyTransitionToAllScenes(
   const now = new Date().toISOString();
   return {
     ...state,
-    scenes: (state.scenes ?? []).map((s) => ({
-      ...s,
-      transitionOut,
-      transitionDurationMs: transitionDurationMs ?? s.transitionDurationMs ?? DEFAULT_SCENE_TRANSITION_MS,
-      updatedAt: now,
-    })),
+    scenes: (state.scenes ?? []).map((s) => {
+      const dur =
+        transitionDurationMs ??
+        s.transitionDurationMs ??
+        DEFAULT_SCENE_TRANSITION_MS;
+      return {
+        ...s,
+        transitionOut,
+        transitionDurationMs: clampSceneTransitionDurationMs({
+          ...s,
+          transitionDurationMs: dur,
+        }),
+        updatedAt: now,
+      };
+    }),
   };
 }
 

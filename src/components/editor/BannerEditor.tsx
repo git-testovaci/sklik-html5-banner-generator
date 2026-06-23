@@ -95,8 +95,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   const [showExport, setShowExport] = useState(false);
   const [placementMessage, setPlacementMessage] = useState<string | null>(null);
   const [selectedTransitionSceneId, setSelectedTransitionSceneId] = useState<string | null>(null);
-
-  const hasTemplate = (state.scenes ?? []).length > 0;
+  const [expandTiming, setExpandTiming] = useState(false);
 
   const playback = usePlaybackController({
     scenes: state.scenes,
@@ -161,8 +160,14 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   }
 
   function handleQuickAdd(kind: QuickAddLayerType) {
-    const { state: next, layer } = createQuickLayer(state, kind);
-    onUpdate(next);
+    const selectedId =
+      selectedLayer.type === "asset" ? selectedLayer.id : undefined;
+    const { state: next, layer, reused } = createQuickLayer(state, kind, {
+      selectedLayerId: selectedId,
+    });
+    if (!reused) {
+      onUpdate(next);
+    }
     if (
       layer.type === "text" &&
       (layer.legacyKey === "headline" ||
@@ -170,12 +175,14 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
         layer.legacyKey === "cta")
     ) {
       setSelectedLayer({ type: "text", id: layer.legacyKey });
-    } else if (layer.type === "text") {
-      setSelectedLayer({ type: "asset", id: layer.id });
     } else {
       setSelectedLayer({ type: "asset", id: layer.id });
     }
     setSelectedEffectId(null);
+    if (reused) {
+      setPlacementMessage("Logo slot již existuje — vybrán stávající slot");
+      window.setTimeout(() => setPlacementMessage(null), 3500);
+    }
   }
 
   function handleSlotActivate(layerId: string) {
@@ -218,7 +225,17 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
         }
         break;
       }
+      case "transitions": {
+        const firstScene = state.scenes?.[0];
+        if (firstScene) {
+          setSelectedTransitionSceneId(firstScene.id);
+          onUpdate(setActiveScene(state, firstScene.id));
+        }
+        setSelectedEffectId(null);
+        break;
+      }
       case "timing":
+        setExpandTiming(true);
         document.getElementById("keyframe-timeline")?.scrollIntoView({ behavior: "smooth" });
         break;
       case "export":
@@ -288,9 +305,16 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
               state={state}
               onUpdate={onUpdate}
               hasUnsavedChanges={hasUnsavedChanges}
-              onAfterApply={(_next, selection) => {
+              onAfterApply={(next, selection, meta) => {
                 setSelectedLayer(selection);
                 setSelectedEffectId(null);
+                setSelectedTransitionSceneId(null);
+                playback.stop();
+                if (meta?.switchToAssets) setLeftTab("assets");
+                if (meta?.message) {
+                  setPlacementMessage(meta.message);
+                  window.setTimeout(() => setPlacementMessage(null), 4500);
+                }
               }}
             />
           )}
@@ -337,16 +361,14 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             onUpdate={onUpdate}
             selectedEffectId={selectedEffectId}
             onSelectEffect={setSelectedEffectId}
+            forceExpandAdvanced={expandTiming}
+            onExpanded={() => setExpandTiming(false)}
           />
         </div>
 
         {/* Right — checklist + inspector + export */}
         <div className="order-3 flex w-full shrink-0 flex-col gap-3 lg:w-[280px] xl:w-[300px]">
-          <BannerChecklist
-            state={state}
-            hasTemplate={hasTemplate}
-            onAction={handleChecklistAction}
-          />
+          <BannerChecklist state={state} onAction={handleChecklistAction} />
           <InspectorPanel
             state={state}
             onUpdate={onUpdate}
