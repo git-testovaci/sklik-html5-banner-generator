@@ -116,6 +116,20 @@ export function LayerInspectorControls({
         </Field>
         <p className="mt-1.5 text-[11px] font-medium text-zinc-300">{layerDisplayName(layer)}</p>
         <p className="text-[10px] text-zinc-500">{layerTypeLabelCs(layer)}</p>
+        {(layer.locked || !layer.visible) && (
+          <p className="mt-1.5 flex flex-wrap gap-1">
+            {layer.locked ? (
+              <span className="rounded bg-amber-950/50 px-1.5 py-0.5 text-[9px] font-medium text-amber-300">
+                Zamknuto
+              </span>
+            ) : null}
+            {!layer.visible ? (
+              <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] font-medium text-zinc-400">
+                Skryté
+              </span>
+            ) : null}
+          </p>
+        )}
       </div>
 
       <Section title="Pozice a vzhled">
@@ -330,7 +344,7 @@ export function LayerInspectorControls({
 
       {isCtaLikeLayer(layer) ? (
         <Section title="Obsah · tlačítko">
-          <Field label="CTA text">
+          <Field label="Text tlačítka">
             <input
               type="text"
               value={layer.text ?? state.cta}

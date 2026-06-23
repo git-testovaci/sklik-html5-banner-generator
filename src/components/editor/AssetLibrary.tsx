@@ -103,7 +103,7 @@ export function AssetLibrary({
       <div className="border-b border-zinc-800/60 px-4 py-3">
         <h2 className="text-sm font-medium text-zinc-300">Média</h2>
         <p className="mt-1 text-xs text-zinc-500">
-          {assets.length} {assets.length === 1 ? "soubor" : assets.length < 5 ? "soubory" : "souborů"} · přidejte na časovou osu
+          Soubory v knihovně · přidejte je jako vrstvu na časovou osu
         </p>
       </div>
       <ul className="max-h-72 space-y-2 overflow-y-auto p-3">
@@ -137,19 +137,27 @@ export function AssetLibrary({
                   </p>
                   <p className="truncate text-xs font-medium text-zinc-200">{asset.fileName}</p>
                   <p className="text-[10px] text-zinc-600">
-                    {asset.width}×{asset.height} · {formatFileSize(asset.size)} ·{" "}
-                    <span className={usedCount === 0 ? "text-zinc-500" : "text-violet-400/80"}>
+                    {asset.width}×{asset.height} · {formatFileSize(asset.size)}
+                  </p>
+                  <p className="mt-0.5">
+                    <span
+                      className={`inline-flex rounded px-1.5 py-0.5 text-[9px] font-medium ${
+                        usedCount === 0
+                          ? "bg-zinc-800/80 text-zinc-500"
+                          : "bg-violet-950/70 text-violet-300"
+                      }`}
+                    >
                       {usageLabel(usedCount)}
                     </span>
                   </p>
                 </div>
               </div>
               {hasStoryboard ? (
-                <div className="mt-2 flex flex-col gap-1">
+                <div className="mt-2.5 flex flex-col gap-1.5">
                   <button
                     type="button"
                     onClick={() => addToTimeline(asset.id)}
-                    className="w-full rounded-md border border-violet-700/60 bg-violet-950/40 px-2 py-1.5 text-[11px] font-medium text-violet-100 hover:bg-violet-950/70"
+                    className="w-full rounded-md bg-violet-600 px-2 py-2 text-[11px] font-semibold text-white shadow-sm hover:bg-violet-500"
                   >
                     + Přidat na časovou osu
                   </button>
@@ -157,7 +165,7 @@ export function AssetLibrary({
                     <button
                       type="button"
                       onClick={() => insertIntoSelectedSlot(asset.id)}
-                      className="w-full rounded-md border border-zinc-700 px-2 py-1 text-[10px] text-zinc-400 hover:bg-zinc-800/50"
+                      className="w-full rounded-md border border-zinc-700/80 bg-transparent px-2 py-1.5 text-[10px] text-zinc-500 hover:bg-zinc-800/40 hover:text-zinc-400"
                     >
                       Vložit do vybraného slotu
                     </button>

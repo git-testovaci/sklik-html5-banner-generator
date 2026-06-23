@@ -128,7 +128,7 @@ export function AssetUploadPanel({
             onPlaced?.({ type: "asset", id: slot.id }, "Soubor vložen do slotu");
           } else {
             onUpdate(nextState);
-            setSuccess("Soubor nahrán do médií. Klikněte + Přidat na časovou osu.");
+            setSuccess("Soubor nahrán do Média — klikněte + Přidat na časovou osu.");
           }
         } else {
           const placement = createDefaultAssetPlacement(

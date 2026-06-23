@@ -162,7 +162,9 @@ export function LayerPanel({
           Vpředu nahoře · táhněte ⋮⋮ pro přeskupení
         </p>
         {orderedLayers.length === 0 ? (
-          <p className="px-2 py-1 text-[10px] text-zinc-600">Ve scéně zatím nejsou vrstvy</p>
+          <p className="px-2 py-3 text-[11px] leading-relaxed text-zinc-500">
+            Ve scéně zatím nejsou vrstvy. Přidejte média nebo text na plátně.
+          </p>
         ) : (
           orderedLayers.map((layer, index) => {
             const sel = selectionForBannerLayer(layer);
@@ -190,8 +192,10 @@ export function LayerPanel({
               <div
                 key={layer.id}
                 data-layer-row
-                className={`mb-1 flex items-stretch gap-0.5 rounded-lg ring-1 ring-transparent ${
-                  isSelected ? "bg-violet-950/50 ring-violet-800/50" : ""
+                className={`mb-1 flex items-stretch gap-0.5 rounded-lg ring-1 ${
+                  isSelected
+                    ? "bg-violet-950/50 ring-violet-600/50"
+                    : "ring-transparent"
                 } ${isDropTarget ? "ring-violet-500/60" : ""} ${isDragging ? "opacity-40" : ""} ${
                   !layer.visible ? "opacity-50" : ""
                 }`}
@@ -235,7 +239,8 @@ export function LayerPanel({
                   {onDuplicateLayer && !layer.persistent ? (
                     <button
                       type="button"
-                      title="Duplikovat"
+                      title="Duplikovat vrstvu"
+                      aria-label="Duplikovat vrstvu"
                       onClick={(e) => {
                         e.stopPropagation();
                         onDuplicateLayer(layer.id);
@@ -247,7 +252,8 @@ export function LayerPanel({
                   ) : null}
                   <button
                     type="button"
-                    title={layer.visible ? "Skrýt" : "Zobrazit"}
+                    title={layer.visible ? "Skrýt vrstvu" : "Zobrazit vrstvu"}
+                    aria-label={layer.visible ? "Skrýt vrstvu" : "Zobrazit vrstvu"}
                     onClick={(e) => {
                       e.stopPropagation();
                       updateBannerLayerPatch(layer.id, { visible: !layer.visible });
@@ -258,7 +264,8 @@ export function LayerPanel({
                   </button>
                   <button
                     type="button"
-                    title={layer.locked ? "Odemknout" : "Zamknout"}
+                    title={layer.locked ? "Odemknout vrstvu" : "Zamknout vrstvu"}
+                    aria-label={layer.locked ? "Odemknout vrstvu" : "Zamknout vrstvu"}
                     onClick={(e) => {
                       e.stopPropagation();
                       updateBannerLayerPatch(layer.id, { locked: !layer.locked });
@@ -269,7 +276,8 @@ export function LayerPanel({
                   </button>
                   <button
                     type="button"
-                    title="Smazat"
+                    title="Smazat vrstvu"
+                    aria-label="Smazat vrstvu"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDelete(layer.id);

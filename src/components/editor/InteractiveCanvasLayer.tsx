@@ -150,7 +150,7 @@ export function InteractiveCanvasLayer({
 
   return (
     <div
-      className={`absolute ${canInteract ? "touch-none select-none" : ""} ${locked ? "cursor-not-allowed" : ""}`}
+      className={`absolute ${interactive ? "touch-none select-none" : ""} ${locked && interactive ? "cursor-not-allowed" : canInteract ? "cursor-move" : ""}`}
       style={{
         left: placement.x,
         top: placement.y,
@@ -162,17 +162,23 @@ export function InteractiveCanvasLayer({
         transformOrigin: "center center",
       }}
       onPointerDown={(e) => {
-        if (!canInteract) return;
+        if (!interactive) return;
         if ((e.target as HTMLElement).closest("[data-resize-handle]")) return;
+        if (locked) {
+          e.stopPropagation();
+          onSelect();
+          return;
+        }
+        if (!canInteract) return;
         startDrag(e, "move");
       }}
       onClick={(e) => {
-        if (!canInteract) return;
+        if (!interactive) return;
         e.stopPropagation();
         onSelect();
       }}
     >
-      <CanvasSelectionOverlay visible={canInteract && selected} />
+      <CanvasSelectionOverlay visible={interactive && selected} locked={locked} />
       {canInteract && selected ? (
         <>
           {(["tl", "tr", "bl", "br"] as Corner[]).map((corner) => (

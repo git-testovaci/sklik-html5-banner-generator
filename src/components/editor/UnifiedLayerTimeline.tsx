@@ -322,7 +322,10 @@ export function UnifiedLayerTimeline({
     e.stopPropagation();
     focusTimeline();
     const layer = getLayerById(state, layerId);
-    if (layer?.locked) return;
+    if (layer?.locked) {
+      onSelectLayer(selectionForBannerLayer(layer));
+      return;
+    }
     const track = trackRef.current;
     if (!track || !scene) return;
     const range = getLayerTimelineRange(state, scene.id, layerId);
@@ -387,12 +390,13 @@ export function UnifiedLayerTimeline({
     return (
       <div
         data-playhead-handle
-        className="absolute top-0 z-30 h-full cursor-ew-resize"
+        className="absolute top-0 z-30 h-full cursor-ew-resize touch-none"
         style={{ left: `${Math.min(100, playheadPct)}%`, transform: "translateX(-50%)" }}
-        title={`Playhead · ${formatTimelineSeconds(displayPlayheadMs)}`}
+        title={`Playhead · ${formatTimelineSeconds(displayPlayheadMs)} · táhněte pro posun`}
         onPointerDown={startScrubDrag}
+        aria-label="Posun playheadu"
       >
-        <div className="absolute -left-4 top-0 h-full w-8" aria-hidden />
+        <div className="absolute -left-5 top-0 h-full w-10" aria-hidden />
         <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2">
           <div className="h-0 w-0 border-x-[5px] border-t-[7px] border-x-transparent border-t-violet-400 drop-shadow-[0_0_4px_rgba(167,139,250,0.9)]" />
         </div>
@@ -456,7 +460,7 @@ export function UnifiedLayerTimeline({
               >
                 −
               </button>
-              <span className="border-x border-zinc-800/80 px-2 py-1 text-[10px] text-zinc-500">
+              <span className="border-x border-zinc-800/80 px-2 py-1 text-[10px] text-zinc-500" title="Měřítko časové osy">
                 {zoom}×
               </span>
               <button
@@ -550,7 +554,9 @@ export function UnifiedLayerTimeline({
             <div className="px-4 py-10 text-center">
               <p className="text-xs font-medium text-zinc-400">Časová osa je prázdná</p>
               <p className="mt-2 text-xs leading-relaxed text-zinc-500">
-                Nahrajte média vlevo a klikněte + Přidat na časovou osu. Nebo přidejte text přímo na plátně.
+                V záložce Média nahrajte soubor a klikněte{" "}
+                <span className="font-medium text-violet-300">+ Přidat na časovou osu</span>.
+                Text můžete přidat přímo na plátně.
               </p>
             </div>
           ) : (
@@ -641,9 +647,12 @@ export function UnifiedLayerTimeline({
                     >
                       {!layer.locked ? (
                         <div
-                          className="absolute left-0 top-0 z-20 h-full w-2.5 cursor-ew-resize rounded-l-md bg-white/20 hover:bg-white/45"
-                          title="Zkrátit / prodloužit začátek"
-                          onPointerDown={(e) => startBlockDrag(e, layer.id, "resize-left")}
+                          className="absolute left-0 top-0 z-20 h-full w-3 cursor-ew-resize rounded-l-md bg-white/25 hover:bg-white/50"
+                          title="Upravit začátek bloku"
+                          onPointerDown={(e) => {
+                            e.stopPropagation();
+                            startBlockDrag(e, layer.id, "resize-left");
+                          }}
                         />
                       ) : null}
                       {segments.in.active && inPct > 0 ? (
@@ -654,7 +663,7 @@ export function UnifiedLayerTimeline({
                         >
                           {inPct > 14 ? (
                             <span className="absolute inset-0 flex items-center justify-center text-[8px] font-semibold text-white/90">
-                              In
+                              Dopředu
                             </span>
                           ) : null}
                         </div>
@@ -682,7 +691,10 @@ export function UnifiedLayerTimeline({
                           className="absolute top-0 z-10 h-full w-1.5 cursor-ew-resize bg-emerald-300/80 hover:bg-emerald-200"
                           style={{ left: `calc(${inPct}% - 3px)` }}
                           title="Upravit délku animace dopředu"
-                          onPointerDown={(e) => startBlockDrag(e, layer.id, "phase-in")}
+                          onPointerDown={(e) => {
+                            e.stopPropagation();
+                            startBlockDrag(e, layer.id, "phase-in");
+                          }}
                         />
                       ) : null}
                       {segments.out.active && onPhaseDurationChange && !layer.locked ? (
@@ -690,7 +702,10 @@ export function UnifiedLayerTimeline({
                           className="absolute top-0 z-10 h-full w-1.5 cursor-ew-resize bg-rose-300/80 hover:bg-rose-200"
                           style={{ left: `calc(${100 - outPct}% - 3px)` }}
                           title="Upravit délku animace dozadu"
-                          onPointerDown={(e) => startBlockDrag(e, layer.id, "phase-out")}
+                          onPointerDown={(e) => {
+                            e.stopPropagation();
+                            startBlockDrag(e, layer.id, "phase-out");
+                          }}
                         />
                       ) : null}
                       {widthPct > 8 ? (
@@ -700,9 +715,12 @@ export function UnifiedLayerTimeline({
                       ) : null}
                       {!layer.locked ? (
                         <div
-                          className="absolute right-0 top-0 z-20 h-full w-2.5 cursor-ew-resize rounded-r-md bg-white/20 hover:bg-white/45"
-                          title="Zkrátit / prodloužit konec"
-                          onPointerDown={(e) => startBlockDrag(e, layer.id, "resize-right")}
+                          className="absolute right-0 top-0 z-20 h-full w-3 cursor-ew-resize rounded-r-md bg-white/25 hover:bg-white/50"
+                          title="Upravit konec bloku"
+                          onPointerDown={(e) => {
+                            e.stopPropagation();
+                            startBlockDrag(e, layer.id, "resize-right");
+                          }}
                         />
                       ) : null}
                     </div>,

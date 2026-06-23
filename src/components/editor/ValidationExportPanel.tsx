@@ -228,7 +228,23 @@ export function ValidationExportPanel({
               <p className="mt-1 text-[10px] text-zinc-500">
                 Export je možný, ale zkontrolujte doporučení níže.
               </p>
-            ) : null}
+            ) : validation.overallStatus === "fail" ? (
+              <p className="mt-1 text-[10px] text-red-400/90" role="alert">
+                Opravte chyby výše (chybějící média, video, velikost) před exportem.
+              </p>
+            ) : (
+              <p className="mt-1 text-[10px] text-zinc-500">
+                Projekt splňuje základní kontroly — můžete exportovat ZIP.
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={handleGenerateZip}
+              disabled={exporting || validation.overallStatus === "fail"}
+              className="mt-3 w-full rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {exporting ? "Generuji ZIP…" : "Exportovat Sklik ZIP"}
+            </button>
           </div>
         </div>
 
@@ -310,7 +326,7 @@ export function ValidationExportPanel({
         ) : null}
       </div>
 
-      <div className="space-y-2 border-t border-zinc-800/60 p-4">
+      <div className="sticky bottom-0 space-y-2 border-t border-zinc-800/60 bg-zinc-900/95 p-4 backdrop-blur-sm">
         {hasUnsavedChanges ? (
           <p className="text-xs text-amber-400/90">
             Export používá aktuální hodnoty na plátně. Uložte projekt pro trvalé změny.

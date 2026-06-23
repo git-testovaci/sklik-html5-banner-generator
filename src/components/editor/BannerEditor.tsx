@@ -517,8 +517,11 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             ))}
           </div>
           {placementMessage ? (
-            <p className="rounded-lg border border-emerald-900/40 bg-emerald-950/30 px-3 py-2 text-[11px] text-emerald-300">
-              {placementMessage}
+            <p
+              role="status"
+              className="rounded-lg border border-emerald-900/40 bg-emerald-950/30 px-3 py-2 text-[11px] font-medium text-emerald-300"
+            >
+              ✓ {placementMessage}
             </p>
           ) : null}
           {leftTab === "assets" && (

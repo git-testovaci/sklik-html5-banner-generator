@@ -70,7 +70,7 @@ export function layerDisplayStackLabel(
 const DUPLICATE_BASE: Partial<Record<string, string>> = {
   headline: "Nadpis",
   subheadline: "Podnadpis",
-  cta: "CTA",
+  cta: "Výzva k akci",
   logo: "Logo",
   product: "Produkt",
   background: "Pozadí",
@@ -90,8 +90,8 @@ export function duplicateNameBase(layer: BannerLayer, state: BannerEditorState):
     return base || "Text";
   }
   if (layer.type === "badge" && layer.text && !layer.assetId) {
-    const base = stripNumericSuffix(layer.name || "CTA");
-    return base === "Výzva k akci" ? "CTA" : base || "CTA";
+    const base = stripNumericSuffix(layer.name || "Výzva k akci");
+    return base || "Výzva k akci";
   }
   if (layer.assetId) {
     const asset = (state.assets ?? []).find((a) => a.id === layer.assetId);
