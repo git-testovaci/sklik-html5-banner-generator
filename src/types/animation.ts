@@ -19,6 +19,8 @@ export type AnimationEasing =
   | "ease-in-out"
   | "cubic-soft";
 
+export type AnimationEnterFrom = "none" | "left" | "right" | "up" | "down";
+
 export type LayerType =
   | "headline"
   | "subheadline"
@@ -42,7 +44,10 @@ export interface LayerAnimation {
   startMs: number;
   durationMs: number;
   easing: AnimationEasing;
+  /** CSS animation-direction */
   direction: "normal" | "reverse" | "alternate";
+  /** Entrance direction for slide-style motion */
+  enterFrom: AnimationEnterFrom;
   distancePx: number;
   opacityFrom: number;
   opacityTo: number;
@@ -79,3 +84,29 @@ export const ANIMATION_EASINGS: readonly {
   { value: "ease-in-out", label: "Ease in-out", css: "ease-in-out" },
   { value: "cubic-soft", label: "Soft cubic", css: "cubic-bezier(0.4, 0, 0.2, 1)" },
 ] as const;
+
+export const ANIMATION_ENTER_FROM: readonly {
+  value: AnimationEnterFrom;
+  label: string;
+}[] = [
+  { value: "none", label: "None" },
+  { value: "left", label: "Left" },
+  { value: "right", label: "Right" },
+  { value: "up", label: "Top" },
+  { value: "down", label: "Bottom" },
+] as const;
+
+export function presetDefaultEnterFrom(preset: AnimationPreset): AnimationEnterFrom {
+  switch (preset) {
+    case "slide-in-left":
+      return "left";
+    case "slide-in-right":
+      return "right";
+    case "slide-up":
+      return "up";
+    case "slide-down":
+      return "down";
+    default:
+      return "none";
+  }
+}

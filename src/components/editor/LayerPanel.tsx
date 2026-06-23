@@ -5,19 +5,17 @@ import {
   centerHorizontally,
   centerVertically,
   clampPlacementToBanner,
+  clampTextPlacementFields,
   createDefaultAssetPlacement,
+  getLayerAnimation,
 } from "@/lib/animation/timeline-utils";
-import type { BannerEditorState, BannerEditorStateUpdater } from "@/types/editor";
+import type { BannerEditorState, BannerEditorStateUpdater, SelectedLayer } from "@/types/editor";
 import { LayerControls } from "./LayerControls";
-
-type SelectableLayer =
-  | { type: "text"; id: TextLayerPlacement["layerId"] }
-  | { type: "asset"; id: string };
 
 interface LayerPanelProps {
   state: BannerEditorState;
-  selectedLayer: SelectableLayer;
-  onSelectLayer: (layer: SelectableLayer) => void;
+  selectedLayer: SelectedLayer;
+  onSelectLayer: (layer: SelectedLayer) => void;
   onUpdate: BannerEditorStateUpdater;
 }
 
@@ -28,8 +26,7 @@ const TEXT_LAYERS: { id: TextLayerPlacement["layerId"]; label: string }[] = [
 ];
 
 function clampText(p: TextLayerPlacement, w: number, h: number): TextLayerPlacement {
-  const c = clampPlacementToBanner(p, w, h);
-  return { ...p, ...c };
+  return clampTextPlacementFields(p, w, h);
 }
 
 export function LayerPanel({
@@ -139,7 +136,10 @@ export function LayerPanel({
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <div className="max-h-44 overflow-y-auto border-b border-zinc-800/60 p-2">
         <p className="px-2 py-1 text-[10px] uppercase tracking-wide text-zinc-600">Text</p>
-        {TEXT_LAYERS.map(({ id, label }) => (
+        {TEXT_LAYERS.map(({ id, label }) => {
+          const anim = getLayerAnimation(state, id);
+          const animOn = anim?.enabled && anim.preset !== "none";
+          return (
           <button
             key={id}
             type="button"
@@ -150,14 +150,17 @@ export function LayerPanel({
                 : "text-zinc-400 hover:bg-zinc-800/50"
             }`}
           >
-            {label}
+            {label} {animOn ? "· anim" : ""}
           </button>
-        ))}
+        );})}
         {(state.assetPlacements ?? []).length > 0 ? (
           <>
             <p className="mt-2 px-2 py-1 text-[10px] uppercase tracking-wide text-zinc-600">Images</p>
             {(state.assetPlacements ?? []).map((p) => {
               const asset = (state.assets ?? []).find((a) => a.id === p.assetId);
+              const layerId = p.kind === "decoration" ? `decoration-${p.assetId}` : p.kind;
+              const anim = getLayerAnimation(state, layerId);
+              const animOn = anim?.enabled && anim.preset !== "none";
               return (
                 <button
                   key={p.assetId}
@@ -170,6 +173,7 @@ export function LayerPanel({
                   }`}
                 >
                   {asset?.kind ?? p.kind} {!p.visible ? "(hidden)" : ""} · z{p.zIndex}
+                  {animOn ? " · anim" : ""}
                 </button>
               );
             })}
@@ -207,6 +211,10 @@ export function LayerPanel({
             opacity={selectedText.opacity}
             rotation={selectedText.rotation}
             zIndex={selectedText.zIndex}
+            fontSize={selectedText.fontSize}
+            textAlign={selectedText.textAlign}
+            onCenterH={() => centerSelected("h")}
+            onCenterV={() => centerSelected("v")}
             onChange={(patch) =>
               updateTextPlacement(selectedLayer.id as TextLayerPlacement["layerId"], patch)
             }

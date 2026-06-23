@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { normalizeEditorState, projectToEditorState, editorStateToProject } from "@/lib/animation/timeline-utils";
+import { normalizeEditorState, projectToEditorState, editorStateToProject, resolveSelectedLayer } from "@/lib/animation/timeline-utils";
 import {
   getProjectByIdSnapshot,
   getStoredProjectById,
@@ -14,6 +14,7 @@ import {
   editorStatesEqual,
   type BannerEditorState,
   type BannerEditorStateUpdater,
+  type SelectedLayer,
 } from "@/types/editor";
 import { AssetLibrary } from "./AssetLibrary";
 import { AssetUploadPanel } from "./AssetUploadPanel";
@@ -55,9 +56,7 @@ function useProjectLookup(projectId: string) {
   );
 }
 
-type SelectedLayer =
-  | { type: "text"; id: "headline" | "subheadline" | "cta" }
-  | { type: "asset"; id: string };
+type SelectedLayerState = SelectedLayer;
 
 interface BannerEditorInnerProps {
   initialState: BannerEditorState;
@@ -73,13 +72,18 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   );
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [selectedLayer, setSelectedLayer] = useState<SelectedLayer>({
+  const [selectedLayer, setSelectedLayer] = useState<SelectedLayerState>({
     type: "text",
     id: "headline",
   });
+  const [replayKey, setReplayKey] = useState(0);
 
   const onUpdate: BannerEditorStateUpdater = (patch) => {
-    setState((prev) => normalizeEditorState({ ...prev, ...patch }));
+    setState((prev) => {
+      const next = normalizeEditorState({ ...prev, ...patch });
+      setSelectedLayer((sel) => resolveSelectedLayer(next, sel));
+      return next;
+    });
     setSaveStatus("idle");
     setSaveError(null);
   };
@@ -138,11 +142,23 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
         </div>
 
         <div className="order-1 flex min-w-0 flex-1 flex-col gap-3 lg:order-2">
-          <SectionLabel title="Preview" hint="Replay to test timeline animations." />
-          <BannerPreviewStage state={state} onUpdate={onUpdate} />
+          <SectionLabel title="Preview" hint="Click and drag layers on the canvas." />
+          <BannerPreviewStage
+            state={state}
+            onUpdate={onUpdate}
+            selectedLayer={selectedLayer}
+            onSelectLayer={setSelectedLayer}
+            replayKey={replayKey}
+            onReplay={() => setReplayKey((k) => k + 1)}
+          />
 
-          <SectionLabel title="Timeline" hint="Control when each layer animates." />
-          <TimelinePanel state={state} onUpdate={onUpdate} />
+          <SectionLabel title="Timeline" hint="Drag purple bars to adjust timing." />
+          <TimelinePanel
+            state={state}
+            onUpdate={onUpdate}
+            selectedLayer={selectedLayer}
+            onReplay={() => setReplayKey((k) => k + 1)}
+          />
         </div>
 
         <div className="order-3 flex w-full shrink-0 flex-col gap-3 lg:w-[300px] xl:w-[320px]">

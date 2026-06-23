@@ -14,6 +14,8 @@ export interface BannerAsset {
 
 export type AssetFitMode = "contain" | "cover" | "fill";
 
+export type TextAlign = "left" | "center" | "right";
+
 export interface BannerAssetPlacement {
   assetId: string;
   kind: BannerAssetKind;
@@ -40,6 +42,10 @@ export interface TextLayerPlacement {
   opacity: number;
   rotation: number;
   zIndex: number;
+  fontSize?: number;
+  fontWeight?: number;
+  textAlign?: TextAlign;
+  lineHeight?: number;
 }
 
 export interface AssetUploadResult {

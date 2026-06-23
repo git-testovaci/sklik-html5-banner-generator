@@ -4,15 +4,18 @@ import { useEffect, useMemo, useState } from "react";
 import { createAssetObjectUrl } from "@/lib/assets/asset-storage";
 import {
   buildLayerAnimationStyle,
-  collectUniqueKeyframes,
+  collectLayerKeyframes,
   presetClassName,
 } from "@/lib/animation/animation-presets";
 import {
   getLayerAnimation,
   getTextPlacement,
+  layerAnimIdForAsset,
   normalizeEditorState,
 } from "@/lib/animation/timeline-utils";
-import type { BannerEditorState } from "@/types/editor";
+import type { BannerAssetPlacement, TextLayerPlacement } from "@/types/assets";
+import type { BannerEditorState, SelectedLayer } from "@/types/editor";
+import { InteractiveCanvasLayer } from "./InteractiveCanvasLayer";
 import { SafeAreaOverlay } from "./SafeAreaOverlay";
 
 interface BannerPreviewProps {
@@ -21,15 +24,28 @@ interface BannerPreviewProps {
   replayKey?: number;
   loopPreview?: boolean;
   showSafeArea?: boolean;
+  interactive?: boolean;
+  canvasScale?: number;
+  selectedLayer?: SelectedLayer | null;
+  onSelectLayer?: (layer: SelectedLayer) => void;
+  onUpdateTextPlacement?: (
+    layerId: TextLayerPlacement["layerId"],
+    patch: Partial<TextLayerPlacement>,
+  ) => void;
+  onUpdateAssetPlacement?: (
+    assetId: string,
+    patch: Partial<BannerAssetPlacement>,
+  ) => void;
 }
 
-function useAssetUrls(assetIds: string[]) {
-  const assetIdsKey = assetIds.join(",");
-  const [urls, setUrls] = useState<Record<string, string>>({});
-  const [missing, setMissing] = useState<Set<string>>(new Set());
-  const [loadedKey, setLoadedKey] = useState("");
+function useAssetUrls(assetIdsKey: string) {
+  const [cache, setCache] = useState<
+    Record<string, { urls: Record<string, string>; missing: Set<string> }>
+  >({});
 
   useEffect(() => {
+    if (!assetIdsKey) return;
+    const assetIds = assetIdsKey.split(",").filter(Boolean);
     let cancelled = false;
 
     async function load() {
@@ -41,9 +57,7 @@ function useAssetUrls(assetIds: string[]) {
         else miss.add(id);
       }
       if (!cancelled) {
-        setUrls(next);
-        setMissing(miss);
-        setLoadedKey(assetIdsKey);
+        setCache((prev) => ({ ...prev, [assetIdsKey]: { urls: next, missing: miss } }));
       }
     }
 
@@ -51,10 +65,23 @@ function useAssetUrls(assetIds: string[]) {
     return () => {
       cancelled = true;
     };
-  }, [assetIdsKey, assetIds]);
+  }, [assetIdsKey]);
 
-  const urlsReady = loadedKey === assetIdsKey;
-  return { urls: urlsReady ? urls : {}, missing, urlsReady };
+  const entry = cache[assetIdsKey];
+  const urlsReady = Boolean(assetIdsKey && entry);
+  return {
+    urls: entry?.urls ?? {},
+    missing: entry?.missing ?? new Set<string>(),
+    urlsReady,
+  };
+}
+
+function isLayerSelected(
+  selected: SelectedLayer | null | undefined,
+  layer: SelectedLayer,
+): boolean {
+  if (!selected) return false;
+  return selected.type === layer.type && selected.id === layer.id;
 }
 
 export function BannerPreview({
@@ -63,217 +90,55 @@ export function BannerPreview({
   replayKey = 0,
   loopPreview = false,
   showSafeArea = false,
+  interactive = false,
+  canvasScale = 1,
+  selectedLayer = null,
+  onSelectLayer,
+  onUpdateTextPlacement,
+  onUpdateAssetPlacement,
 }: BannerPreviewProps) {
   const state = useMemo(() => normalizeEditorState(rawState), [rawState]);
-  const assets = useMemo(() => state.assets ?? [], [state.assets]);
-  const assetIds = useMemo(() => assets.map((a) => a.id), [assets]);
-  const { urls, missing, urlsReady } = useAssetUrls(assetIds);
+  const assets = state.assets ?? [];
+  const assetIdsKey = assets.map((a) => a.id).join(",");
+  const { urls, missing, urlsReady } = useAssetUrls(assetIdsKey);
 
   const animationCss = useMemo(() => {
-    const presets = (state.layerAnimations ?? [])
-      .filter((a) => a.enabled && a.preset !== "none")
-      .map((a) => a.preset);
-    const keyframes = collectUniqueKeyframes(presets, 12, false);
+    const anims = state.layerAnimations ?? [];
+    const keyframes = collectLayerKeyframes(anims, false, replayKey);
     const rules: string[] = keyframes ? [keyframes] : [];
 
-    for (const anim of state.layerAnimations ?? []) {
+    for (const anim of anims) {
       if (!anim.enabled || anim.preset === "none") continue;
-      const loop = loopPreview || (anim.preset === "soft-pulse" && (state.timeline?.loop ?? false));
-      const style = buildLayerAnimationStyle(
-        anim.preset,
-        anim.startMs,
-        anim.durationMs,
-        anim.easing,
-        loop,
-        anim.distancePx,
-        false,
-      );
+      const loop =
+        loopPreview ||
+        (anim.preset === "soft-pulse" && (state.timeline?.loop ?? false));
+      const style = buildLayerAnimationStyle(anim, loop, false, replayKey);
       if (style) {
-        rules.push(`.${presetClassName(anim.layerId)} { ${style} }`);
+        rules.push(`.${presetClassName(anim.layerId, replayKey)} { ${style} }`);
       }
     }
     return rules.join("\n");
-  }, [state.layerAnimations, state.timeline?.loop, loopPreview]);
+  }, [state.layerAnimations, state.timeline?.loop, loopPreview, replayKey]);
 
-  const layers = useMemo(() => {
-    const items: Array<{ key: string; zIndex: number; node: React.ReactNode }> = [];
+  const bgColorOnly = !(state.assetPlacements ?? []).some(
+    (p) => p.visible && p.kind === "background",
+  );
 
-    const bgColorOnly = !(state.assetPlacements ?? []).some(
-      (p) => p.visible && p.kind === "background",
-    );
+  const sortedAssets = [...(state.assetPlacements ?? [])].sort(
+    (a, b) => a.zIndex - b.zIndex,
+  );
 
-    if (bgColorOnly) {
-      items.push({
-        key: "bg-color",
-        zIndex: 0,
-        node: (
-          <div className="absolute inset-0" style={{ backgroundColor: state.backgroundColor }} />
-        ),
-      });
-    }
-
-    for (const placement of [...(state.assetPlacements ?? [])].sort((a, b) => a.zIndex - b.zIndex)) {
-      if (!placement.visible) continue;
-      const asset = assets.find((a) => a.id === placement.assetId);
-      const layerId =
-        placement.kind === "decoration" ? `decoration-${placement.assetId}` : placement.kind;
-      const anim = getLayerAnimation(state, layerId);
-      const animClass = anim?.enabled && anim.preset !== "none" ? presetClassName(layerId) : "";
-
-      const baseStyle: React.CSSProperties = {
-        position: "absolute",
-        left: placement.x,
-        top: placement.y,
-        width: placement.width,
-        height: placement.height,
-        opacity: placement.opacity,
-        transform: `rotate(${placement.rotation}deg)`,
-        zIndex: placement.zIndex,
-        borderRadius: placement.borderRadius,
-        boxShadow: placement.shadow ? "0 4px 12px rgba(0,0,0,0.25)" : undefined,
-        overflow: "hidden",
-      };
-
-      const url = urls[placement.assetId];
-      const isMissing = missing.has(placement.assetId);
-
-      items.push({
-        key: placement.assetId,
-        zIndex: placement.zIndex,
-        node: (
-          <div key={`${placement.assetId}-${replayKey}`} className={animClass} style={baseStyle}>
-            {url ? (
-              // eslint-disable-next-line @next/next/no-img-element -- blob URLs from IndexedDB; next/image unsupported
-              <img
-                src={url}
-                alt={asset?.kind ?? "asset"}
-                className="h-full w-full"
-                style={{ objectFit: placement.fit }}
-              />
-            ) : (
-              <div
-                className="flex h-full w-full items-center justify-center border border-dashed text-[10px] uppercase"
-                style={{ borderColor: `${state.accentColor}66`, color: state.accentColor }}
-              >
-                {urlsReady && isMissing ? "Missing image" : "Loading…"}
-              </div>
-            )}
-          </div>
-        ),
-      });
-    }
-
-    const textLayers: Array<{
-      id: "headline" | "subheadline" | "cta";
-      content: string;
-      style: React.CSSProperties;
-      className: string;
-      Tag: "h1" | "p" | "span";
-    }> = [];
-
-    const h = getTextPlacement(state, "headline");
-    if (h?.visible !== false) {
-      textLayers.push({
-        id: "headline",
-        Tag: "h1",
-        content: state.headline,
-        className: presetClassName("headline"),
-        style: {
-          position: "absolute",
-          left: h?.x ?? 8,
-          top: h?.y ?? 28,
-          width: h?.width ?? state.width * 0.55,
-          height: h?.height ?? 40,
-          opacity: h?.opacity ?? 1,
-          transform: `rotate(${h?.rotation ?? 0}deg)`,
-          zIndex: h?.zIndex ?? 30,
-          margin: 0,
-          fontWeight: 700,
-          fontSize: Math.max(10, Math.round(state.height * 0.08)),
-          lineHeight: 1.15,
-          color: state.textColor,
-          display: "flex",
-          alignItems: "center",
-        },
-      });
-    }
-
-    const s = getTextPlacement(state, "subheadline");
-    if (s?.visible !== false) {
-      textLayers.push({
-        id: "subheadline",
-        Tag: "p",
-        content: state.subheadline,
-        className: presetClassName("subheadline"),
-        style: {
-          position: "absolute",
-          left: s?.x ?? 8,
-          top: s?.y ?? 50,
-          width: s?.width ?? state.width * 0.55,
-          height: s?.height ?? 30,
-          opacity: s?.opacity ?? 1,
-          transform: `rotate(${s?.rotation ?? 0}deg)`,
-          zIndex: s?.zIndex ?? 31,
-          margin: 0,
-          fontSize: Math.max(8, Math.round(state.height * 0.055)),
-          lineHeight: 1.25,
-          color: state.textColor,
-          display: "flex",
-          alignItems: "center",
-        },
-      });
-    }
-
-    const c = getTextPlacement(state, "cta");
-    if (c?.visible !== false) {
-      textLayers.push({
-        id: "cta",
-        Tag: "span",
-        content: state.cta,
-        className: presetClassName("cta"),
-        style: {
-          position: "absolute",
-          left: c?.x ?? 8,
-          top: c?.y ?? 72,
-          width: c?.width ?? state.width * 0.35,
-          height: c?.height ?? 28,
-          opacity: c?.opacity ?? 1,
-          transform: `rotate(${c?.rotation ?? 0}deg)`,
-          zIndex: c?.zIndex ?? 32,
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "4px 10px",
-          borderRadius: 4,
-          backgroundColor: state.ctaBackgroundColor,
-          color: state.ctaTextColor,
-          fontSize: Math.max(8, Math.round(state.height * 0.055)),
-          fontWeight: 600,
-        },
-      });
-    }
-
-    for (const t of textLayers) {
-      const Tag = t.Tag;
-      items.push({
-        key: t.id,
-        zIndex: (t.style.zIndex as number) ?? 30,
-        node: (
-          <Tag key={`${t.id}-${replayKey}`} className={t.className} style={t.style}>
-            {t.content}
-          </Tag>
-        ),
-      });
-    }
-
-    return items.sort((a, b) => a.zIndex - b.zIndex);
-  }, [state, assets, urls, missing, replayKey, urlsReady]);
+  const textLayerIds: TextLayerPlacement["layerId"][] = [
+    "headline",
+    "subheadline",
+    "cta",
+  ];
 
   return (
     <>
-      <style>{animationCss}</style>
+      <style key={replayKey}>{animationCss}</style>
       <div
-        className={`relative overflow-hidden shadow-2xl ${className}`}
+        className={`relative overflow-hidden shadow-2xl ${interactive ? "select-none" : ""} ${className}`}
         style={{
           width: state.width,
           height: state.height,
@@ -282,10 +147,176 @@ export function BannerPreview({
         }}
         role="img"
         aria-label={`Banner preview: ${state.headline}`}
+        onPointerDown={() => {
+          if (interactive) onSelectLayer?.({ type: "text", id: "headline" });
+        }}
       >
-        {layers.map((l) => (
-          <div key={l.key}>{l.node}</div>
-        ))}
+        {bgColorOnly ? (
+          <div
+            className="absolute inset-0"
+            style={{ backgroundColor: state.backgroundColor, zIndex: 0 }}
+          />
+        ) : null}
+
+        {sortedAssets.map((placement) => {
+          if (!placement.visible) return null;
+          const asset = assets.find((a) => a.id === placement.assetId);
+          const layerId = layerAnimIdForAsset(placement.kind, placement.assetId);
+          const anim = getLayerAnimation(state, layerId);
+          const animClass =
+            anim?.enabled && anim.preset !== "none"
+              ? presetClassName(layerId, replayKey)
+              : "";
+          const url = urls[placement.assetId];
+          const isMissing = missing.has(placement.assetId);
+          const selected = isLayerSelected(selectedLayer, {
+            type: "asset",
+            id: placement.assetId,
+          });
+
+          return (
+            <InteractiveCanvasLayer
+              key={placement.assetId}
+              selected={selected}
+              interactive={interactive}
+              placement={{
+                x: placement.x,
+                y: placement.y,
+                width: placement.width,
+                height: placement.height,
+              }}
+              rotation={placement.rotation}
+              zIndex={placement.zIndex}
+              opacity={placement.opacity}
+              bannerWidth={state.width}
+              bannerHeight={state.height}
+              canvasScale={canvasScale}
+              replayKey={replayKey}
+              animClassName={animClass}
+              onSelect={() => onSelectLayer?.({ type: "asset", id: placement.assetId })}
+              onPlacementChange={(patch) =>
+                onUpdateAssetPlacement?.(placement.assetId, patch)
+              }
+            >
+              <div
+                className="h-full w-full overflow-hidden"
+                style={{
+                  borderRadius: placement.borderRadius,
+                  boxShadow: placement.shadow
+                    ? "0 4px 12px rgba(0,0,0,0.25)"
+                    : undefined,
+                }}
+              >
+                {url ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- blob URLs from IndexedDB
+                  <img
+                    src={url}
+                    alt={asset?.kind ?? "asset"}
+                    className="pointer-events-none h-full w-full"
+                    style={{ objectFit: placement.fit }}
+                    draggable={false}
+                  />
+                ) : (
+                  <div
+                    className="flex h-full w-full items-center justify-center border border-dashed text-[10px] uppercase"
+                    style={{
+                      borderColor: `${state.accentColor}66`,
+                      color: state.accentColor,
+                    }}
+                  >
+                    {urlsReady && isMissing ? "Missing image" : "Loading…"}
+                  </div>
+                )}
+              </div>
+            </InteractiveCanvasLayer>
+          );
+        })}
+
+        {textLayerIds.map((layerId) => {
+          const pl = getTextPlacement(state, layerId);
+          if (!pl || pl.visible === false) return null;
+
+          const content =
+            layerId === "headline"
+              ? state.headline
+              : layerId === "subheadline"
+                ? state.subheadline
+                : state.cta;
+
+          const anim = getLayerAnimation(state, layerId);
+          const animClass =
+            anim?.enabled && anim.preset !== "none"
+              ? presetClassName(layerId, replayKey)
+              : "";
+          const selected = isLayerSelected(selectedLayer, { type: "text", id: layerId });
+          const isCta = layerId === "cta";
+          const fontSize =
+            pl.fontSize ??
+            (isCta
+              ? Math.max(8, Math.round(state.height * 0.055))
+              : layerId === "headline"
+                ? Math.max(10, Math.round(state.height * 0.08))
+                : Math.max(8, Math.round(state.height * 0.055)));
+          const fontWeight = pl.fontWeight ?? (isCta ? 600 : layerId === "headline" ? 700 : 400);
+          const lineHeight = pl.lineHeight ?? (isCta ? 1.2 : layerId === "headline" ? 1.15 : 1.25);
+          const textAlign = pl.textAlign ?? (isCta ? "center" : "left");
+
+          return (
+            <InteractiveCanvasLayer
+              key={layerId}
+              selected={selected}
+              interactive={interactive}
+              placement={{ x: pl.x, y: pl.y, width: pl.width, height: pl.height }}
+              rotation={pl.rotation}
+              zIndex={pl.zIndex}
+              opacity={pl.opacity}
+              bannerWidth={state.width}
+              bannerHeight={state.height}
+              canvasScale={canvasScale}
+              replayKey={replayKey}
+              animClassName={animClass}
+              onSelect={() => onSelectLayer?.({ type: "text", id: layerId })}
+              onPlacementChange={(patch) => onUpdateTextPlacement?.(layerId, patch)}
+            >
+              {isCta ? (
+                <span
+                  className="flex h-full w-full items-center justify-center rounded px-2.5 py-1"
+                  style={{
+                    backgroundColor: state.ctaBackgroundColor,
+                    color: state.ctaTextColor,
+                    fontSize,
+                    fontWeight,
+                    lineHeight,
+                    textAlign,
+                  }}
+                >
+                  {content}
+                </span>
+              ) : (
+                <span
+                  className="flex h-full w-full items-center"
+                  style={{
+                    margin: 0,
+                    color: state.textColor,
+                    fontSize,
+                    fontWeight,
+                    lineHeight,
+                    textAlign,
+                    justifyContent:
+                      textAlign === "center"
+                        ? "center"
+                        : textAlign === "right"
+                          ? "flex-end"
+                          : "flex-start",
+                  }}
+                >
+                  {content}
+                </span>
+              )}
+            </InteractiveCanvasLayer>
+          );
+        })}
+
         <SafeAreaOverlay width={state.width} height={state.height} visible={showSafeArea} />
       </div>
     </>

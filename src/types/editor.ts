@@ -4,6 +4,10 @@ import type { ProjectStatus } from "./project";
 
 export type BannerAnimation = "none" | "fade-in" | "slide-up" | "soft-pulse";
 
+export type SelectedLayer =
+  | { type: "text"; id: "headline" | "subheadline" | "cta" }
+  | { type: "asset"; id: string };
+
 export interface BannerEditorState {
   projectId: string;
   name: string;

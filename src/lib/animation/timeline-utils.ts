@@ -1,10 +1,11 @@
 import type { AnimationPreset, BannerTimeline, LayerAnimation } from "@/types/animation";
+import { presetDefaultEnterFrom } from "@/types/animation";
 import type {
   BannerAsset,
   BannerAssetPlacement,
   TextLayerPlacement,
 } from "@/types/assets";
-import type { BannerAnimation, BannerEditorState } from "@/types/editor";
+import type { BannerAnimation, BannerEditorState, SelectedLayer } from "@/types/editor";
 import type { BannerProject } from "@/types/project";
 
 export const DEFAULT_TIMELINE_DURATION_MS = 3000;
@@ -36,6 +37,9 @@ function defaultTextPlacements(
   width: number,
   height: number,
 ): TextLayerPlacement[] {
+  const headlineFs = Math.max(10, Math.round(height * 0.08));
+  const subFs = Math.max(8, Math.round(height * 0.055));
+  const ctaFs = Math.max(8, Math.round(height * 0.055));
   return [
     {
       layerId: "headline",
@@ -47,6 +51,10 @@ function defaultTextPlacements(
       opacity: 1,
       rotation: 0,
       zIndex: 30,
+      fontSize: headlineFs,
+      fontWeight: 700,
+      textAlign: "left",
+      lineHeight: 1.15,
     },
     {
       layerId: "subheadline",
@@ -58,6 +66,10 @@ function defaultTextPlacements(
       opacity: 1,
       rotation: 0,
       zIndex: 31,
+      fontSize: subFs,
+      fontWeight: 400,
+      textAlign: "left",
+      lineHeight: 1.25,
     },
     {
       layerId: "cta",
@@ -69,8 +81,44 @@ function defaultTextPlacements(
       opacity: 1,
       rotation: 0,
       zIndex: 32,
+      fontSize: ctaFs,
+      fontWeight: 600,
+      textAlign: "center",
+      lineHeight: 1.2,
     },
   ];
+}
+
+function mergeTextPlacements(
+  partial: TextLayerPlacement[] | undefined,
+  width: number,
+  height: number,
+): TextLayerPlacement[] {
+  const defaults = defaultTextPlacements(width, height);
+  if (!partial?.length) return defaults;
+  return defaults.map((def) => {
+    const existing = partial.find((p) => p.layerId === def.layerId);
+    if (!existing) return def;
+    return {
+      ...def,
+      ...existing,
+      fontSize: existing.fontSize ?? def.fontSize,
+      fontWeight: existing.fontWeight ?? def.fontWeight,
+      textAlign: existing.textAlign ?? def.textAlign,
+      lineHeight: existing.lineHeight ?? def.lineHeight,
+    };
+  });
+}
+
+function normalizeLayerAnimation(anim: LayerAnimation): LayerAnimation {
+  return {
+    ...anim,
+    enterFrom: anim.enterFrom ?? presetDefaultEnterFrom(anim.preset),
+    opacityFrom: Number.isFinite(anim.opacityFrom) ? anim.opacityFrom : 0,
+    opacityTo: Number.isFinite(anim.opacityTo) ? anim.opacityTo : 1,
+    scaleFrom: Number.isFinite(anim.scaleFrom) ? anim.scaleFrom : 1,
+    scaleTo: Number.isFinite(anim.scaleTo) ? anim.scaleTo : 1,
+  };
 }
 
 function defaultAssetPlacements(): BannerAssetPlacement[] {
@@ -88,6 +136,7 @@ export function defaultLayerAnimations(): LayerAnimation[] {
       durationMs: 600,
       easing: "ease-out",
       direction: "normal",
+      enterFrom: "none",
       distancePx: 12,
       opacityFrom: 0,
       opacityTo: 1,
@@ -103,6 +152,7 @@ export function defaultLayerAnimations(): LayerAnimation[] {
       durationMs: 700,
       easing: "ease-out",
       direction: "normal",
+      enterFrom: "right",
       distancePx: 16,
       opacityFrom: 0,
       opacityTo: 1,
@@ -118,6 +168,7 @@ export function defaultLayerAnimations(): LayerAnimation[] {
       durationMs: 700,
       easing: "ease-out",
       direction: "normal",
+      enterFrom: "up",
       distancePx: 10,
       opacityFrom: 0,
       opacityTo: 1,
@@ -133,6 +184,7 @@ export function defaultLayerAnimations(): LayerAnimation[] {
       durationMs: 600,
       easing: "ease-out",
       direction: "normal",
+      enterFrom: "none",
       distancePx: 8,
       opacityFrom: 0,
       opacityTo: 1,
@@ -148,6 +200,7 @@ export function defaultLayerAnimations(): LayerAnimation[] {
       durationMs: 1800,
       easing: "ease-in-out",
       direction: "normal",
+      enterFrom: "none",
       distancePx: 8,
       opacityFrom: 1,
       opacityTo: 1,
@@ -289,11 +342,11 @@ export function normalizeEditorState(
     shareId: partial.shareId ?? "",
     assets: partial.assets ?? [],
     assetPlacements: partial.assetPlacements ?? defaults.assetPlacements,
-    textPlacements: partial.textPlacements ?? defaults.textPlacements,
+    textPlacements: mergeTextPlacements(partial.textPlacements, width, height),
     timeline: partial.timeline ?? defaultTimeline(),
-    layerAnimations:
-      partial.layerAnimations ??
-      layerAnimationsFromLegacy(partial.animation ?? "fade-in"),
+    layerAnimations: (partial.layerAnimations ?? layerAnimationsFromLegacy(partial.animation ?? "fade-in")).map(
+      normalizeLayerAnimation,
+    ),
   };
 }
 
@@ -400,6 +453,64 @@ export function layerAnimationsForImport(complexity: "low" | "medium" | "high"):
 
 export function safeInset(width: number, height: number): number {
   return Math.max(12, Math.round(Math.min(width, height) * 0.08));
+}
+
+export function clampPlacementLoose(
+  p: Pick<TextLayerPlacement, "x" | "y" | "width" | "height">,
+  bannerWidth: number,
+  bannerHeight: number,
+  minSize = 8,
+): Pick<TextLayerPlacement, "x" | "y" | "width" | "height"> {
+  const width = clampNumber(p.width, minSize, bannerWidth * 1.2);
+  const height = clampNumber(p.height, minSize, bannerHeight * 1.2);
+  const x = clampNumber(p.x, -bannerWidth * 0.2, bannerWidth * 1.2 - width);
+  const y = clampNumber(p.y, -bannerHeight * 0.2, bannerHeight * 1.2 - height);
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    width: Math.round(width),
+    height: Math.round(height),
+  };
+}
+
+export function layerAnimIdForAsset(kind: BannerAssetPlacement["kind"], assetId: string): string {
+  return kind === "decoration" ? `decoration-${assetId}` : kind;
+}
+
+export function resolveSelectedLayer(
+  state: BannerEditorState,
+  selected: SelectedLayer,
+): SelectedLayer {
+  if (selected.type === "text") {
+    const exists = (state.textPlacements ?? []).some((p) => p.layerId === selected.id);
+    return exists ? selected : { type: "text", id: "headline" };
+  }
+  const exists = (state.assetPlacements ?? []).some((p) => p.assetId === selected.id);
+  if (exists) return selected;
+  const first = (state.assetPlacements ?? [])[0];
+  if (first) return { type: "asset", id: first.assetId };
+  return { type: "text", id: "headline" };
+}
+
+export function clampTextPlacementFields(
+  p: TextLayerPlacement,
+  bannerWidth: number,
+  bannerHeight: number,
+): TextLayerPlacement {
+  const defaults = defaultTextPlacements(bannerWidth, bannerHeight).find(
+    (d) => d.layerId === p.layerId,
+  );
+  const geom = clampPlacementLoose(p, bannerWidth, bannerHeight);
+  const fontSize = p.fontSize ?? defaults?.fontSize ?? 12;
+  return {
+    ...p,
+    ...geom,
+    fontSize: clampNumber(fontSize, 6, Math.round(bannerHeight * 0.4)),
+    fontWeight: clampNumber(p.fontWeight ?? defaults?.fontWeight ?? 400, 100, 900),
+    lineHeight: clampNumber(p.lineHeight ?? defaults?.lineHeight ?? 1.2, 0.8, 2.5),
+    textAlign: p.textAlign ?? defaults?.textAlign ?? "left",
+    opacity: clampNumber(p.opacity, 0, 1),
+  };
 }
 
 export function clampPlacementToBanner(

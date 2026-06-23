@@ -1,40 +1,27 @@
 import {
   buildLayerAnimationStyle,
-  collectUniqueKeyframes,
+  collectLayerKeyframes,
   presetClassName,
 } from "@/lib/animation/animation-presets";
+import { getTextPlacement } from "@/lib/animation/timeline-utils";
 import type { BannerEditorState } from "@/types/editor";
 import { sanitizeCssColor } from "./sanitize-export-content";
 
-function fontSize(width: number, height: number, base: number): string {
-  const scale = Math.min(width, height) / 300;
-  return `${Math.max(8, Math.round(base * scale))}px`;
-}
-
 function buildAnimationRules(state: BannerEditorState): string {
   const anims = state.layerAnimations ?? [];
-  const presets = anims
-    .filter((a) => a.enabled && a.preset !== "none")
-    .map((a) => a.preset);
-
-  const keyframes = collectUniqueKeyframes(presets, 12, true);
-  const rules: string[] = [];
-
-  if (keyframes) rules.push(keyframes);
+  const keyframes = collectLayerKeyframes(anims, true, 0);
+  const rules: string[] = keyframes ? [keyframes] : [];
 
   for (const anim of anims) {
     if (!anim.enabled || anim.preset === "none") continue;
     const style = buildLayerAnimationStyle(
-      anim.preset,
-      anim.startMs,
-      anim.durationMs,
-      anim.easing,
+      anim,
       state.timeline?.loop ?? false,
-      anim.distancePx,
       true,
+      0,
     );
     if (style) {
-      rules.push(`.${presetClassName(anim.layerId)} { ${style} }`);
+      rules.push(`.${presetClassName(anim.layerId, 0)} { ${style} }`);
     }
   }
 
@@ -48,17 +35,15 @@ export function generateBannerCss(state: BannerEditorState): string {
   const ctaText = sanitizeCssColor(state.ctaTextColor, "#ffffff");
   const accent = sanitizeCssColor(state.accentColor, "#a78bfa");
 
-  const headlineSize = fontSize(state.width, state.height, 16);
-  const subSize = fontSize(state.width, state.height, 11);
-  const ctaSize = fontSize(state.width, state.height, 11);
-  const labelSize = fontSize(state.width, state.height, 9);
+  const headlinePl = getTextPlacement(state, "headline");
+  const subPl = getTextPlacement(state, "subheadline");
+  const ctaPl = getTextPlacement(state, "cta");
 
   const hasBgImage = (state.assetPlacements ?? []).some(
     (p) => p.visible && p.kind === "background" && (state.assets ?? []).some((a) => a.id === p.assetId),
   );
 
   const bannerBg = hasBgImage ? "transparent" : bg;
-
   const animationBlock = buildAnimationRules(state);
 
   return `*, *::before, *::after { box-sizing: border-box; }
@@ -102,25 +87,29 @@ body {
   justify-content: center;
   border: 1px dashed ${accent};
   color: ${accent};
-  font-size: ${labelSize};
+  font-size: 9px;
   text-align: center;
   background: ${bg};
 }
 .layer--headline {
   margin: 0;
-  font-size: ${headlineSize};
-  line-height: 1.15;
-  font-weight: 700;
+  font-size: ${headlinePl?.fontSize ?? 16}px;
+  line-height: ${headlinePl?.lineHeight ?? 1.15};
+  font-weight: ${headlinePl?.fontWeight ?? 700};
+  text-align: ${headlinePl?.textAlign ?? "left"};
   display: flex;
   align-items: center;
+  justify-content: ${headlinePl?.textAlign === "center" ? "center" : headlinePl?.textAlign === "right" ? "flex-end" : "flex-start"};
 }
 .layer--subheadline {
   margin: 0;
-  font-size: ${subSize};
-  line-height: 1.25;
-  opacity: 0.9;
+  font-size: ${subPl?.fontSize ?? 11}px;
+  line-height: ${subPl?.lineHeight ?? 1.25};
+  font-weight: ${subPl?.fontWeight ?? 400};
+  text-align: ${subPl?.textAlign ?? "left"};
   display: flex;
   align-items: center;
+  justify-content: ${subPl?.textAlign === "center" ? "center" : subPl?.textAlign === "right" ? "flex-end" : "flex-start"};
 }
 .layer--cta {
   display: inline-flex;
@@ -130,9 +119,10 @@ body {
   border-radius: 4px;
   background: ${ctaBg};
   color: ${ctaText};
-  font-size: ${ctaSize};
-  font-weight: 600;
-  line-height: 1.2;
+  font-size: ${ctaPl?.fontSize ?? 11}px;
+  font-weight: ${ctaPl?.fontWeight ?? 600};
+  line-height: ${ctaPl?.lineHeight ?? 1.2};
+  text-align: ${ctaPl?.textAlign ?? "center"};
 }
 ${animationBlock}`;
 }

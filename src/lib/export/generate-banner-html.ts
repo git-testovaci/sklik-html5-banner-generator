@@ -72,6 +72,7 @@ export function generateBannerHtml(
       const kind = placement.kind;
       const layerId = kind === "decoration" ? `decoration-${placement.assetId}` : kind;
       const cls = `layer layer--${kind}${animClass(state, layerId)}`;
+      const dataLayer = kind === "decoration" ? ` data-layer="decoration-${placement.assetId}"` : ` data-layer="${kind}"`;
       const style = layerStyle(
         placement.x,
         placement.y,
@@ -85,25 +86,25 @@ export function generateBannerHtml(
       const shadow = placement.shadow ? " box-shadow:0 4px 12px rgba(0,0,0,0.25);" : "";
 
       if (path) {
-        return `    <div class="${cls}" style="${style}${radius}${shadow}"><img class="layer__img layer__img--${placement.fit}" src="${escapeHtmlAttribute(path)}" alt=""></div>`;
+        return `    <div class="${cls}"${dataLayer} style="${style}${radius}${shadow}"><img class="layer__img layer__img--${placement.fit}" src="${escapeHtmlAttribute(path)}" alt=""></div>`;
       }
 
       const placeholder =
         kind === "logo" ? logo : kind === "product" ? product : kind;
-      return `    <div class="${cls} layer--placeholder" style="${style}${radius}${shadow}"><span>${escapeHtmlText(placeholder)}</span></div>`;
+      return `    <div class="${cls} layer--placeholder"${dataLayer} style="${style}${radius}${shadow}"><span>${escapeHtmlText(placeholder)}</span></div>`;
     })
     .join("\n");
 
   const headlineHtml = headlinePl?.visible !== false
-    ? `    <h1 class="layer layer--headline${animClass(state, "headline")}" style="${layerStyle(headlinePl?.x ?? 8, headlinePl?.y ?? 28, headlinePl?.width ?? state.width * 0.5, headlinePl?.height ?? 40, headlinePl?.zIndex ?? 30, headlinePl?.opacity ?? 1, headlinePl?.rotation ?? 0)}">${headline}</h1>`
+    ? `    <h1 class="layer layer--headline${animClass(state, "headline")}" data-layer="headline" style="${layerStyle(headlinePl?.x ?? 8, headlinePl?.y ?? 28, headlinePl?.width ?? state.width * 0.5, headlinePl?.height ?? 40, headlinePl?.zIndex ?? 30, headlinePl?.opacity ?? 1, headlinePl?.rotation ?? 0)}">${headline}</h1>`
     : "";
 
   const subHtml = subPl?.visible !== false
-    ? `    <p class="layer layer--subheadline${animClass(state, "subheadline")}" style="${layerStyle(subPl?.x ?? 8, subPl?.y ?? 50, subPl?.width ?? state.width * 0.5, subPl?.height ?? 30, subPl?.zIndex ?? 31, subPl?.opacity ?? 1, subPl?.rotation ?? 0)}">${subheadline}</p>`
+    ? `    <p class="layer layer--subheadline${animClass(state, "subheadline")}" data-layer="subheadline" style="${layerStyle(subPl?.x ?? 8, subPl?.y ?? 50, subPl?.width ?? state.width * 0.5, subPl?.height ?? 30, subPl?.zIndex ?? 31, subPl?.opacity ?? 1, subPl?.rotation ?? 0)}">${subheadline}</p>`
     : "";
 
   const ctaHtml = ctaPl?.visible !== false
-    ? `    <span class="layer layer--cta${animClass(state, "cta")}" style="${layerStyle(ctaPl?.x ?? 8, ctaPl?.y ?? 72, ctaPl?.width ?? state.width * 0.35, ctaPl?.height ?? 28, ctaPl?.zIndex ?? 32, ctaPl?.opacity ?? 1, ctaPl?.rotation ?? 0)}">${cta}</span>`
+    ? `    <span class="layer layer--cta${animClass(state, "cta")}" data-layer="cta" style="${layerStyle(ctaPl?.x ?? 8, ctaPl?.y ?? 72, ctaPl?.width ?? state.width * 0.35, ctaPl?.height ?? 28, ctaPl?.zIndex ?? 32, ctaPl?.opacity ?? 1, ctaPl?.rotation ?? 0)}">${cta}</span>`
     : "";
 
   return `<!doctype html>

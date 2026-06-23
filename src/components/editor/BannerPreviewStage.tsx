@@ -2,26 +2,41 @@
 
 import { useEffect, useRef, useState } from "react";
 import { formatBannerSize } from "@/lib/banner-sizes";
-import type { BannerEditorState, BannerEditorStateUpdater } from "@/types/editor";
+import {
+  clampPlacementLoose,
+  clampTextPlacementFields,
+} from "@/lib/animation/timeline-utils";
+import type { BannerAssetPlacement, TextLayerPlacement } from "@/types/assets";
+import type { BannerEditorState, BannerEditorStateUpdater, SelectedLayer } from "@/types/editor";
 import { BannerPreview } from "./BannerPreview";
 import { PreviewPlaybackControls } from "./PreviewPlaybackControls";
 
 interface BannerPreviewStageProps {
   state: BannerEditorState;
   onUpdate?: BannerEditorStateUpdater;
+  selectedLayer: SelectedLayer;
+  onSelectLayer: (layer: SelectedLayer) => void;
+  replayKey: number;
+  onReplay: () => void;
 }
 
-export function BannerPreviewStage({ state, onUpdate }: BannerPreviewStageProps) {
+export function BannerPreviewStage({
+  state,
+  onUpdate,
+  selectedLayer,
+  onSelectLayer,
+  replayKey,
+  onReplay,
+}: BannerPreviewStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
-  const [replayKey, setReplayKey] = useState(0);
   const [showSafeArea, setShowSafeArea] = useState(false);
   const loopPreview = state.timeline?.loop ?? false;
 
   useEffect(() => {
     function updateScale() {
       const container = containerRef.current;
-      if (!container) return;
+      if (!container || container.clientWidth <= 0) return;
       const padding = 48;
       const sx = (container.clientWidth - padding) / state.width;
       const sy = (container.clientHeight - padding) / state.height;
@@ -31,6 +46,29 @@ export function BannerPreviewStage({ state, onUpdate }: BannerPreviewStageProps)
     window.addEventListener("resize", updateScale);
     return () => window.removeEventListener("resize", updateScale);
   }, [state.width, state.height]);
+
+  function updateTextPlacement(
+    layerId: TextLayerPlacement["layerId"],
+    patch: Partial<TextLayerPlacement>,
+  ) {
+    onUpdate?.({
+      textPlacements: (state.textPlacements ?? []).map((p) =>
+        p.layerId === layerId
+          ? clampTextPlacementFields({ ...p, ...patch }, state.width, state.height)
+          : p,
+      ),
+    });
+  }
+
+  function updateAssetPlacement(assetId: string, patch: Partial<BannerAssetPlacement>) {
+    onUpdate?.({
+      assetPlacements: (state.assetPlacements ?? []).map((p) => {
+        if (p.assetId !== assetId) return p;
+        const merged = { ...p, ...patch };
+        return { ...merged, ...clampPlacementLoose(merged, state.width, state.height) };
+      }),
+    });
+  }
 
   const sizeLabel = formatBannerSize(state.width, state.height);
 
@@ -72,13 +110,19 @@ export function BannerPreviewStage({ state, onUpdate }: BannerPreviewStageProps)
             replayKey={replayKey}
             loopPreview={loopPreview}
             showSafeArea={showSafeArea}
+            interactive
+            canvasScale={scale}
+            selectedLayer={selectedLayer}
+            onSelectLayer={onSelectLayer}
+            onUpdateTextPlacement={updateTextPlacement}
+            onUpdateAssetPlacement={updateAssetPlacement}
           />
         </div>
       </div>
 
       <PreviewPlaybackControls
         loop={loopPreview}
-        onReplay={() => setReplayKey((k) => k + 1)}
+        onReplay={onReplay}
         onToggleLoop={(loop) =>
           onUpdate?.({
             timeline: {
@@ -91,7 +135,7 @@ export function BannerPreviewStage({ state, onUpdate }: BannerPreviewStageProps)
       />
 
       <p className="border-t border-zinc-800/60 px-4 py-2 text-center text-xs text-zinc-600">
-        Scaled to {Math.round(scale * 100)}% · Replay to test timeline animations
+        Drag layers on canvas · Scaled to {Math.round(scale * 100)}% · Replay restarts animations
       </p>
     </section>
   );
