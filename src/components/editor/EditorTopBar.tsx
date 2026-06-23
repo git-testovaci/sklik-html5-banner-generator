@@ -10,6 +10,7 @@ interface EditorTopBarProps {
   state: BannerEditorState;
   hasUnsavedChanges: boolean;
   saveStatus: "idle" | "saved";
+  saveError?: string | null;
   onSave: () => void;
 }
 
@@ -17,6 +18,7 @@ export function EditorTopBar({
   state,
   hasUnsavedChanges,
   saveStatus,
+  saveError = null,
   onSave,
 }: EditorTopBarProps) {
   const sizeLabel = formatBannerSize(state.width, state.height);
@@ -48,6 +50,9 @@ export function EditorTopBar({
             <span className="text-xs font-medium text-amber-400">Unsaved changes</span>
           ) : saveStatus === "saved" ? (
             <span className="text-xs font-medium text-emerald-400">Saved locally</span>
+          ) : null}
+          {saveError ? (
+            <span className="text-xs font-medium text-red-400" role="alert">{saveError}</span>
           ) : null}
           <Link
             href={previewPath}

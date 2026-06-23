@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { downloadBlob } from "@/lib/export/download-blob";
 import { generateSklikZip } from "@/lib/export/generate-sklik-zip";
 import { getPreviewUrl } from "@/lib/share-links";
@@ -88,6 +88,14 @@ export function ValidationExportPanel({
   const [exportResult, setExportResult] = useState<SklikZipExportResult | null>(
     null,
   );
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const overall = OVERALL_LABELS[validation.overallStatus];
   const exportSummary = exportResult
@@ -114,20 +122,36 @@ export function ValidationExportPanel({
 
     try {
       const result = await generateSklikZip(state);
+      if (!mountedRef.current) return;
+
       setExportResult(result);
 
-      if (result.validationReport.summaryStatus !== "fail") {
+      const missingAsset = result.validationReport.rows.some(
+        (r) => r.id.startsWith("missing-asset") && r.status === "fail",
+      );
+
+      if (missingAsset) {
+        setExportError(
+          result.validationReport.rows.find((r) => r.id.startsWith("missing-asset"))
+            ?.message ?? "Export blocked — fix missing asset blobs first.",
+        );
+      } else if (result.validationReport.summaryStatus !== "fail") {
         const downloaded = downloadBlob(result.zipBlob, result.fileName);
         setDownloadStarted(downloaded);
         if (!downloaded) {
           setExportError("ZIP generated but download could not start.");
         }
+      } else {
+        setExportError("Export validation failed. Review the checks above.");
       }
     } catch {
+      if (!mountedRef.current) return;
       setExportError("ZIP generation failed. Try again.");
       setExportResult(null);
     } finally {
-      setExporting(false);
+      if (mountedRef.current) {
+        setExporting(false);
+      }
     }
   }
 

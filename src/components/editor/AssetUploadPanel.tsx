@@ -45,8 +45,15 @@ export function AssetUploadPanel({ state, onUpdate }: AssetUploadPanelProps) {
       setLoading(kind);
       try {
         const { blob, compressed } = await compressImageIfNeeded(file);
-        const dims = await readImageDimensions(blob);
         const mimeType = compressed && blob.type ? blob.type : resolveMimeType(file);
+        const dims = await readImageDimensions(blob);
+        if (!dims && mimeType !== "image/svg+xml") {
+          setErrors((prev) => ({
+            ...prev,
+            [kind]: "Could not read image. Try another file or format.",
+          }));
+          return;
+        }
         const assetId = `asset-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
         const saveResult = await saveAssetBlob(assetId, blob);

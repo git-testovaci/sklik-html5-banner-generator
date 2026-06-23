@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   analyzeImportedBannerZip,
 } from "@/lib/html5-import/analyze-imported-banner";
@@ -28,6 +28,17 @@ export function ImportBannerClient() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [blobUrls, setBlobUrls] = useState<string[]>([]);
+  const blobUrlsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    blobUrlsRef.current = blobUrls;
+  }, [blobUrls]);
+
+  useEffect(() => {
+    return () => {
+      revokeBlobUrls(blobUrlsRef.current);
+    };
+  }, []);
 
   const handleFile = useCallback(async (file: File) => {
     if (!file.name.toLowerCase().endsWith(".zip")) {
@@ -37,7 +48,7 @@ export function ImportBannerClient() {
 
     setLoading(true);
     setError(null);
-    revokeBlobUrls(blobUrls);
+    revokeBlobUrls(blobUrlsRef.current);
     setBlobUrls([]);
 
     try {
@@ -53,7 +64,7 @@ export function ImportBannerClient() {
     } finally {
       setLoading(false);
     }
-  }, [blobUrls]);
+  }, []);
 
   const previewWidth = analysis?.dimensions?.width ?? 300;
   const previewHeight = analysis?.dimensions?.height ?? 250;

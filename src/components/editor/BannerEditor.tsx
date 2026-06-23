@@ -2,9 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { normalizeEditorState, projectToEditorState } from "@/lib/animation/timeline-utils";
-import { getProjectById } from "@/lib/mock-projects";
-import { editorStateToProject } from "@/lib/project-factory";
+import { normalizeEditorState, projectToEditorState, editorStateToProject } from "@/lib/animation/timeline-utils";
 import {
   getProjectByIdSnapshot,
   getStoredProjectById,
@@ -74,6 +72,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
     normalizeEditorState(initialState),
   );
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [selectedLayer, setSelectedLayer] = useState<SelectedLayer>({
     type: "text",
     id: "headline",
@@ -82,20 +81,27 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   const onUpdate: BannerEditorStateUpdater = (patch) => {
     setState((prev) => normalizeEditorState({ ...prev, ...patch }));
     setSaveStatus("idle");
+    setSaveError(null);
   };
 
   const hasUnsavedChanges = !editorStatesEqual(state, savedState);
   const validation = useMemo(() => getValidationSummary(state), [state]);
 
   function handleSave() {
-    const existing =
-      getStoredProjectById(projectId) ?? getProjectById(projectId);
+    if (!getStoredProjectById(projectId)) {
+      setSaveError("This project was removed. Return to the dashboard.");
+      setSaveStatus("idle");
+      return;
+    }
+
+    const existing = getStoredProjectById(projectId);
     const project = editorStateToProject(state, existing);
     upsertProject(project);
     const nextState = normalizeEditorState(projectToEditorState(project));
     setState(nextState);
     setSavedState(nextState);
     setSaveStatus("saved");
+    setSaveError(null);
   }
 
   return (
@@ -104,6 +110,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
         state={state}
         hasUnsavedChanges={hasUnsavedChanges}
         saveStatus={saveStatus}
+        saveError={saveError}
         onSave={handleSave}
       />
 

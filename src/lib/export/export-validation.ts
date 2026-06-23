@@ -26,9 +26,12 @@ const DANGEROUS_JS = [
 
 const EXTERNAL_PATTERNS = [
   /https?:\/\//i,
-  /\/\//,
+  /url\s*\(\s*['"]?\/\//i,
   /@import/i,
   /url\s*\(\s*['"]?https?:/i,
+  /<script[^>]+src\s*=\s*["']https?:/i,
+  /<link[^>]+href\s*=\s*["']https?:/i,
+  /<img[^>]+src\s*=\s*["']https?:/i,
 ];
 
 function row(

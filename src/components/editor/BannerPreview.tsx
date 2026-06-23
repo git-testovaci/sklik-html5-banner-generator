@@ -27,6 +27,7 @@ function useAssetUrls(assetIds: string[]) {
   const assetIdsKey = assetIds.join(",");
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [missing, setMissing] = useState<Set<string>>(new Set());
+  const [loadedKey, setLoadedKey] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -42,6 +43,7 @@ function useAssetUrls(assetIds: string[]) {
       if (!cancelled) {
         setUrls(next);
         setMissing(miss);
+        setLoadedKey(assetIdsKey);
       }
     }
 
@@ -51,7 +53,8 @@ function useAssetUrls(assetIds: string[]) {
     };
   }, [assetIdsKey, assetIds]);
 
-  return { urls, missing };
+  const urlsReady = loadedKey === assetIdsKey;
+  return { urls: urlsReady ? urls : {}, missing, urlsReady };
 }
 
 export function BannerPreview({
@@ -64,7 +67,7 @@ export function BannerPreview({
   const state = useMemo(() => normalizeEditorState(rawState), [rawState]);
   const assets = useMemo(() => state.assets ?? [], [state.assets]);
   const assetIds = useMemo(() => assets.map((a) => a.id), [assets]);
-  const { urls, missing } = useAssetUrls(assetIds);
+  const { urls, missing, urlsReady } = useAssetUrls(assetIds);
 
   const animationCss = useMemo(() => {
     const presets = (state.layerAnimations ?? [])
@@ -152,7 +155,7 @@ export function BannerPreview({
                 className="flex h-full w-full items-center justify-center border border-dashed text-[10px] uppercase"
                 style={{ borderColor: `${state.accentColor}66`, color: state.accentColor }}
               >
-                {isMissing ? "Missing image" : "Loading…"}
+                {urlsReady && isMissing ? "Missing image" : "Loading…"}
               </div>
             )}
           </div>
@@ -264,7 +267,7 @@ export function BannerPreview({
     }
 
     return items.sort((a, b) => a.zIndex - b.zIndex);
-  }, [state, assets, urls, missing, replayKey]);
+  }, [state, assets, urls, missing, replayKey, urlsReady]);
 
   return (
     <>
