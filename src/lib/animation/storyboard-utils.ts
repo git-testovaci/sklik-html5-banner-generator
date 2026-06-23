@@ -256,14 +256,33 @@ export function migrateToStoryboard(state: BannerEditorState): BannerEditorState
     effects.push(layerEffectFromAnimation(anim, scene.id));
   }
 
+  const timedLayers = ensureDefaultLayerTimings(layers, scene.durationMs);
+
   return {
     ...state,
     scenes: [scene],
-    bannerLayers: layers,
+    bannerLayers: timedLayers,
     layerEffects: effects,
     layerKeyframes: state.layerKeyframes ?? [],
     activeSceneId: scene.id,
   };
+}
+
+function ensureDefaultLayerTimings(
+  layers: BannerLayer[],
+  sceneDurationMs: number,
+): BannerLayer[] {
+  return layers.map((layer) => {
+    if (layer.timelineStartMs !== undefined && layer.timelineDurationMs !== undefined) {
+      return layer;
+    }
+    let startMs = 0;
+    if (layer.legacyKey === "subheadline") startMs = 250;
+    else if (layer.legacyKey === "cta") startMs = Math.round(sceneDurationMs * 0.55);
+    else if (layer.legacyKey === "product") startMs = 400;
+    const durationMs = Math.max(100, sceneDurationMs - startMs);
+    return { ...layer, timelineStartMs: startMs, timelineDurationMs: durationMs };
+  });
 }
 
 function rebuildLayersFromFlat(

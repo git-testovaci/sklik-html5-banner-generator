@@ -8,14 +8,20 @@ import type { BannerEditorState } from "@/types/editor";
 import type {
   StoryboardTemplateId,
   TemplateEffectSpec,
+  TemplateLayerTiming,
 } from "@/types/storyboard-templates";
 import {
-  addLayerEffect,
   defaultScene,
-  syncFlatFromActiveScene,
 } from "@/lib/animation/storyboard-utils";
 import { normalizeEditorState } from "@/lib/animation/timeline-utils";
 import type { StoryboardTemplateDefinition } from "@/types/storyboard-templates";
+import {
+  applyTemplateSceneTimings,
+  capCutSceneTimings,
+  effectsToLayerTimings,
+  fullSceneTiming,
+  normalizeStoryboardTemplateState,
+} from "@/lib/templates/template-timeline";
 
 interface TemplateCtx {
   width: number;
@@ -32,7 +38,9 @@ interface SceneSpec {
   transitionOut: BannerSceneTransition;
   backgroundColor?: string;
   buildLayers: (ctx: TemplateCtx, sceneId: string, refs: Map<string, string>) => BannerLayer[];
-  effects: TemplateEffectSpec[];
+  /** @deprecated Use layerTimings — kept for backward-compatible builders */
+  effects?: TemplateEffectSpec[];
+  layerTimings?: TemplateLayerTiming[] | ((durationMs: number) => TemplateLayerTiming[]);
 }
 
 function padFor(w: number, h: number): number {
@@ -104,6 +112,12 @@ function productFrame(
     assetId,
     fit: "contain",
     shadow: true,
+    text: assetId ? undefined : "Produkt",
+    fontSize: Math.max(9, Math.round(Math.min(width, height) * 0.12)),
+    fontWeight: 600,
+    textAlign: "center",
+    fill: "#334155",
+    color: "#94a3b8",
     legacyKey: assetId ? "product" : "decoration",
     isTemplateSlot: !assetId,
     slotId: ref,
@@ -132,7 +146,7 @@ function persistentLogo(ctx: TemplateCtx): BannerLayer {
     assetId: logoAssetId,
     fit: "contain",
     legacyKey: "logo",
-    text: logoAssetId ? undefined : undefined,
+    text: logoAssetId ? undefined : ctx.state.logoLabel || "Logo",
     fontSize: Math.round(height * 0.045),
     fontWeight: 700,
     textAlign: "center",
@@ -316,8 +330,9 @@ function buildFromScenes(
     productAssetId: (state.assets ?? []).find((a) => a.kind === "product")?.id,
   };
 
-  const logo = persistentLogo(ctx);
   const refs = new Map<string, string>();
+  const logo = persistentLogo(ctx);
+  refs.set("logo", logo.id);
   const builtScenes: BannerScene[] = [];
   const layers: BannerLayer[] = [logo];
   const effects: LayerEffect[] = [];
@@ -357,31 +372,28 @@ function buildFromScenes(
     layerAnimations: undefined,
   });
 
-  for (const spec of scenes) {
-    const scene = builtScenes.find((s) => s.name === spec.name);
+  for (let i = 0; i < scenes.length; i++) {
+    const spec = scenes[i];
+    const scene = builtScenes[i];
     if (!scene) continue;
-    for (const fx of spec.effects) {
-      const layerId = refs.get(fx.layerRef) ?? fx.layerRef;
-      next = addLayerEffect(next, layerId, fx.preset);
-      const last = (next.layerEffects ?? [])[next.layerEffects!.length - 1];
-      if (last && (fx.startMs !== undefined || fx.durationMs !== undefined)) {
-        next = {
-          ...next,
-          layerEffects: (next.layerEffects ?? []).map((e) =>
-            e.id === last.id
-              ? {
-                  ...e,
-                  startMs: fx.startMs ?? e.startMs,
-                  durationMs: fx.durationMs ?? e.durationMs,
-                }
-              : e,
-          ),
-        };
-      }
-    }
+
+    const resolvedTimings =
+      typeof spec.layerTimings === "function"
+        ? spec.layerTimings(scene.durationMs)
+        : spec.layerTimings ??
+          (spec.effects?.length
+            ? effectsToLayerTimings(spec.effects, scene.durationMs)
+            : []);
+
+    const logoTiming = capCutSceneTimings(scene.durationMs, { logo: "logo" }).filter(
+      (t) => t.layerRef === "logo",
+    );
+    const merged = [...logoTiming, ...resolvedTimings];
+
+    next = applyTemplateSceneTimings(next, scene.id, scene.durationMs, refs, merged);
   }
 
-  return syncFlatFromActiveScene(next);
+  return normalizeStoryboardTemplateState(next);
 }
 
 export const STORYBOARD_TEMPLATES: StoryboardTemplateDefinition[] = [
@@ -396,6 +408,7 @@ export const STORYBOARD_TEMPLATES: StoryboardTemplateDefinition[] = [
     recommended: true,
     totalDurationMs: 9500,
     transitionStyle: "Přechod doleva",
+    tags: ["Produkt", "Premium"],
     requiredSlots: [
       { kind: "logo", label: "Logo", required: true },
       { kind: "product", label: "Produkt", required: false },
@@ -411,6 +424,7 @@ export const STORYBOARD_TEMPLATES: StoryboardTemplateDefinition[] = [
     useCase: "E-commerce akce a výprodeje",
     totalDurationMs: 9000,
     transitionStyle: "Posun doleva",
+    tags: ["Sleva", "Rychlý prodej"],
     requiredSlots: [
       { kind: "product", label: "Produkt", required: true },
       { kind: "logo", label: "Logo", required: false },
@@ -426,6 +440,7 @@ export const STORYBOARD_TEMPLATES: StoryboardTemplateDefinition[] = [
     useCase: "Launch novinek a prémiových produktů",
     totalDurationMs: 10000,
     transitionStyle: "Prolnutí",
+    tags: ["Produkt", "Premium"],
     requiredSlots: [
       { kind: "logo", label: "Logo", required: true },
       { kind: "product", label: "Produkt", required: true },
@@ -441,6 +456,7 @@ export const STORYBOARD_TEMPLATES: StoryboardTemplateDefinition[] = [
     useCase: "Wellness, péče o zdraví",
     totalDurationMs: 9600,
     transitionStyle: "Přechod doleva",
+    tags: ["Produkt"],
     requiredSlots: [
       { kind: "logo", label: "Logo", required: false },
       { kind: "product", label: "Produkt", required: true },
@@ -456,6 +472,7 @@ export const STORYBOARD_TEMPLATES: StoryboardTemplateDefinition[] = [
     useCase: "Pojištění, finance, služby",
     totalDurationMs: 9000,
     transitionStyle: "Prolnutí",
+    tags: ["Premium"],
     requiredSlots: [{ kind: "logo", label: "Logo", required: true }],
   },
   {
@@ -468,6 +485,7 @@ export const STORYBOARD_TEMPLATES: StoryboardTemplateDefinition[] = [
     useCase: "Cestovní kanceláře a hotely",
     totalDurationMs: 9600,
     transitionStyle: "Přechod doleva",
+    tags: ["Produkt", "Sleva"],
     requiredSlots: [
       { kind: "background", label: "Pozadí", required: false },
       { kind: "product", label: "Destinace", required: false },
@@ -483,6 +501,7 @@ export const STORYBOARD_TEMPLATES: StoryboardTemplateDefinition[] = [
     useCase: "Webové aplikace a SaaS",
     totalDurationMs: 9600,
     transitionStyle: "Posun doleva",
+    tags: ["Premium", "Produkt"],
     requiredSlots: [
       { kind: "logo", label: "Logo", required: true },
       { kind: "product", label: "Screenshot", required: true },
@@ -498,6 +517,7 @@ export const STORYBOARD_TEMPLATES: StoryboardTemplateDefinition[] = [
     useCase: "Řemeslníci, servis, lokální firmy",
     totalDurationMs: 9000,
     transitionStyle: "Prolnutí",
+    tags: ["Lokální služba", "Rychlý prodej"],
     requiredSlots: [{ kind: "logo", label: "Logo", required: true }],
   },
 ];
@@ -522,6 +542,7 @@ function buildCleanAirProduct(state: BannerEditorState): BannerEditorState {
         transitionOut: "swipe-left",
         buildLayers: (ctx, sceneId, refs) => {
           refs.set("headline", "s1-headline");
+          refs.set("sub", "s1-sub");
           refs.set("product", "s1-product");
           refs.set("underline", "s1-underline");
           refs.set("particles", "s1-particles");
@@ -576,10 +597,20 @@ function buildCleanAirProduct(state: BannerEditorState): BannerEditorState {
             ]),
           ];
         },
-        effects: [
-          { layerRef: "headline", preset: "slight-drop-in", startMs: 0 },
-          { layerRef: "product", preset: "slide-in-left", startMs: 250 },
-          { layerRef: "underline", preset: "underline-draw", startMs: 500 },
+        layerTimings: (dur) => [
+          ...capCutSceneTimings(dur, {
+            headline: "headline",
+            subheadline: "sub",
+            product: "product",
+          }),
+          fullSceneTiming("underline", dur, "fade-in"),
+          {
+            layerRef: "particles",
+            startMs: 180,
+            durationMs: dur - 180,
+            inUi: "fade-in",
+            inDurationMs: 650,
+          },
         ],
       },
       {
@@ -588,6 +619,7 @@ function buildCleanAirProduct(state: BannerEditorState): BannerEditorState {
         transitionOut: "swipe-left",
         buildLayers: (ctx, sceneId, refs) => {
           refs.set("headline", "s2-headline");
+          refs.set("sub", "s2-sub");
           refs.set("image", "s2-image");
           refs.set("underline", "s2-underline");
           refs.set("particles", "s2-particles");
@@ -645,10 +677,14 @@ function buildCleanAirProduct(state: BannerEditorState): BannerEditorState {
             ]),
           ];
         },
-        effects: [
-          { layerRef: "headline", preset: "enter-from-top", startMs: 0 },
-          { layerRef: "image", preset: "fade-in", startMs: 200 },
-          { layerRef: "underline", preset: "underline-draw", startMs: 450 },
+        layerTimings: (dur) => [
+          ...capCutSceneTimings(dur, {
+            headline: "headline",
+            subheadline: "sub",
+            product: "image",
+          }),
+          fullSceneTiming("underline", dur, "fade-in"),
+          fullSceneTiming("particles", dur, "fade-in"),
         ],
       },
       {
@@ -712,14 +748,38 @@ function buildCleanAirProduct(state: BannerEditorState): BannerEditorState {
           }
           return lineup;
         },
-        effects: [
-          { layerRef: "headline", preset: "fade-in", startMs: 0 },
-          { layerRef: "lineup-0", preset: "slide-in-left", startMs: 200 },
-          { layerRef: "lineup-1", preset: "slide-in-left", startMs: 350 },
-          { layerRef: "lineup-2", preset: "slide-in-left", startMs: 500 },
-          { layerRef: "badge", preset: "flip-180", startMs: 700 },
-          { layerRef: "circle", preset: "zoom-rotate-badge", startMs: 850 },
-          { layerRef: "cta", preset: "float-subtle", startMs: 1000, durationMs: 1200 },
+        layerTimings: (dur) => [
+          ...capCutSceneTimings(dur, { headline: "headline", cta: "cta", badge: "badge" }),
+          {
+            layerRef: "circle",
+            startMs: Math.round(dur * 0.42),
+            durationMs: Math.round(dur * 0.45),
+            inUi: "zoom-in",
+            inDurationMs: 500,
+            loopUi: "pulse",
+            loopDurationMs: 1200,
+          },
+          {
+            layerRef: "lineup-0",
+            startMs: 350,
+            durationMs: dur - 350,
+            inUi: "slide-left",
+            inDurationMs: 500,
+          },
+          {
+            layerRef: "lineup-1",
+            startMs: 520,
+            durationMs: dur - 520,
+            inUi: "slide-left",
+            inDurationMs: 500,
+          },
+          {
+            layerRef: "lineup-2",
+            startMs: 690,
+            durationMs: dur - 690,
+            inUi: "slide-left",
+            inDurationMs: 500,
+          },
         ],
       },
     ],
@@ -738,6 +798,7 @@ function buildFlashSale(state: BannerEditorState): BannerEditorState {
       transitionOut: "push-left",
       buildLayers: (ctx, sceneId, refs) => {
         refs.set("discount", "fs-discount");
+        refs.set("tag", "fs-tag");
         return [
           textLayer(
             "fs-discount",
@@ -763,7 +824,8 @@ function buildFlashSale(state: BannerEditorState): BannerEditorState {
           ),
         ];
       },
-      effects: [{ layerRef: "discount", preset: "zoom-in", startMs: 0 }],
+      layerTimings: (dur) =>
+        capCutSceneTimings(dur, { headline: "discount", subheadline: "tag" }),
     },
     {
       name: "Produkt",
@@ -795,10 +857,8 @@ function buildFlashSale(state: BannerEditorState): BannerEditorState {
           ),
         ];
       },
-      effects: [
-        { layerRef: "product", preset: "slide-in-right", startMs: 150 },
-        { layerRef: "deadline", preset: "enter-from-left", startMs: 0 },
-      ],
+      layerTimings: (dur) =>
+        capCutSceneTimings(dur, { headline: "deadline", product: "product" }),
     },
     {
       name: "CTA",
@@ -825,7 +885,7 @@ function buildFlashSale(state: BannerEditorState): BannerEditorState {
           ),
         ];
       },
-      effects: [{ layerRef: "cta", preset: "float-subtle", startMs: 200, durationMs: 1400 }],
+      layerTimings: (dur) => capCutSceneTimings(dur, { cta: "cta" }),
     },
   ]);
 }
@@ -866,9 +926,9 @@ function buildGenericThreeScene(
             particleLayer("g-p1-particles", sceneId, ctx, "floating-dots", 16, [accent, "#fff"]),
           ];
         },
-        effects: [
-          { layerRef: "h1", preset: "slight-drop-in" },
-          { layerRef: "p1", preset: "fade-in", startMs: 200 },
+        layerTimings: (dur) => [
+          ...capCutSceneTimings(dur, { headline: "h1", subheadline: "p1" }),
+          fullSceneTiming("g-p1-particles", dur, "fade-in"),
         ],
       },
       {
@@ -893,10 +953,9 @@ function buildGenericThreeScene(
             underlineLayer("g-ul", sceneId, pad, pad + Math.round(height * 0.14), Math.round(width * 0.4), accent),
           ];
         },
-        effects: [
-          { layerRef: "h2", preset: "enter-from-top" },
-          { layerRef: "frame", preset: "slide-in-left", startMs: 250 },
-          { layerRef: "g-ul", preset: "underline-draw", startMs: 500 },
+        layerTimings: (dur) => [
+          ...capCutSceneTimings(dur, { headline: "h2", subheadline: "g-s2", product: "frame" }),
+          fullSceneTiming("g-ul", dur, "fade-in"),
         ],
       },
       {
@@ -917,11 +976,8 @@ function buildGenericThreeScene(
             badgeShape("g-badge", sceneId, "Novinka", Math.round(width * 0.7), Math.round(height * 0.2), Math.round(width * 0.2), accent),
           ];
         },
-        effects: [
-          { layerRef: "h3", preset: "fade-in" },
-          { layerRef: "badge", preset: "flip-180", startMs: 400 },
-          { layerRef: "cta", preset: "float-subtle", startMs: 600, durationMs: 1200 },
-        ],
+        layerTimings: (dur) =>
+          capCutSceneTimings(dur, { headline: "h3", cta: "cta", badge: "badge" }),
       },
     ],
     config.s1.title,

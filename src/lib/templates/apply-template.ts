@@ -41,5 +41,9 @@ export function applyTemplateToState(
     assetPlacements,
     layerAnimations: template.layerAnimations.map((a) => ({ ...a })),
     timeline: { ...template.timeline },
+    scenes: undefined,
+    bannerLayers: undefined,
+    layerEffects: undefined,
+    activeSceneId: undefined,
   });
 }

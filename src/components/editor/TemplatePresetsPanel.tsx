@@ -8,7 +8,7 @@ import {
 import { applyTemplateToState } from "@/lib/templates/apply-template";
 import { BANNER_TEMPLATES } from "@/lib/templates/banner-templates";
 import { getLayersForScene, setActiveScene } from "@/lib/animation/storyboard-utils";
-import { findFirstMissingRequiredSlot } from "@/lib/assets/slot-utils";
+import { selectionForBannerLayer } from "@/lib/animation/layer-timeline-utils";
 import type { StoryboardTemplateId } from "@/types/storyboard-templates";
 import type { BannerEditorState, BannerEditorStateUpdater, SelectedLayer } from "@/types/editor";
 import type { BannerTemplateId } from "@/types/templates";
@@ -38,24 +38,14 @@ const SLOT_LABELS: Record<string, string> = {
 };
 
 function firstEditableSelection(state: BannerEditorState): SelectedLayer {
-  const missing = findFirstMissingRequiredSlot(state);
-  if (missing) return { type: "asset", id: missing.id };
   const sceneId = state.activeSceneId ?? state.scenes?.[0]?.id;
-  if (!sceneId) return { type: "text", id: "headline" };
+  if (!sceneId) return { type: "asset", id: "__none__" };
   const layers = getLayersForScene(state, sceneId)
     .filter((l) => l.visible && l.type !== "particle")
-    .sort((a, b) => a.zIndex - b.zIndex);
+    .sort((a, b) => b.zIndex - a.zIndex);
   const layer = layers.find((l) => l.type === "text") ?? layers[0];
-  if (!layer) return { type: "text", id: "headline" };
-  if (
-    layer.type === "text" &&
-    (layer.legacyKey === "headline" ||
-      layer.legacyKey === "subheadline" ||
-      layer.legacyKey === "cta")
-  ) {
-    return { type: "text", id: layer.legacyKey };
-  }
-  return { type: "asset", id: layer.id };
+  if (!layer) return { type: "asset", id: "__none__" };
+  return selectionForBannerLayer(layer);
 }
 
 export function TemplatePresetsPanel({
@@ -64,40 +54,37 @@ export function TemplatePresetsPanel({
   onAfterApply,
 }: TemplatePresetsPanelProps) {
   function applyStoryboard(id: StoryboardTemplateId) {
-    const hadLogo = (state.assets ?? []).some((a) => a.kind === "logo");
-    const hadProduct = (state.assets ?? []).some((a) => a.kind === "product");
     let next = applyStoryboardTemplate(state, id);
     const firstSceneId = next.scenes?.[0]?.id;
     if (firstSceneId) {
       next = setActiveScene(next, firstSceneId);
     }
     onUpdate(next);
-    const missing = findFirstMissingRequiredSlot(next);
     const selection = firstEditableSelection(next);
-    const reusedAssets = hadLogo || hadProduct;
     onAfterApply?.(next, selection, {
-      message: missing
-        ? reusedAssets
-          ? "Šablona připravena. Assety z knihovny byly použity — doplňte chybějící sloty."
-          : "Šablona připravena. Teď nahrajte logo a produkt."
-        : reusedAssets
-          ? "Šablona připravena. Existující assety byly vloženy do slotů."
-          : "Šablona připravena. Upravte texty a spusťte náhled.",
-      switchToAssets: Boolean(missing),
+      message:
+        "Šablona je připravená. Přidejte média na časovou osu nebo vyplňte sloty.",
+      switchToAssets: true,
     });
   }
 
   function applyLayout(templateId: BannerTemplateId) {
-    onUpdate(applyTemplateToState(state, templateId));
+    const next = applyTemplateToState(state, templateId);
+    onUpdate(next);
+    onAfterApply?.(next, firstEditableSelection(next), {
+      message: "Layout aplikován. Upravte vrstvy na plátně a časové ose.",
+    });
   }
 
   return (
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <div className="border-b border-zinc-800/60 px-4 py-3">
         <h2 className="text-sm font-medium text-zinc-300">Šablony</h2>
-        <p className="mt-0.5 text-[10px] text-zinc-500">Vyberte vzhled banneru a scén</p>
+        <p className="mt-0.5 text-[10px] text-zinc-500">
+          Vytvoří scény, vrstvy a časovou osu
+        </p>
         <p className="mt-1 text-xs text-zinc-500">
-          Vyberte šablonu — nahraďte logo a produkt ve slotech.
+          Vyberte šablonu a hned upravíte texty, média a animace.
         </p>
       </div>
 
@@ -128,6 +115,18 @@ export function TemplatePresetsPanel({
                         </span>
                       ) : null}
                     </div>
+                    {template.tags && template.tags.length > 0 ? (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {template.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="rounded bg-zinc-800/80 px-1.5 py-0.5 text-[9px] text-zinc-400"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                     <p className="mt-1 text-[10px] leading-snug text-zinc-500">
                       {template.description}
                     </p>
@@ -137,12 +136,9 @@ export function TemplatePresetsPanel({
                     </p>
                     {template.keyEffects.length > 0 ? (
                       <p className="mt-0.5 text-[10px] text-zinc-600">
-                        Efekty: {template.keyEffects.slice(0, 4).join(", ")}
+                        Animace: {template.keyEffects.slice(0, 3).join(", ")}
                       </p>
                     ) : null}
-                    <p className="mt-0.5 text-[10px] text-zinc-500">
-                      Vhodné pro: {template.useCase}
-                    </p>
                     {template.requiredSlots && template.requiredSlots.length > 0 ? (
                       <p className="mt-1 text-[10px] text-zinc-500">
                         Sloty:{" "}
@@ -168,6 +164,9 @@ export function TemplatePresetsPanel({
         <div>
           <p className="mb-2 px-1 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
             Jednoduché layouty
+          </p>
+          <p className="mb-2 px-1 text-[10px] text-zinc-600">
+            Jedna scéna — vhodné pro rychlý start bez storyboardu.
           </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {BANNER_TEMPLATES.map((template) => (

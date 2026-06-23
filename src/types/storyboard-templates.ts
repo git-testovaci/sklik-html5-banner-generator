@@ -30,6 +30,8 @@ export interface StoryboardTemplateDefinition {
   totalDurationMs: number;
   transitionStyle?: string;
   requiredSlots?: import("./template-slots").TemplateSlotSpec[];
+  /** Short Czech tags for template cards */
+  tags?: string[];
 }
 
 export interface TemplateEffectSpec {
@@ -37,4 +39,16 @@ export interface TemplateEffectSpec {
   preset: EffectPreset;
   startMs?: number;
   durationMs?: number;
+}
+
+export interface TemplateLayerTiming {
+  layerRef: string;
+  startMs: number;
+  durationMs?: number;
+  inUi?: import("@/lib/animation/layer-phase-presets").InUiPresetId;
+  inDurationMs?: number;
+  outUi?: import("@/lib/animation/layer-phase-presets").OutUiPresetId;
+  outDurationMs?: number;
+  loopUi?: import("@/lib/animation/layer-phase-presets").LoopUiPresetId;
+  loopDurationMs?: number;
 }
