@@ -7,7 +7,14 @@ import {
   textsLookEdited,
 } from "@/lib/editor/checklist-utils";
 
-export type WorkflowGuidanceAction = "templates" | "assets" | "play" | "text" | "timing" | "export";
+export type WorkflowGuidanceAction =
+  | "templates"
+  | "media"
+  | "timeline"
+  | "layers"
+  | "play"
+  | "timing"
+  | "export";
 
 export interface WorkflowGuidance {
   id: string;
@@ -31,7 +38,7 @@ export function deriveWorkflowGuidance(state: BannerEditorState): WorkflowGuidan
       id: "upload-media",
       message: "Nahrajte logo, produkt nebo obrázek do panelu Média.",
       actionLabel: "Otevřít Média",
-      action: "assets",
+      action: "media",
     };
   }
 
@@ -39,24 +46,24 @@ export function deriveWorkflowGuidance(state: BannerEditorState): WorkflowGuidan
     return {
       id: "add-to-timeline",
       message: "Přidejte nahraná média na časovou osu tlačítkem + Přidat na časovou osu.",
-      actionLabel: "Otevřít Média",
-      action: "assets",
+      actionLabel: "Přejít na časovou osu",
+      action: "timeline",
     };
   }
 
   if (!textsLookEdited(state)) {
     return {
       id: "edit-text",
-      message: "Upravte texty banneru — klikněte na nadpis na plátně nebo v panelu Vrstvy.",
-      actionLabel: "Vybrat text",
-      action: "text",
+      message: "Upravte texty a vrstvy — klikněte na plátně nebo otevřete panel Vrstvy.",
+      actionLabel: "Vybrat vrstvu",
+      action: "layers",
     };
   }
 
   if (!hasAnimations(state)) {
     return {
       id: "add-animations",
-      message: "Nastavte animace vrstev v inspectoru nebo na časové ose.",
+      message: "Nastavte animace vrstev v panelu Vlastnosti nebo na časové ose.",
       actionLabel: "Otevřít časovou osu",
       action: "timing",
     };

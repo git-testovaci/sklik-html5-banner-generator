@@ -22,7 +22,7 @@ import {
 import { nudgeLayerTimelineStart, updateLayerTimelineRange } from "@/lib/animation/layer-timeline-utils";
 import { updateLayerPhaseDuration } from "@/lib/animation/layer-phase-utils";
 import { createQuickLayer, type QuickAddLayerType } from "@/lib/animation/layer-factory";
-import { findEmptySlotForKind, getTemplateSlotLayers } from "@/lib/assets/slot-utils";
+import { selectionForBannerLayer } from "@/lib/animation/layer-timeline-utils";
 import { usePlaybackController } from "@/lib/playback/use-playback-controller";
 import {
   getProjectByIdSnapshot,
@@ -166,7 +166,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
 
   const gatePreviewByTime = !playback.isPlaying;
 
-  const onUpdate: BannerEditorStateUpdater = (patch) => {
+  const onUpdate = useCallback<BannerEditorStateUpdater>((patch) => {
     setState((prev) => {
       const next = normalizeEditorState({ ...prev, ...patch });
       setSelectedLayer((sel) => resolveSelectedLayer(next, sel));
@@ -175,7 +175,25 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
     });
     setSaveStatus("idle");
     setSaveError(null);
-  };
+  }, []);
+
+  const scrollToTimeline = useCallback(() => {
+    document.getElementById("unified-layer-timeline")?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+    });
+  }, []);
+
+  const scrollToExportPanel = useCallback(() => {
+    setShowExport(true);
+    window.requestAnimationFrame(() => {
+      window.setTimeout(() => {
+        const panel = document.getElementById("export-panel");
+        panel?.scrollIntoView({ behavior: "smooth", block: "start" });
+        panel?.focus({ preventScroll: true });
+      }, 120);
+    });
+  }, []);
 
   const handleDuplicateLayer = useCallback(
     (layerId: string) => {
@@ -359,7 +377,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
       return;
     }
     if (scene.transitionOut === "none") {
-      setPlacementMessage("Scéna nemá přechod — vyberte typ přechodu v inspectoru.");
+      setPlacementMessage("Scéna nemá přechod — vyberte typ přechodu v panelu Vlastnosti.");
       window.setTimeout(() => setPlacementMessage(null), 4000);
       return;
     }
@@ -376,27 +394,29 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
       case "templates":
         setLeftTab("templates");
         break;
-      case "logo-slot": {
+      case "media":
         setLeftTab("assets");
-        const logoSlot = findEmptySlotForKind(state, "logo") ?? getTemplateSlotLayers(state).find((s) => s.slotKind === "logo");
-        if (logoSlot) setSelectedLayer({ type: "asset", id: logoSlot.id });
         break;
-      }
-      case "product-slot": {
+      case "timeline":
         setLeftTab("assets");
-        document.getElementById("unified-layer-timeline")?.scrollIntoView({ behavior: "smooth" });
+        scrollToTimeline();
         break;
-      }
-      case "text": {
+      case "layers": {
+        setLeftTab("layers");
         const sceneId = state.activeSceneId ?? state.scenes?.[0]?.id;
-        const textLayer = (state.bannerLayers ?? []).find(
-          (l) => l.sceneId === sceneId && l.type === "text" && l.legacyKey === "headline",
+        const sceneLayers = (state.bannerLayers ?? []).filter(
+          (l) => l.sceneId === sceneId && !l.persistent,
         );
-        const key = textLayer?.legacyKey;
-        if (key === "headline" || key === "subheadline" || key === "cta") {
-          setSelectedLayer({ type: "text", id: key });
+        const textLayer = sceneLayers.find(
+          (l) => l.type === "text" && l.legacyKey === "headline",
+        );
+        const target = textLayer ?? sceneLayers[0];
+        if (target) {
+          setSelectedLayer(selectionForBannerLayer(target));
+          setSelectedEffectId(null);
         } else {
-          setSelectedLayer({ type: "text", id: "headline" });
+          setPlacementMessage("Ve scéně zatím nejsou vrstvy — přidejte text nebo média.");
+          window.setTimeout(() => setPlacementMessage(null), 3500);
         }
         break;
       }
@@ -412,10 +432,10 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
       case "timing":
         setExpandTiming(true);
         setShowEffectDetail(true);
-        document.getElementById("unified-layer-timeline")?.scrollIntoView({ behavior: "smooth" });
+        scrollToTimeline();
         break;
       case "export":
-        setShowExport(true);
+        scrollToExportPanel();
         break;
     }
   }
@@ -426,32 +446,26 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
       case "templates":
         setLeftTab("templates");
         break;
-      case "assets":
+      case "media":
         setLeftTab("assets");
+        break;
+      case "timeline":
+        setLeftTab("assets");
+        scrollToTimeline();
         break;
       case "play":
         handlePlayAll();
         break;
-      case "text":
-        handleChecklistAction("text");
+      case "layers":
+        handleChecklistAction("layers");
         break;
       case "timing":
         handleChecklistAction("timing");
         break;
       case "export":
-        setShowExport(true);
-        window.setTimeout(() => {
-          document.getElementById("editor-export-panel")?.scrollIntoView({ behavior: "smooth" });
-        }, 80);
+        scrollToExportPanel();
         break;
     }
-  }
-
-  function handleOpenExport() {
-    setShowExport(true);
-    window.setTimeout(() => {
-      document.getElementById("editor-export-panel")?.scrollIntoView({ behavior: "smooth" });
-    }, 80);
   }
 
   return (
@@ -462,7 +476,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
         saveStatus={saveStatus}
         saveError={saveError}
         onSave={handleSave}
-        onExport={handleOpenExport}
+        onExport={scrollToExportPanel}
         exportReady={validation.exportReady}
       />
 
@@ -687,7 +701,12 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
               }}
             />
           )}
-          <div id="editor-export-panel">
+          <div
+            id="export-panel"
+            tabIndex={-1}
+            className="outline-none scroll-mt-4"
+            aria-label="Export Sklik HTML5"
+          >
             <button
               type="button"
               onClick={() => setShowExport((v) => !v)}

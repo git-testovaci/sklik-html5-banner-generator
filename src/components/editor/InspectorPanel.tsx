@@ -225,19 +225,17 @@ export function InspectorPanel({
     const active = getActiveScene(state);
     if (active) {
       return (
-        <EmptyInspector message="Vyberte vrstvu na plátně, ve storyboardu nebo v časové ose." />
+        <EmptyInspector message="Vyberte vrstvu na plátně nebo v časové ose." />
       );
     }
-    return <EmptyInspector message="Žádná vrstva není vybraná" />;
+    return <EmptyInspector message="Vyberte vrstvu pro zobrazení nastavení." />;
   }
 
   return (
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <Header
-        title={layerDisplayName(layer)}
-        subtitle={
-          layer.name && layer.name !== layerDisplayName(layer) ? layer.name : undefined
-        }
+        title="Nastavení vrstvy"
+        subtitle={layerDisplayName(layer)}
       />
       <div className="space-y-2 p-4">
         <LayerInspectorControls
@@ -332,7 +330,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function EmptyInspector({ message }: { message: string }) {
   return (
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 px-4 py-8 text-center">
-      <h2 className="text-sm font-medium text-zinc-400">Inspector</h2>
+      <h2 className="text-sm font-medium text-zinc-400">Vlastnosti</h2>
       <p className="mt-2 text-xs leading-relaxed text-zinc-500">{message}</p>
     </section>
   );

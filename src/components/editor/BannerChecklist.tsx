@@ -13,9 +13,9 @@ import { getValidationSummary } from "@/lib/validation-rules";
 
 export type ChecklistAction =
   | "templates"
-  | "logo-slot"
-  | "product-slot"
-  | "text"
+  | "media"
+  | "timeline"
+  | "layers"
   | "transitions"
   | "timing"
   | "export";
@@ -57,24 +57,24 @@ export function BannerChecklist({ state, onAction }: BannerChecklistProps) {
       hint: hasStoryboardTemplate(state) ? "Vybráno" : "Vyberte šablonu",
     },
     {
-      id: "logo-slot",
+      id: "media",
       label: "Média",
       status: hasMediaInLibrary(state) ? "done" : "warn",
       hint: hasMediaInLibrary(state)
-        ? `${(state.assets ?? []).length} souborů`
+        ? `${(state.assets ?? []).length} souborů v knihovně`
         : "Nahrajte média",
     },
     {
-      id: "product-slot",
+      id: "timeline",
       label: "Časová osa",
       status: hasMediaOnTimeline(state) ? "done" : hasMediaInLibrary(state) ? "warn" : "missing",
-      hint: hasMediaOnTimeline(state) ? "Média na ose" : "Přidejte na osu",
+      hint: hasMediaOnTimeline(state) ? "Média na ose" : "Přidejte média na osu",
     },
     {
-      id: "text",
+      id: "layers",
       label: "Vrstvy",
       status: textsLookEdited(state) ? "done" : "warn",
-      hint: textsLookEdited(state) ? "Upraveno" : "Upravte vrstvy",
+      hint: textsLookEdited(state) ? "Upraveno" : "Vyberte a upravte vrstvu",
     },
     {
       id: "timing",
@@ -86,7 +86,7 @@ export function BannerChecklist({ state, onAction }: BannerChecklistProps) {
       id: "export",
       label: "Export ZIP",
       status: validation.exportReady ? "done" : "warn",
-      hint: validation.exportReady ? "Připraveno" : "Vyžaduje kontrolu",
+      hint: validation.exportReady ? "Připraveno k exportu" : "Vyžaduje kontrolu",
     },
   ];
 
@@ -95,7 +95,7 @@ export function BannerChecklist({ state, onAction }: BannerChecklistProps) {
       id: "transitions",
       label: "Přechody",
       status: transitionsConfigured(state) ? "done" : "missing",
-      hint: transitionsConfigured(state) ? "OK" : "Volitelné",
+      hint: transitionsConfigured(state) ? "OK" : "Volitelné u více scén",
     });
   }
 

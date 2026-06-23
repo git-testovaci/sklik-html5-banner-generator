@@ -49,16 +49,16 @@ const OVERALL_LABELS = {
 } as const;
 
 const EXPORT_SUMMARY_LABELS = {
-  pass: { text: "OK", className: "text-emerald-400" },
-  warn: { text: "VAROVÁNÍ", className: "text-amber-400" },
-  fail: { text: "CHYBA", className: "text-red-400" },
+  pass: { text: "V pořádku", className: "text-emerald-400" },
+  warn: { text: "Varování", className: "text-amber-400" },
+  fail: { text: "Chyba", className: "text-red-400" },
 } as const;
 
 const STATUS_LABELS: Record<ValidationRowStatus, string> = {
-  pass: "OK",
-  warn: "VAR",
-  fail: "CHYBA",
-  info: "INFO",
+  pass: "V pořádku",
+  warn: "Varování",
+  fail: "Chyba",
+  info: "Info",
   pending: "…",
 };
 
@@ -196,7 +196,7 @@ export function ValidationExportPanel({
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
             Kontrola v editoru
           </p>
-          <ul className="space-y-2" aria-label="Editor validation checks">
+          <ul className="space-y-2" aria-label="Kontrola v editoru">
             {validation.rows.map((row) => {
               const style = STATUS_STYLES[row.status];
               return (
@@ -237,7 +237,7 @@ export function ValidationExportPanel({
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
               Validace exportu
             </p>
-            <ul className="max-h-48 space-y-2 overflow-y-auto" aria-label="Export validation checks">
+            <ul className="max-h-48 space-y-2 overflow-y-auto" aria-label="Kontrola exportu">
               {exportResult.validationReport.rows.map((row) => (
                 <ExportRowItem key={row.id} row={row} />
               ))}
