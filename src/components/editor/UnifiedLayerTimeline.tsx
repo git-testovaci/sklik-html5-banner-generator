@@ -272,16 +272,6 @@ export function UnifiedLayerTimeline({
 
     function onKeyDown(e: KeyboardEvent) {
       if (isEditableKeyboardTarget(e.target)) return;
-      if (!selectedBannerLayer || selectedBannerLayer.locked) {
-        if (e.key !== "Delete" && e.key !== "Backspace") return;
-      }
-
-      if ((e.key === "Delete" || e.key === "Backspace") && onDeleteLayer && selectedBannerLayer) {
-        e.preventDefault();
-        onDeleteLayer(selectedBannerLayer.id);
-        return;
-      }
-
       if (!onNudgeLayer || !selectedBannerLayer || selectedBannerLayer.locked) return;
 
       let delta = 0;
@@ -295,7 +285,7 @@ export function UnifiedLayerTimeline({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [timelineFocused, selectedBannerLayer, onNudgeLayer, onDeleteLayer]);
+  }, [timelineFocused, selectedBannerLayer, onNudgeLayer]);
 
   function focusTimeline() {
     rootRef.current?.focus({ preventScroll: true });

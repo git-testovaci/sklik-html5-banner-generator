@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, useCallback } from "react";
 import {
   normalizeEditorState,
   projectToEditorState,
@@ -176,9 +176,54 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
     setSaveError(null);
   };
 
+  const handleDuplicateLayer = useCallback(
+    (layerId: string) => {
+      const { state: next, layerId: newId } = duplicateBannerLayerInScene(state, layerId);
+      if (!newId) return;
+      onUpdate(next);
+      const dup = getLayerById(next, newId);
+      if (
+        dup?.type === "text" &&
+        dup.legacyKey &&
+        (dup.legacyKey === "headline" ||
+          dup.legacyKey === "subheadline" ||
+          dup.legacyKey === "cta")
+      ) {
+        setSelectedLayer({ type: "text", id: dup.legacyKey });
+      } else {
+        setSelectedLayer({ type: "asset", id: newId });
+      }
+      setSelectedEffectId(null);
+    },
+    [state, onUpdate],
+  );
+
+  const handleDeleteLayer = useCallback(
+    (layerId: string) => {
+      const next = removeLayerFromEditor(state, layerId);
+      onUpdate(next);
+      const still = (next.bannerLayers ?? []).some((l) => l.id === layerId);
+      if (!still) {
+        setSelectedLayer({ type: "text", id: "headline" });
+        setSelectedEffectId(null);
+      }
+    },
+    [state, onUpdate],
+  );
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (isEditableKeyboardTarget(e.target)) return;
+
+      if (e.key === "Delete" || e.key === "Backspace") {
+        const layer = resolveBannerLayerForSelection(state, selectedLayer);
+        if (layer) {
+          e.preventDefault();
+          handleDeleteLayer(layer.id);
+          return;
+        }
+      }
+
       const mod = e.metaKey || e.ctrlKey;
       if (!mod) return;
 
@@ -194,32 +239,13 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
         const sourceId = copiedLayerIdRef.current;
         if (!sourceId) return;
         e.preventDefault();
-        setState((prev) => {
-          const { state: next, layerId } = duplicateBannerLayerInScene(prev, sourceId);
-          if (!layerId) return prev;
-          const normalized = normalizeEditorState(next);
-          const dup = getLayerById(normalized, layerId);
-          if (
-            dup?.type === "text" &&
-            (dup.legacyKey === "headline" ||
-              dup.legacyKey === "subheadline" ||
-              dup.legacyKey === "cta")
-          ) {
-            setSelectedLayer({ type: "text", id: dup.legacyKey });
-          } else {
-            setSelectedLayer({ type: "asset", id: layerId });
-          }
-          setSelectedEffectId(null);
-          setSaveStatus("idle");
-          setSaveError(null);
-          return normalized;
-        });
+        handleDuplicateLayer(sourceId);
       }
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [state, selectedLayer]);
+  }, [state, selectedLayer, handleDeleteLayer, handleDuplicateLayer]);
 
   const hasUnsavedChanges = !editorStatesEqual(state, savedState);
   const validation = useMemo(() => getValidationSummary(state), [state]);
@@ -272,12 +298,14 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
       selectedLayer.type === "asset" ? selectedLayer.id : undefined;
     const { state: next, layer, reused } = createQuickLayer(state, kind, {
       selectedLayerId: selectedId,
+      startMs: localPreviewTimeMs,
     });
     if (!reused) {
       onUpdate(next);
     }
     if (
       layer.type === "text" &&
+      layer.legacyKey &&
       (layer.legacyKey === "headline" ||
         layer.legacyKey === "subheadline" ||
         layer.legacyKey === "cta")
@@ -464,6 +492,8 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
                 setSelectedEffectId(null);
               }}
               onUpdate={onUpdate}
+              onDuplicateLayer={handleDuplicateLayer}
+              onDeleteLayer={handleDeleteLayer}
             />
           )}
           {leftTab === "templates" && (
@@ -552,23 +582,8 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
               if (!sceneId) return;
               onUpdate(nudgeLayerTimelineStart(state, sceneId, layerId, deltaMs));
             }}
-            onDuplicateLayer={(layerId) => {
-              const { state: next, layerId: newId } = duplicateBannerLayerInScene(state, layerId);
-              if (newId) {
-                onUpdate(next);
-                setSelectedLayer({ type: "asset", id: newId });
-                setSelectedEffectId(null);
-              }
-            }}
-            onDeleteLayer={(layerId) => {
-              const next = removeLayerFromEditor(state, layerId);
-              onUpdate(next);
-              const still = (next.bannerLayers ?? []).some((l) => l.id === layerId);
-              if (!still) {
-                setSelectedLayer({ type: "text", id: "headline" });
-                setSelectedEffectId(null);
-              }
-            }}
+            onDuplicateLayer={handleDuplicateLayer}
+            onDeleteLayer={handleDeleteLayer}
           />
           {showEffectDetail ? (
             <>

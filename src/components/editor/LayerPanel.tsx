@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { TextLayerPlacement } from "@/types/assets";
 import {
   centerHorizontally,
@@ -12,10 +13,12 @@ import {
   getActiveScene,
   patchBannerLayerSlice,
   reorderLayerInScene,
+  removeLayerFromEditor,
   resolveBannerLayerForSelection,
 } from "@/lib/animation/storyboard-utils";
 import {
   getOrderedSceneLayersForUi,
+  moveLayerInSceneStack,
   selectionForBannerLayer,
 } from "@/lib/animation/layer-timeline-utils";
 import {
@@ -30,6 +33,8 @@ interface LayerPanelProps {
   selectedLayer: SelectedLayer;
   onSelectLayer: (layer: SelectedLayer) => void;
   onUpdate: BannerEditorStateUpdater;
+  onDuplicateLayer?: (layerId: string) => void;
+  onDeleteLayer?: (layerId: string) => void;
 }
 
 function clampText(p: TextLayerPlacement, w: number, h: number): TextLayerPlacement {
@@ -41,12 +46,18 @@ export function LayerPanel({
   selectedLayer,
   onSelectLayer,
   onUpdate,
+  onDuplicateLayer,
+  onDeleteLayer,
 }: LayerPanelProps) {
   const activeScene = getActiveScene(state);
   const orderedLayers = activeScene
     ? getOrderedSceneLayersForUi(state, activeScene.id)
     : [];
   const selectedBannerLayer = resolveBannerLayerForSelection(state, selectedLayer);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [dragLayerId, setDragLayerId] = useState<string | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const dropIndexRef = useRef<number | null>(null);
 
   function updateBannerLayerPatch(layerId: string, patch: Parameters<typeof patchBannerLayerSlice>[2]) {
     onUpdate(patchBannerLayerSlice(state, layerId, patch));
@@ -69,10 +80,7 @@ export function LayerPanel({
     if (!selectedBannerLayer) return;
     let patch = { x: selectedBannerLayer.x, y: selectedBannerLayer.y };
     if (axis === "h" || axis === "both") {
-      patch = centerHorizontally(
-        { ...selectedBannerLayer, ...patch },
-        state.width,
-      );
+      patch = centerHorizontally({ ...selectedBannerLayer, ...patch }, state.width);
     }
     if (axis === "v" || axis === "both") {
       patch = centerVertically({ ...selectedBannerLayer, ...patch }, state.height);
@@ -89,6 +97,53 @@ export function LayerPanel({
     });
   }
 
+  function handleDelete(layerId: string) {
+    if (onDeleteLayer) {
+      onDeleteLayer(layerId);
+      return;
+    }
+    onUpdate(removeLayerFromEditor(state, layerId));
+  }
+
+  const resolveDropIndex = useCallback((clientY: number): number => {
+    const rows = listRef.current?.querySelectorAll("[data-layer-row]");
+    if (!rows || rows.length === 0) return 0;
+    for (let i = 0; i < rows.length; i++) {
+      const rect = rows[i]!.getBoundingClientRect();
+      if (clientY < rect.top + rect.height / 2) return i;
+    }
+    return rows.length - 1;
+  }, []);
+
+  useEffect(() => {
+    if (!dragLayerId || !activeScene) return;
+
+    function onMove(e: PointerEvent) {
+      const idx = resolveDropIndex(e.clientY);
+      dropIndexRef.current = idx;
+      setDropIndex(idx);
+    }
+
+    function onUp() {
+      const targetIdx = dropIndexRef.current;
+      if (dragLayerId != null && targetIdx != null) {
+        onUpdate(moveLayerInSceneStack(state, activeScene!.id, dragLayerId, targetIdx));
+      }
+      setDragLayerId(null);
+      setDropIndex(null);
+      dropIndexRef.current = null;
+    }
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [dragLayerId, activeScene, state, onUpdate, resolveDropIndex]);
+
   const selectedText =
     selectedLayer.type === "text"
       ? (state.textPlacements ?? []).find((p) => p.layerId === selectedLayer.id)
@@ -101,9 +156,9 @@ export function LayerPanel({
 
   return (
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
-      <div className="max-h-52 overflow-y-auto border-b border-zinc-800/60 p-2">
+      <div ref={listRef} className="max-h-60 overflow-y-auto border-b border-zinc-800/60 p-2">
         <p className="px-2 py-1 text-[10px] uppercase tracking-wide text-zinc-600">
-          Vrstvy ve scéně · vpředu nahoře
+          Vrstvy ve scéně · vpředu nahoře · táhněte ⋮⋮
         </p>
         {orderedLayers.length === 0 ? (
           <p className="px-2 py-1 text-[10px] text-zinc-600">Ve scéně zatím nejsou vrstvy</p>
@@ -127,33 +182,103 @@ export function LayerPanel({
                 : asset && layer.name !== asset.fileName
                   ? asset.fileName
                   : null;
+            const isDragging = dragLayerId === layer.id;
+            const isDropTarget = dropIndex === index && dragLayerId && dragLayerId !== layer.id;
 
             return (
-              <button
+              <div
                 key={layer.id}
-                type="button"
-                onClick={() => onSelectLayer(sel)}
-                className={`mb-1 w-full rounded-lg px-3 py-2 text-left text-xs ring-1 ring-transparent ${
-                  isSelected
-                    ? "bg-violet-950/50 text-violet-200 ring-violet-800/50"
-                    : !layer.visible
-                      ? "text-zinc-600 opacity-50 hover:bg-zinc-800/50"
-                      : layer.locked
-                        ? "text-zinc-500 opacity-80 hover:bg-zinc-800/50"
-                        : "text-zinc-400 hover:bg-zinc-800/50"
+                data-layer-row
+                className={`mb-1 flex items-stretch gap-0.5 rounded-lg ring-1 ring-transparent ${
+                  isSelected ? "bg-violet-950/50 ring-violet-800/50" : ""
+                } ${isDropTarget ? "ring-violet-500/60" : ""} ${isDragging ? "opacity-40" : ""} ${
+                  !layer.visible ? "opacity-50" : ""
                 }`}
               >
-                <span className="block truncate">
-                  {layer.locked ? "🔒 " : ""}
-                  {primary}
-                  {!layer.visible ? " · skryté" : ""}
-                  {isFront ? " · popředí" : ""}
-                  {animOn ? " · anim" : ""}
-                </span>
-                {secondary ? (
-                  <span className="block truncate text-[10px] text-zinc-600">{secondary}</span>
-                ) : null}
-              </button>
+                <button
+                  type="button"
+                  className="flex w-5 shrink-0 cursor-grab items-center justify-center text-[10px] text-zinc-600 hover:text-zinc-400 active:cursor-grabbing"
+                  title="Přetáhnout pořadí"
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    setDragLayerId(layer.id);
+                    setDropIndex(index);
+                    onSelectLayer(sel);
+                  }}
+                >
+                  ⋮⋮
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSelectLayer(sel)}
+                  className={`min-w-0 flex-1 truncate rounded-md px-2 py-1.5 text-left text-xs ${
+                    isSelected
+                      ? "text-violet-200"
+                      : layer.locked
+                        ? "text-zinc-500"
+                        : "text-zinc-400 hover:bg-zinc-800/50"
+                  }`}
+                >
+                  <span className="block truncate">
+                    {layer.locked ? "🔒 " : ""}
+                    {primary}
+                    {!layer.visible ? " · skryté" : ""}
+                    {isFront ? " · popředí" : ""}
+                    {animOn ? " · anim" : ""}
+                  </span>
+                  {secondary ? (
+                    <span className="block truncate text-[10px] text-zinc-600">{secondary}</span>
+                  ) : null}
+                </button>
+                <div className="flex shrink-0 items-center gap-0.5 pr-1">
+                  {onDuplicateLayer && !layer.persistent ? (
+                    <button
+                      type="button"
+                      title="Duplikovat"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDuplicateLayer(layer.id);
+                      }}
+                      className="rounded px-1 py-0.5 text-[10px] text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
+                    >
+                      ⧉
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    title={layer.visible ? "Skrýt" : "Zobrazit"}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      updateBannerLayerPatch(layer.id, { visible: !layer.visible });
+                    }}
+                    className="rounded px-1 py-0.5 text-[10px] text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
+                  >
+                    {layer.visible ? "👁" : "👁‍🗨"}
+                  </button>
+                  <button
+                    type="button"
+                    title={layer.locked ? "Odemknout" : "Zamknout"}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      updateBannerLayerPatch(layer.id, { locked: !layer.locked });
+                    }}
+                    className="rounded px-1 py-0.5 text-[10px] text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
+                  >
+                    {layer.locked ? "🔓" : "🔒"}
+                  </button>
+                  <button
+                    type="button"
+                    title="Smazat"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(layer.id);
+                    }}
+                    className="rounded px-1 py-0.5 text-[10px] text-red-500/80 hover:bg-red-950/40 hover:text-red-400"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
             );
           })
         )}
@@ -174,6 +299,15 @@ export function LayerPanel({
                   {a === "fwd" ? "↑" : a === "backwd" ? "↓" : a === "front" ? "Vpřed" : "Dozadu"}
                 </button>
               ))}
+              {onDuplicateLayer && !selectedBannerLayer.persistent ? (
+                <button
+                  type="button"
+                  onClick={() => onDuplicateLayer(selectedBannerLayer.id)}
+                  className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800"
+                >
+                  Duplikovat
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => centerSelected("h")}

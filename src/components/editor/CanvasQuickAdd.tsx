@@ -7,15 +7,18 @@ interface CanvasQuickAddProps {
   onAdd: (kind: QuickAddLayerType) => void;
 }
 
-const ITEMS: { kind: QuickAddLayerType; label: string }[] = [
-  { kind: "text", label: "Text" },
-  { kind: "logo", label: "Logo" },
-  { kind: "product", label: "Produkt / obrázek" },
-  { kind: "cta", label: "CTA tlačítko" },
-  { kind: "badge", label: "Odznak" },
+const PRIMARY: { kind: QuickAddLayerType; label: string }[] = [
+  { kind: "text", label: "Přidat text" },
+  { kind: "headline", label: "Přidat nadpis" },
+  { kind: "subheadline", label: "Přidat podnadpis" },
+  { kind: "cta", label: "Přidat CTA" },
+  { kind: "badge", label: "Přidat štítek" },
+];
+
+const EXTRA: { kind: QuickAddLayerType; label: string }[] = [
+  { kind: "shape", label: "Přidat tvar" },
   { kind: "underline", label: "Podtržení" },
   { kind: "particle", label: "Částice" },
-  { kind: "shape", label: "Tvar" },
 ];
 
 export function CanvasQuickAdd({ onAdd }: CanvasQuickAddProps) {
@@ -28,7 +31,7 @@ export function CanvasQuickAdd({ onAdd }: CanvasQuickAddProps) {
         onClick={() => setOpen((v) => !v)}
         className="rounded-lg border border-violet-700/50 bg-violet-950/40 px-3 py-1.5 text-xs font-medium text-violet-200 hover:bg-violet-900/40"
       >
-        + Přidat
+        + Přidat vrstvu
       </button>
       {open ? (
         <>
@@ -38,8 +41,8 @@ export function CanvasQuickAdd({ onAdd }: CanvasQuickAddProps) {
             aria-label="Zavřít menu"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute right-0 top-full z-20 mt-1 min-w-[180px] rounded-lg border border-zinc-700 bg-zinc-900 py-1 shadow-xl">
-            {ITEMS.map(({ kind, label }) => (
+          <div className="absolute right-0 top-full z-20 mt-1 min-w-[200px] rounded-lg border border-zinc-700 bg-zinc-900 py-1 shadow-xl">
+            {PRIMARY.map(({ kind, label }) => (
               <button
                 key={kind}
                 type="button"
@@ -47,7 +50,21 @@ export function CanvasQuickAdd({ onAdd }: CanvasQuickAddProps) {
                   onAdd(kind);
                   setOpen(false);
                 }}
-                className="block w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800"
+                className="block w-full px-3 py-1.5 text-left text-xs text-zinc-200 hover:bg-zinc-800"
+              >
+                {label}
+              </button>
+            ))}
+            <div className="my-1 border-t border-zinc-800" />
+            {EXTRA.map(({ kind, label }) => (
+              <button
+                key={kind}
+                type="button"
+                onClick={() => {
+                  onAdd(kind);
+                  setOpen(false);
+                }}
+                className="block w-full px-3 py-1.5 text-left text-xs text-zinc-400 hover:bg-zinc-800"
               >
                 {label}
               </button>

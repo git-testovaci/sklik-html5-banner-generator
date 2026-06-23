@@ -355,3 +355,66 @@ export function isEditableKeyboardTarget(target: EventTarget | null): boolean {
   if (target.isContentEditable) return true;
   return false;
 }
+
+const REORDERABLE_LAYER_TYPES = new Set([
+  "text",
+  "image",
+  "badge",
+  "shape",
+  "particle",
+  "underline",
+]);
+
+function isReorderableLayer(layer: BannerLayer): boolean {
+  return REORDERABLE_LAYER_TYPES.has(layer.type);
+}
+
+export function frontZIndexForScene(state: BannerEditorState, sceneId: string): number {
+  const layers = getLayersForScene(state, sceneId);
+  if (layers.length === 0) return 30;
+  return Math.max(...layers.map((l) => l.zIndex), 1) + 2;
+}
+
+/** Move layer to a front-first stack index (0 = top/front). Updates zIndex + scene.layerIds. */
+export function moveLayerInSceneStack(
+  state: BannerEditorState,
+  sceneId: string,
+  layerId: string,
+  targetFrontFirstIndex: number,
+): BannerEditorState {
+  const scene = getSceneById(state, sceneId);
+  if (!scene) return state;
+
+  const uiOrdered = getOrderedSceneLayersForUi(state, sceneId).filter(isReorderableLayer);
+  const fromIdx = uiOrdered.findIndex((l) => l.id === layerId);
+  if (fromIdx === -1) return state;
+
+  const toIdx = Math.max(0, Math.min(uiOrdered.length - 1, targetFrontFirstIndex));
+  if (fromIdx === toIdx) return state;
+
+  const reordered = [...uiOrdered];
+  const [moved] = reordered.splice(fromIdx, 1);
+  reordered.splice(toIdx, 0, moved!);
+
+  const zById = new Map<string, number>();
+  reordered.forEach((l, i) => {
+    zById.set(l.id, 10 + (reordered.length - 1 - i) * 2);
+  });
+
+  const reorderableIds = new Set(reordered.map((l) => l.id));
+  const staticIds = scene.layerIds.filter((id) => !reorderableIds.has(id));
+  const backToFront = [...reordered].reverse();
+  const newLayerIds = [...staticIds, ...backToFront.map((l) => l.id)];
+
+  return syncFlatFromActiveScene({
+    ...state,
+    bannerLayers: (state.bannerLayers ?? []).map((l) =>
+      zById.has(l.id) ? { ...l, zIndex: zById.get(l.id)! } : l,
+    ),
+    scenes: (state.scenes ?? []).map((s) =>
+      s.id === sceneId
+        ? { ...s, layerIds: newLayerIds, updatedAt: new Date().toISOString() }
+        : s,
+    ),
+  });
+}

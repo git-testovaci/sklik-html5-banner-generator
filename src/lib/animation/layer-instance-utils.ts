@@ -68,3 +68,50 @@ export function layerDisplayStackLabel(
   }
   return layer.slotLabel ?? "Vrstva";
 }
+
+const DUPLICATE_BASE: Partial<Record<string, string>> = {
+  headline: "Nadpis",
+  subheadline: "Podnadpis",
+  cta: "CTA",
+  logo: "Logo",
+  product: "Produkt",
+  background: "Pozadí",
+};
+
+function stripNumericSuffix(name: string): string {
+  return name.replace(/ \d+$/, "").trim();
+}
+
+/** Base label for duplicate naming — Text 2, CTA 2, Logo 2, … */
+export function duplicateNameBase(layer: BannerLayer, state: BannerEditorState): string {
+  if (layer.legacyKey && DUPLICATE_BASE[layer.legacyKey]) {
+    return DUPLICATE_BASE[layer.legacyKey]!;
+  }
+  if (layer.type === "text") {
+    const base = stripNumericSuffix(layer.name || "Text");
+    return base || "Text";
+  }
+  if (layer.type === "badge" && layer.text && !layer.assetId) {
+    const base = stripNumericSuffix(layer.name || "CTA");
+    return base === "Výzva k akci" ? "CTA" : base || "CTA";
+  }
+  if (layer.assetId) {
+    const asset = (state.assets ?? []).find((a) => a.id === layer.assetId);
+    if (asset) return KIND_BASE_LABELS[asset.kind] ?? "Obrázek";
+  }
+  const base = stripNumericSuffix(layer.name || "Vrstva");
+  if (layer.type === "badge") return base || "Štítek";
+  if (layer.type === "shape") return base || "Tvar";
+  return base || "Vrstva";
+}
+
+export function nextDuplicateLayerName(
+  state: BannerEditorState,
+  sceneId: string,
+  source: BannerLayer,
+): string {
+  const base = duplicateNameBase(source, state);
+  const layers = getLayersForScene(state, sceneId);
+  const count = layers.filter((l) => duplicateNameBase(l, state) === base).length + 1;
+  return count <= 1 ? base : `${base} ${count}`;
+}

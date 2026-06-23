@@ -13,6 +13,12 @@ import type { BannerEditorState, SelectedLayer } from "@/types/editor";
 import type { BannerProject } from "@/types/project";
 import { effectPresetDefaults } from "./effect-presets";
 import { buildPhaseLayerAnimationsForScene } from "./layer-phase-utils";
+import {
+  frontZIndexForScene,
+  getLayerTimelineRange,
+  updateLayerTimelineRange,
+} from "./layer-timeline-utils";
+import { nextDuplicateLayerName } from "./layer-instance-utils";
 
 export function newId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -782,7 +788,7 @@ export function resolveBannerLayerForSelection(
   return sceneLayers.find((l) => l.id === selection.id || l.assetId === selection.id);
 }
 
-/** Duplicate one layer in the active scene — future unified timeline: each copy becomes a track. */
+/** Duplicate one layer in the active scene — copies timing, effects, and media reference. */
 export function duplicateBannerLayerInScene(
   state: BannerEditorState,
   sourceLayerId: string,
@@ -794,15 +800,24 @@ export function duplicateBannerLayerInScene(
     return { state, layerId: null };
   }
 
+  const range = getLayerTimelineRange(state, scene.id, source.id);
   const newLayerId = newId("layer");
   const newLayer: BannerLayer = {
     ...source,
     id: newLayerId,
-    name: `${source.name} copy`,
+    name: nextDuplicateLayerName(state, scene.id, source),
     x: source.x + offsetPx,
     y: source.y + offsetPx,
     legacyKey: undefined,
+    isTemplateSlot: undefined,
+    slotKind: undefined,
+    slotLabel: undefined,
+    slotId: undefined,
+    persistent: false,
     sceneId: scene.id,
+    zIndex: frontZIndexForScene(state, scene.id),
+    timelineStartMs: range.startMs,
+    timelineDurationMs: range.durationMs,
   };
 
   const newEffects = getEffectsForScene(state, scene.id)
@@ -814,7 +829,7 @@ export function duplicateBannerLayerInScene(
       sceneId: scene.id,
     }));
 
-  const next = syncFlatFromActiveScene({
+  let next = syncFlatFromActiveScene({
     ...state,
     bannerLayers: [...(state.bannerLayers ?? []), newLayer],
     layerEffects: [...(state.layerEffects ?? []), ...newEffects],
@@ -824,6 +839,14 @@ export function duplicateBannerLayerInScene(
         : s,
     ),
   });
+
+  next = updateLayerTimelineRange(
+    next,
+    scene.id,
+    newLayerId,
+    range.startMs,
+    range.durationMs,
+  );
 
   return { state: next, layerId: newLayerId };
 }

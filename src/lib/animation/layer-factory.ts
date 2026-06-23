@@ -6,11 +6,19 @@ import {
   getActiveScene,
   getLayerById,
   newId,
+  updateBannerLayer,
 } from "@/lib/animation/storyboard-utils";
+import {
+  defaultInsertDurationMs,
+  frontZIndexForScene,
+  updateLayerTimelineRange,
+} from "@/lib/animation/layer-timeline-utils";
 import { getTemplateSlotLayers } from "@/lib/assets/slot-utils";
 
 export type QuickAddLayerType =
   | "text"
+  | "headline"
+  | "subheadline"
   | "logo"
   | "product"
   | "cta"
@@ -21,6 +29,8 @@ export type QuickAddLayerType =
 
 export interface QuickAddOptions {
   selectedLayerId?: string;
+  /** Playhead/scrub time in ms — layer timeline starts here. */
+  startMs?: number;
 }
 
 function pad(state: BannerEditorState): number {
@@ -71,6 +81,22 @@ function slotMeta(
   };
 }
 
+function finalizeQuickLayer(
+  state: BannerEditorState,
+  layer: BannerLayer,
+  startMs: number,
+): { state: BannerEditorState; layer: BannerLayer } {
+  let next = addLayerToScene(state, layer);
+  const scene = getActiveScene(next);
+  if (!scene) return { state: next, layer: getLayerById(next, layer.id)! };
+
+  const zIndex = frontZIndexForScene(next, scene.id);
+  next = updateBannerLayer(next, layer.id, { zIndex });
+  const durationMs = defaultInsertDurationMs(scene.durationMs, startMs);
+  next = updateLayerTimelineRange(next, scene.id, layer.id, startMs, durationMs);
+  return { state: next, layer: getLayerById(next, layer.id)! };
+}
+
 export function createQuickLayer(
   state: BannerEditorState,
   kind: QuickAddLayerType,
@@ -79,6 +105,7 @@ export function createQuickLayer(
   const p = pad(state);
   const w = state.width;
   const h = state.height;
+  const startMs = options.startMs ?? 0;
 
   if (kind === "logo") {
     const existing = getTemplateSlotLayers(state).find((s) => s.slotKind === "logo");
@@ -95,8 +122,39 @@ export function createQuickLayer(
         text: "Nový text",
         fontSize: Math.round(h * 0.05),
         fontWeight: 600,
-        zIndex: 30,
       });
+      break;
+    case "headline":
+      layer = baseLayer(
+        state,
+        "text",
+        "Nadpis",
+        p,
+        p,
+        w - p * 2,
+        Math.round(h * 0.14),
+        {
+          text: state.headline || "Nadpis",
+          fontSize: Math.round(h * 0.065),
+          fontWeight: 700,
+        },
+      );
+      break;
+    case "subheadline":
+      layer = baseLayer(
+        state,
+        "text",
+        "Podnadpis",
+        p,
+        Math.round(h * 0.18),
+        w - p * 2,
+        Math.round(h * 0.1),
+        {
+          text: state.subheadline || "Podnadpis",
+          fontSize: Math.round(h * 0.042),
+          fontWeight: 500,
+        },
+      );
       break;
     case "logo":
       layer = baseLayer(
@@ -111,7 +169,6 @@ export function createQuickLayer(
           fontSize: Math.round(h * 0.045),
           fontWeight: 700,
           textAlign: "center",
-          zIndex: 45,
           legacyKey: "logo",
           persistent: true,
           ...slotMeta("logo", "Nahrát logo", true),
@@ -129,7 +186,6 @@ export function createQuickLayer(
         Math.round(h * 0.42),
         {
           legacyKey: "product",
-          zIndex: 22,
           shadow: true,
           ...slotMeta("product", "Nahrát produkt"),
         },
@@ -138,19 +194,22 @@ export function createQuickLayer(
     case "cta":
       layer = baseLayer(
         state,
-        "text",
-        "Výzva k akci",
+        "badge",
+        "CTA",
         p,
-        h - p - Math.round(h * 0.22),
+        h - p - Math.round(h * 0.14),
         Math.round(w * 0.42),
         Math.round(h * 0.11),
         {
-          text: "Zjistit více",
-          legacyKey: "cta",
+          text: state.cta || "Zjistit více",
           fontSize: Math.round(h * 0.055),
           fontWeight: 600,
           textAlign: "center",
-          zIndex: 36,
+          fill: state.ctaBackgroundColor,
+          color: state.ctaTextColor,
+          borderRadius: 6,
+          paddingX: 12,
+          paddingY: 6,
         },
       );
       break;
@@ -158,7 +217,7 @@ export function createQuickLayer(
       layer = baseLayer(
         state,
         "badge",
-        "Odznak",
+        "Štítek",
         Math.round(w * 0.68),
         Math.round(h * 0.18),
         Math.round(w * 0.22),
@@ -184,7 +243,6 @@ export function createQuickLayer(
         underlineColor: state.accentColor,
         thickness: 3,
         drawDurationMs: 650,
-        zIndex: 31,
       });
       break;
     }
@@ -195,7 +253,6 @@ export function createQuickLayer(
         colors: [state.accentColor, "#60a5fa"],
         speed: 1,
         particleLoop: true,
-        zIndex: 50,
         opacity: 0.85,
       });
       break;
@@ -218,6 +275,6 @@ export function createQuickLayer(
       break;
   }
 
-  const next = addLayerToScene(state, layer);
-  return { state: next, layer };
+  const { state: next, layer: created } = finalizeQuickLayer(state, layer, startMs);
+  return { state: next, layer: created };
 }
