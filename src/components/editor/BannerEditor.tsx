@@ -14,11 +14,12 @@ import {
   getActiveScene,
   getLayerById,
   getSceneById,
+  removeLayerFromEditor,
   resolveBannerLayerForSelection,
   sceneLocalPlaybackTime,
   setActiveScene,
 } from "@/lib/animation/storyboard-utils";
-import { updateLayerTimelineRange } from "@/lib/animation/layer-timeline-utils";
+import { nudgeLayerTimelineStart, updateLayerTimelineRange } from "@/lib/animation/layer-timeline-utils";
 import { updateLayerPhaseDuration } from "@/lib/animation/layer-phase-utils";
 import { createQuickLayer, type QuickAddLayerType } from "@/lib/animation/layer-factory";
 import { findEmptySlotForKind, getTemplateSlotLayers } from "@/lib/assets/slot-utils";
@@ -545,6 +546,28 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
               const sceneId = activeScene?.id;
               if (!sceneId) return;
               onUpdate(updateLayerPhaseDuration(state, sceneId, layerId, phase, durationMs));
+            }}
+            onNudgeLayer={(layerId, deltaMs) => {
+              const sceneId = activeScene?.id;
+              if (!sceneId) return;
+              onUpdate(nudgeLayerTimelineStart(state, sceneId, layerId, deltaMs));
+            }}
+            onDuplicateLayer={(layerId) => {
+              const { state: next, layerId: newId } = duplicateBannerLayerInScene(state, layerId);
+              if (newId) {
+                onUpdate(next);
+                setSelectedLayer({ type: "asset", id: newId });
+                setSelectedEffectId(null);
+              }
+            }}
+            onDeleteLayer={(layerId) => {
+              const next = removeLayerFromEditor(state, layerId);
+              onUpdate(next);
+              const still = (next.bannerLayers ?? []).some((l) => l.id === layerId);
+              if (!still) {
+                setSelectedLayer({ type: "text", id: "headline" });
+                setSelectedEffectId(null);
+              }
             }}
           />
           {showEffectDetail ? (

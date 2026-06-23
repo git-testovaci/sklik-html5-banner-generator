@@ -254,3 +254,104 @@ export function formatTimelineSeconds(ms: number): string {
   const s = ms / 1000;
   return s >= 10 ? `${s.toFixed(1)} s` : `${s.toFixed(2)} s`;
 }
+
+export const TIMELINE_ZOOM_LEVELS = [1, 1.5, 2, 3] as const;
+export type TimelineZoomLevel = (typeof TIMELINE_ZOOM_LEVELS)[number];
+
+export const TIMELINE_TRACK_BASE_WIDTH_PX = 360;
+export const TIMELINE_LABEL_WIDTH_PX = 140;
+export const TIMELINE_ROW_HEIGHT_PX = 42;
+export const TIMELINE_RULER_HEIGHT_PX = 32;
+
+export function cycleTimelineZoom(
+  current: TimelineZoomLevel,
+  direction: "in" | "out",
+): TimelineZoomLevel {
+  const idx = TIMELINE_ZOOM_LEVELS.indexOf(current);
+  const i = idx >= 0 ? idx : 0;
+  if (direction === "in") {
+    return TIMELINE_ZOOM_LEVELS[Math.min(TIMELINE_ZOOM_LEVELS.length - 1, i + 1)] ?? current;
+  }
+  return TIMELINE_ZOOM_LEVELS[Math.max(0, i - 1)] ?? current;
+}
+
+export function timelineTrackWidthPx(zoom: TimelineZoomLevel): number {
+  return Math.round(TIMELINE_TRACK_BASE_WIDTH_PX * zoom);
+}
+
+/** Ruler tick positions (ms) scaled for scene duration and zoom level. */
+export function buildRulerTicks(sceneDurationMs: number, zoom = 1): number[] {
+  let step =
+    sceneDurationMs <= 2000
+      ? 250
+      : sceneDurationMs <= 4000
+        ? 500
+        : sceneDurationMs <= 8000
+          ? 1000
+          : sceneDurationMs <= 20000
+            ? 2000
+            : 5000;
+  if (zoom >= 1.5) step = Math.max(100, Math.round(step / 1.5));
+  if (zoom >= 2) step = Math.max(100, Math.round(step / 2));
+  if (zoom >= 3) step = Math.max(50, Math.round(step / 2));
+
+  const ticks: number[] = [];
+  for (let t = 0; t <= sceneDurationMs; t += step) {
+    ticks.push(t);
+  }
+  if (ticks.length === 0 || ticks[ticks.length - 1] !== sceneDurationMs) {
+    ticks.push(sceneDurationMs);
+  }
+  return ticks;
+}
+
+export function layerTimelineTypeGlyph(layer: BannerLayer): string {
+  if (layer.type === "text") return "T";
+  if (layer.type === "image") return "▣";
+  if (layer.type === "badge") {
+    return layer.isTemplateSlot || layer.slotKind ? "◇" : "◆";
+  }
+  if (layer.type === "shape") return "□";
+  if (layer.type === "particle") return "✦";
+  if (layer.type === "underline") return "—";
+  return "•";
+}
+
+export function layerBlockTooltip(
+  layer: BannerLayer,
+  range: { startMs: number; durationMs: number },
+): string {
+  const endMs = range.startMs + range.durationMs;
+  const flags = [
+    !layer.visible ? "skryté" : null,
+    layer.locked ? "zamknuté" : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const suffix = flags ? ` · ${flags}` : "";
+  return `${layerTimelineLabel(layer)} · ${formatTimelineSeconds(range.startMs)} – ${formatTimelineSeconds(endMs)} · délka ${formatTimelineSeconds(range.durationMs)}${suffix}`;
+}
+
+export function nudgeLayerTimelineStart(
+  state: BannerEditorState,
+  sceneId: string,
+  layerId: string,
+  deltaMs: number,
+): BannerEditorState {
+  const scene = getSceneById(state, sceneId);
+  if (!scene) return state;
+  const range = getLayerTimelineRange(state, sceneId, layerId);
+  const newStart = Math.max(
+    0,
+    Math.min(range.startMs + deltaMs, scene.durationMs - range.durationMs),
+  );
+  return updateLayerTimelineRange(state, sceneId, layerId, newStart, range.durationMs);
+}
+
+export function isEditableKeyboardTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (target.isContentEditable) return true;
+  return false;
+}

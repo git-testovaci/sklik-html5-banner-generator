@@ -2,25 +2,34 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  buildRulerTicks,
+  cycleTimelineZoom,
   formatTimelineSeconds,
   getLayerTimelineRange,
   getTimelineLayersForScene,
+  isEditableKeyboardTarget,
   isTimelineLayerSelected,
+  layerBlockTooltip,
   layerTimelineBlockColor,
   layerTimelineLabel,
+  layerTimelineTypeGlyph,
   selectionForBannerLayer,
+  TIMELINE_LABEL_WIDTH_PX,
+  TIMELINE_ROW_HEIGHT_PX,
+  TIMELINE_RULER_HEIGHT_PX,
+  timelineTrackWidthPx,
+  type TimelineZoomLevel,
 } from "@/lib/animation/layer-timeline-utils";
-import { getLayerById } from "@/lib/animation/storyboard-utils";
+import {
+  getLayerById,
+  getActiveScene,
+  resolveBannerLayerForSelection,
+} from "@/lib/animation/storyboard-utils";
 import {
   getLayerPhaseSegments,
   phaseSegmentTooltip,
 } from "@/lib/animation/layer-phase-utils";
-import { getActiveScene } from "@/lib/animation/storyboard-utils";
 import type { BannerEditorState, SelectedLayer } from "@/types/editor";
-
-const LABEL_WIDTH = 128;
-const RULER_HEIGHT = 28;
-const ROW_HEIGHT = 34;
 
 interface UnifiedLayerTimelineProps {
   state: BannerEditorState;
@@ -35,6 +44,9 @@ interface UnifiedLayerTimelineProps {
     phase: "in" | "out",
     durationMs: number,
   ) => void;
+  onNudgeLayer?: (layerId: string, deltaMs: number) => void;
+  onDuplicateLayer?: (layerId: string) => void;
+  onDeleteLayer?: (layerId: string) => void;
 }
 
 type DragMode = "move" | "resize-left" | "resize-right" | "phase-in" | "phase-out";
@@ -59,25 +71,6 @@ function msFromClientX(
   return pct * sceneDurationMs;
 }
 
-function buildRulerTicks(sceneDurationMs: number): number[] {
-  const step =
-    sceneDurationMs <= 3000
-      ? 500
-      : sceneDurationMs <= 6000
-        ? 1000
-        : sceneDurationMs <= 15000
-          ? 2000
-          : 5000;
-  const ticks: number[] = [];
-  for (let t = 0; t <= sceneDurationMs; t += step) {
-    ticks.push(t);
-  }
-  if (ticks[ticks.length - 1] !== sceneDurationMs) {
-    ticks.push(sceneDurationMs);
-  }
-  return ticks;
-}
-
 export function UnifiedLayerTimeline({
   state,
   selectedLayer,
@@ -87,9 +80,13 @@ export function UnifiedLayerTimeline({
   onScrub,
   onRangeChange,
   onPhaseDurationChange,
+  onNudgeLayer,
+  onDuplicateLayer,
+  onDeleteLayer,
 }: UnifiedLayerTimelineProps) {
   const scene = getActiveScene(state);
   const trackRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLElement>(null);
   const dragRef = useRef<DragState | null>(null);
   const liveRangeRef = useRef<{ layerId: string; startMs: number; durationMs: number } | null>(
     null,
@@ -99,9 +96,7 @@ export function UnifiedLayerTimeline({
     inMs: number;
     outMs: number;
   } | null>(null);
-  const livePhaseRef = useRef<{ layerId: string; inMs: number; outMs: number } | null>(
-    null,
-  );
+  const livePhaseRef = useRef<{ layerId: string; inMs: number; outMs: number } | null>(null);
 
   const [liveRange, setLiveRange] = useState<{
     layerId: string;
@@ -109,14 +104,20 @@ export function UnifiedLayerTimeline({
     durationMs: number;
   } | null>(null);
   const [livePlayheadMs, setLivePlayheadMs] = useState<number | null>(null);
+  const [zoom, setZoom] = useState<TimelineZoomLevel>(1);
+  const [timelineFocused, setTimelineFocused] = useState(false);
   const scrubDragRef = useRef(false);
 
   const sceneDurationMs = scene?.durationMs ?? 3000;
+  const trackWidthPx = timelineTrackWidthPx(zoom);
   const layers = scene ? getTimelineLayersForScene(state, scene.id) : [];
-  const ticks = buildRulerTicks(sceneDurationMs);
+  const ticks = buildRulerTicks(sceneDurationMs, zoom);
   const displayPlayheadMs = livePlayheadMs ?? playheadMs;
   const playheadPct =
     sceneDurationMs > 0 ? (displayPlayheadMs / sceneDurationMs) * 100 : 0;
+  const selectedBannerLayer = resolveBannerLayerForSelection(state, selectedLayer);
+  const canActOnSelected =
+    selectedBannerLayer && !selectedBannerLayer.persistent && !selectedBannerLayer.locked;
 
   const getRange = (layerId: string) => {
     if (liveRange?.layerId === layerId) {
@@ -170,19 +171,13 @@ export function UnifiedLayerTimeline({
         if (drag.mode === "phase-in") {
           inMs = Math.max(
             0,
-            Math.min(
-              drag.initialPhaseInMs + dBlockMs,
-              blockDur - outMs - 100,
-            ),
+            Math.min(drag.initialPhaseInMs + dBlockMs, blockDur - outMs - 100),
           );
           if (inMs > 0 && inMs < 100) inMs = 100;
         } else {
           outMs = Math.max(
             0,
-            Math.min(
-              drag.initialPhaseOutMs - dBlockMs,
-              blockDur - inMs - 100,
-            ),
+            Math.min(drag.initialPhaseOutMs - dBlockMs, blockDur - inMs - 100),
           );
           if (outMs > 0 && outMs < 100) outMs = 100;
         }
@@ -272,10 +267,45 @@ export function UnifiedLayerTimeline({
     };
   }, [onScrub, sceneDurationMs]);
 
+  useEffect(() => {
+    if (!timelineFocused) return;
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (isEditableKeyboardTarget(e.target)) return;
+      if (!selectedBannerLayer || selectedBannerLayer.locked) {
+        if (e.key !== "Delete" && e.key !== "Backspace") return;
+      }
+
+      if ((e.key === "Delete" || e.key === "Backspace") && onDeleteLayer && selectedBannerLayer) {
+        e.preventDefault();
+        onDeleteLayer(selectedBannerLayer.id);
+        return;
+      }
+
+      if (!onNudgeLayer || !selectedBannerLayer || selectedBannerLayer.locked) return;
+
+      let delta = 0;
+      if (e.key === "ArrowLeft") delta = e.shiftKey ? -500 : -100;
+      else if (e.key === "ArrowRight") delta = e.shiftKey ? 500 : 100;
+      else return;
+
+      e.preventDefault();
+      onNudgeLayer(selectedBannerLayer.id, delta);
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [timelineFocused, selectedBannerLayer, onNudgeLayer, onDeleteLayer]);
+
+  function focusTimeline() {
+    rootRef.current?.focus({ preventScroll: true });
+  }
+
   function startScrubDrag(e: React.PointerEvent) {
     if (isPlaying) return;
     e.preventDefault();
     e.stopPropagation();
+    focusTimeline();
     scrubDragRef.current = true;
     const track = trackRef.current;
     if (!track) return;
@@ -300,6 +330,7 @@ export function UnifiedLayerTimeline({
   ) {
     e.preventDefault();
     e.stopPropagation();
+    focusTimeline();
     const layer = getLayerById(state, layerId);
     if (layer?.locked) return;
     const track = trackRef.current;
@@ -341,7 +372,48 @@ export function UnifiedLayerTimeline({
     if (dragRef.current || scrubDragRef.current) return;
     if (isPlaying) return;
     if ((e.target as HTMLElement).closest("[data-layer-block]")) return;
+    if ((e.target as HTMLElement).closest("[data-playhead-handle]")) return;
     startScrubDrag(e);
+  }
+
+  function renderTrackArea(
+    children: React.ReactNode,
+    extraClass = "",
+    attachRef = false,
+  ) {
+    return (
+      <div
+        ref={attachRef ? trackRef : undefined}
+        className={`relative shrink-0 bg-zinc-900/20 ${extraClass}`}
+        style={{ width: trackWidthPx }}
+        onPointerDown={handleTrackScrub}
+      >
+        {children}
+      </div>
+    );
+  }
+
+  function renderPlayhead() {
+    return (
+      <div
+        data-playhead-handle
+        className="absolute top-0 z-30 h-full cursor-ew-resize"
+        style={{ left: `${Math.min(100, playheadPct)}%`, transform: "translateX(-50%)" }}
+        title={`Playhead · ${formatTimelineSeconds(displayPlayheadMs)}`}
+        onPointerDown={startScrubDrag}
+      >
+        <div className="absolute -left-4 top-0 h-full w-8" aria-hidden />
+        <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2">
+          <div className="h-0 w-0 border-x-[5px] border-t-[7px] border-x-transparent border-t-violet-400 drop-shadow-[0_0_4px_rgba(167,139,250,0.9)]" />
+        </div>
+        <div className="pointer-events-none absolute top-[7px] bottom-0 left-1/2 w-0.5 -translate-x-1/2 bg-violet-400 shadow-[0_0_6px_rgba(167,139,250,0.85)]" />
+        {livePlayheadMs != null ? (
+          <span className="pointer-events-none absolute -top-5 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded bg-violet-600 px-1.5 py-0.5 text-[9px] font-semibold text-white shadow">
+            {formatTimelineSeconds(displayPlayheadMs)}
+          </span>
+        ) : null}
+      </div>
+    );
   }
 
   if (!scene) {
@@ -352,67 +424,141 @@ export function UnifiedLayerTimeline({
     );
   }
 
+  const atMaxZoom = zoom >= 3;
+  const atMinZoom = zoom <= 1;
+
   return (
     <section
+      ref={rootRef}
       id="unified-layer-timeline"
-      className="rounded-xl border border-zinc-800/80 bg-zinc-950/60"
+      tabIndex={0}
+      className="rounded-xl border border-zinc-800/80 bg-zinc-950/60 outline-none focus-visible:ring-1 focus-visible:ring-violet-700/50"
+      onFocus={() => setTimelineFocused(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          setTimelineFocused(false);
+        }
+      }}
+      onPointerDown={focusTimeline}
     >
-      <div className="flex items-center justify-between border-b border-zinc-800/60 px-4 py-2.5">
-        <div>
-          <h2 className="text-sm font-medium text-zinc-200">Časová osa vrstev</h2>
-          <p className="text-[10px] text-zinc-500">
-            {scene.name} · {formatTimelineSeconds(sceneDurationMs)}
-            {isPlaying ? " · přehrávání" : livePlayheadMs != null ? " · posun playheadu" : " · klikněte nebo táhněte playhead"}
-          </p>
+      {/* Header controls */}
+      <div className="border-b border-zinc-800/60 px-4 py-2.5">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h2 className="text-sm font-medium text-zinc-200">Časová osa vrstev</h2>
+            <p className="text-[10px] text-zinc-500">
+              {scene.name}
+              {isPlaying ? " · přehrávání" : timelineFocused ? " · klávesové zkratky aktivní" : ""}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded border border-zinc-800/80 bg-zinc-900/60 px-2 py-1 font-mono text-[11px] text-violet-200">
+              {formatTimelineSeconds(displayPlayheadMs)} / {formatTimelineSeconds(sceneDurationMs)}
+            </span>
+            <div className="flex items-center rounded border border-zinc-800/80 bg-zinc-900/60">
+              <button
+                type="button"
+                disabled={atMinZoom}
+                onClick={() => setZoom((z) => cycleTimelineZoom(z, "out"))}
+                className="px-2 py-1 text-sm text-zinc-400 hover:bg-zinc-800/60 disabled:opacity-30"
+                title="Oddálit"
+                aria-label="Oddálit"
+              >
+                −
+              </button>
+              <span className="border-x border-zinc-800/80 px-2 py-1 text-[10px] text-zinc-500">
+                {zoom}×
+              </span>
+              <button
+                type="button"
+                disabled={atMaxZoom}
+                onClick={() => setZoom((z) => cycleTimelineZoom(z, "in"))}
+                className="px-2 py-1 text-sm text-zinc-400 hover:bg-zinc-800/60 disabled:opacity-30"
+                title="Přiblížit"
+                aria-label="Přiblížit"
+              >
+                +
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setZoom(1)}
+              className="rounded border border-zinc-800/80 px-2 py-1 text-[10px] text-zinc-400 hover:bg-zinc-800/60"
+            >
+              Přizpůsobit
+            </button>
+            {canActOnSelected && onDuplicateLayer ? (
+              <button
+                type="button"
+                onClick={() => onDuplicateLayer(selectedBannerLayer!.id)}
+                className="rounded border border-zinc-700 px-2 py-1 text-[10px] text-zinc-400 hover:bg-zinc-800/60"
+              >
+                Duplikovat
+              </button>
+            ) : null}
+            {selectedBannerLayer && onDeleteLayer ? (
+              <button
+                type="button"
+                onClick={() => onDeleteLayer(selectedBannerLayer.id)}
+                className="rounded border border-red-900/40 px-2 py-1 text-[10px] text-red-400 hover:bg-red-950/30"
+              >
+                Smazat
+              </button>
+            ) : null}
+          </div>
         </div>
-        <p className="font-mono text-xs text-violet-300">
-          {formatTimelineSeconds(displayPlayheadMs)}
+        <p className="mt-1.5 text-[10px] text-zinc-600">
+          Táhněte bloky pro změnu času vrstvy.
         </p>
       </div>
 
       <div className="overflow-x-auto">
-        <div className="min-w-[480px]">
-          {/* Ruler row */}
-          <div className="flex border-b border-zinc-800/50" style={{ height: RULER_HEIGHT }}>
+        <div
+          className="min-w-0"
+          style={{ width: TIMELINE_LABEL_WIDTH_PX + trackWidthPx }}
+        >
+          {/* Ruler */}
+          <div className="flex border-b border-zinc-800/50" style={{ height: TIMELINE_RULER_HEIGHT_PX }}>
             <div
-              className="shrink-0 border-r border-zinc-800/50 bg-zinc-900/50"
-              style={{ width: LABEL_WIDTH }}
-            />
-            <div
-              ref={trackRef}
-              className="relative flex-1 cursor-crosshair bg-zinc-900/30"
-              onPointerDown={handleTrackScrub}
+              className="shrink-0 border-r border-zinc-800/50 bg-zinc-900/50 px-2 py-1"
+              style={{ width: TIMELINE_LABEL_WIDTH_PX }}
             >
-              {ticks.map((t) => {
-                const left = sceneDurationMs > 0 ? (t / sceneDurationMs) * 100 : 0;
-                return (
-                  <div
-                    key={t}
-                    className="pointer-events-none absolute top-0 h-full border-l border-zinc-700/40"
-                    style={{ left: `${left}%` }}
-                  >
-                    <span className="absolute left-0.5 top-0.5 text-[9px] text-zinc-600">
-                      {(t / 1000).toFixed(t >= 10000 ? 0 : 1)}s
-                    </span>
-                  </div>
-                );
-              })}
-              <div
-                data-playhead-handle
-                className="absolute top-0 z-30 h-full w-3 -translate-x-1/2 cursor-ew-resize"
-                style={{ left: `${Math.min(100, playheadPct)}%` }}
-                title={`Playhead · ${formatTimelineSeconds(displayPlayheadMs)}`}
-                onPointerDown={startScrubDrag}
-              >
-                <div className="pointer-events-none absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-violet-400 shadow-[0_0_6px_rgba(167,139,250,0.85)]" />
-              </div>
+              <span className="text-[9px] uppercase tracking-wide text-zinc-600">Čas</span>
             </div>
+            {renderTrackArea(
+              <>
+                {ticks.map((t) => {
+                  const left = sceneDurationMs > 0 ? (t / sceneDurationMs) * 100 : 0;
+                  const isPlayheadTick =
+                    Math.abs(t - displayPlayheadMs) < (ticks[1] ?? 500) * 0.25;
+                  return (
+                    <div
+                      key={t}
+                      className={`pointer-events-none absolute top-0 h-full border-l ${
+                        isPlayheadTick ? "border-violet-500/50" : "border-zinc-700/40"
+                      }`}
+                      style={{ left: `${left}%` }}
+                    >
+                      <span
+                        className={`absolute left-0.5 top-0.5 text-[9px] ${
+                          isPlayheadTick ? "font-medium text-violet-400" : "text-zinc-600"
+                        }`}
+                      >
+                        {(t / 1000).toFixed(t >= 10000 ? 0 : t % 1000 === 0 ? 0 : 1)}s
+                      </span>
+                    </div>
+                  );
+                })}
+                {renderPlayhead()}
+              </>,
+              "cursor-crosshair bg-zinc-900/30",
+              true,
+            )}
           </div>
 
-          {/* Layer rows — one track per layer (future CapCut unified model) */}
           {layers.length === 0 ? (
-            <p className="px-4 py-6 text-center text-xs text-zinc-500">
-              Ve scéně zatím nejsou vrstvy.
+            <p className="px-4 py-8 text-center text-xs leading-relaxed text-zinc-500">
+              Scéna zatím nemá žádné vrstvy. Přidejte text, logo nebo obrázek z panelu Média.
             </p>
           ) : (
             layers.map((layer) => {
@@ -428,44 +574,66 @@ export function UnifiedLayerTimeline({
               const inPct = blockDur > 0 ? (segments.inDurationMs / blockDur) * 100 : 0;
               const outPct = blockDur > 0 ? (segments.outDurationMs / blockDur) * 100 : 0;
               const midPct = Math.max(0, 100 - inPct - outPct);
+              const blockTitle = layerBlockTooltip(layer, range);
+              const showRowTiming = trackWidthPx >= 280;
 
               return (
                 <div
                   key={layer.id}
                   className={`flex border-b border-zinc-800/30 ${
-                    selected ? "bg-violet-950/20" : ""
-                  } ${!layer.visible ? "opacity-45" : ""} ${layer.locked ? "opacity-70" : ""}`}
-                  style={{ height: ROW_HEIGHT }}
+                    selected ? "bg-violet-950/25" : ""
+                  } ${!layer.visible ? "opacity-40" : ""}`}
+                  style={{ height: TIMELINE_ROW_HEIGHT_PX }}
                 >
                   <button
                     type="button"
                     onClick={() => onSelectLayer(selectionForBannerLayer(layer))}
-                    className={`shrink-0 truncate border-r border-zinc-800/50 px-2 text-left text-[11px] ${
+                    className={`flex shrink-0 items-center gap-1.5 border-r border-zinc-800/50 px-2 text-left ${
                       selected
                         ? "bg-violet-950/40 text-violet-200"
                         : "bg-zinc-900/40 text-zinc-400 hover:bg-zinc-800/40"
-                    }`}
-                    style={{ width: LABEL_WIDTH }}
+                    } ${layer.locked ? "opacity-80" : ""}`}
+                    style={{ width: TIMELINE_LABEL_WIDTH_PX }}
                     title={layerTimelineLabel(layer)}
                   >
-                    {layer.locked ? "🔒 " : ""}
-                    {layerTimelineLabel(layer)}
-                    {!layer.visible ? " (skryté)" : ""}
+                    <span
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-bold ${
+                        selected ? "bg-violet-800/50 text-violet-100" : "bg-zinc-800/80 text-zinc-500"
+                      }`}
+                    >
+                      {layerTimelineTypeGlyph(layer)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[11px] leading-tight">
+                        {layer.locked ? "🔒 " : ""}
+                        {!layer.visible ? "👁‍🗨 " : ""}
+                        {layerTimelineLabel(layer)}
+                      </span>
+                      {showRowTiming ? (
+                        <span className="block truncate text-[9px] text-zinc-600">
+                          {formatTimelineSeconds(range.startMs)} ·{" "}
+                          {formatTimelineSeconds(range.durationMs)}
+                        </span>
+                      ) : null}
+                    </span>
                   </button>
 
-                  <div
-                    className="relative flex-1 bg-zinc-900/20"
-                    onPointerDown={handleTrackScrub}
-                  >
+                  {renderTrackArea(
                     <div
                       data-layer-block
-                      className={`absolute top-1 flex h-[calc(100%-8px)] min-w-[12px] items-center rounded border ${layer.locked ? "cursor-not-allowed opacity-80" : "cursor-grab active:cursor-grabbing"} ${blockColor} ${
-                        selected ? "ring-1 ring-violet-300/80" : ""
-                      }`}
+                      className={`absolute top-1.5 flex h-[calc(100%-12px)] items-center rounded-md border border-white/10 ${
+                        layer.locked
+                          ? "cursor-not-allowed opacity-75"
+                          : "cursor-grab active:cursor-grabbing"
+                      } ${blockColor} ${
+                        selected ? "ring-2 ring-violet-400/90 shadow-[0_0_0_1px_rgba(167,139,250,0.3)]" : ""
+                      } ${!layer.visible ? "border-dashed opacity-60" : ""}`}
                       style={{
                         left: `${leftPct}%`,
-                        width: `${Math.max(widthPct, 1.5)}%`,
+                        width: `${Math.max(widthPct, 0.4)}%`,
+                        minWidth: 10,
                       }}
+                      title={blockTitle}
                       onPointerDown={(e) => {
                         if (layer.locked) {
                           e.stopPropagation();
@@ -478,11 +646,13 @@ export function UnifiedLayerTimeline({
                         onSelectLayer(selectionForBannerLayer(layer));
                       }}
                     >
-                      <div
-                        className="absolute left-0 top-0 h-full w-1.5 cursor-ew-resize rounded-l bg-white/20 hover:bg-white/40"
-                        onPointerDown={(e) => startBlockDrag(e, layer.id, "resize-left")}
-                      />
-                      {/* In / loop / out segments inside layer block */}
+                      {!layer.locked ? (
+                        <div
+                          className="absolute left-0 top-0 z-20 h-full w-2.5 cursor-ew-resize rounded-l-md bg-white/20 hover:bg-white/45"
+                          title="Zkrátit / prodloužit začátek"
+                          onPointerDown={(e) => startBlockDrag(e, layer.id, "resize-left")}
+                        />
+                      ) : null}
                       {segments.in.active && inPct > 0 ? (
                         <div
                           className="pointer-events-none absolute left-0 top-0 h-full border-r border-white/25 bg-gradient-to-r from-white/25 to-transparent"
@@ -491,7 +661,7 @@ export function UnifiedLayerTimeline({
                         >
                           {inPct > 14 ? (
                             <span className="absolute inset-0 flex items-center justify-center text-[8px] font-semibold text-white/90">
-                              In {(segments.inDurationMs / 1000).toFixed(1)}s
+                              In
                             </span>
                           ) : null}
                         </div>
@@ -505,53 +675,45 @@ export function UnifiedLayerTimeline({
                               ? phaseSegmentTooltip(segments.loop, "loop")
                               : "Zobrazení vrstvy"
                           }
-                        >
-                          {segments.loopActive && midPct > 18 ? (
-                            <span className="absolute inset-0 flex items-center justify-center text-[8px] text-white/75">
-                              ⟳ {segments.loop.label}
-                            </span>
-                          ) : null}
-                        </div>
+                        />
                       ) : null}
                       {segments.out.active && outPct > 0 ? (
                         <div
                           className="pointer-events-none absolute right-0 top-0 h-full border-l border-white/25 bg-gradient-to-l from-white/25 to-transparent"
                           style={{ width: `${outPct}%` }}
                           title={phaseSegmentTooltip(segments.out, "out")}
-                        >
-                          {outPct > 14 ? (
-                            <span className="absolute inset-0 flex items-center justify-center text-[8px] font-semibold text-white/90">
-                              Out {(segments.outDurationMs / 1000).toFixed(1)}s
-                            </span>
-                          ) : null}
-                        </div>
+                        />
                       ) : null}
-                      {segments.in.active && onPhaseDurationChange ? (
+                      {segments.in.active && onPhaseDurationChange && !layer.locked ? (
                         <div
-                          className="absolute top-0 z-10 h-full w-1 cursor-ew-resize bg-emerald-300/80 hover:bg-emerald-200"
-                          style={{ left: `calc(${inPct}% - 2px)` }}
+                          className="absolute top-0 z-10 h-full w-1.5 cursor-ew-resize bg-emerald-300/80 hover:bg-emerald-200"
+                          style={{ left: `calc(${inPct}% - 3px)` }}
                           title="Upravit délku animace dopředu"
                           onPointerDown={(e) => startBlockDrag(e, layer.id, "phase-in")}
                         />
                       ) : null}
-                      {segments.out.active && onPhaseDurationChange ? (
+                      {segments.out.active && onPhaseDurationChange && !layer.locked ? (
                         <div
-                          className="absolute top-0 z-10 h-full w-1 cursor-ew-resize bg-rose-300/80 hover:bg-rose-200"
-                          style={{ left: `calc(${100 - outPct}% - 2px)` }}
+                          className="absolute top-0 z-10 h-full w-1.5 cursor-ew-resize bg-rose-300/80 hover:bg-rose-200"
+                          style={{ left: `calc(${100 - outPct}% - 3px)` }}
                           title="Upravit délku animace dozadu"
                           onPointerDown={(e) => startBlockDrag(e, layer.id, "phase-out")}
                         />
                       ) : null}
-                      <span className="pointer-events-none relative z-[1] truncate px-2 text-[9px] font-medium text-white/90">
-                        {formatTimelineSeconds(range.startMs)} –{" "}
-                        {formatTimelineSeconds(range.startMs + range.durationMs)}
-                      </span>
-                      <div
-                        className="absolute right-0 top-0 h-full w-1.5 cursor-ew-resize rounded-r bg-white/20 hover:bg-white/40"
-                        onPointerDown={(e) => startBlockDrag(e, layer.id, "resize-right")}
-                      />
-                    </div>
-                  </div>
+                      {widthPct > 8 ? (
+                        <span className="pointer-events-none relative z-[1] truncate px-2.5 text-[9px] font-medium text-white/90">
+                          {formatTimelineSeconds(range.durationMs)}
+                        </span>
+                      ) : null}
+                      {!layer.locked ? (
+                        <div
+                          className="absolute right-0 top-0 z-20 h-full w-2.5 cursor-ew-resize rounded-r-md bg-white/20 hover:bg-white/45"
+                          title="Zkrátit / prodloužit konec"
+                          onPointerDown={(e) => startBlockDrag(e, layer.id, "resize-right")}
+                        />
+                      ) : null}
+                    </div>,
+                  )}
                 </div>
               );
             })
