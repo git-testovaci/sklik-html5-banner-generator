@@ -106,7 +106,7 @@ export function LayerInspectorControls({
   return (
     <div className="space-y-3">
       <Section title="Vrstva">
-        <Field label="Název vrstvy">
+        <Field label={isImageLikeLayer(layer) && asset ? "Název instance vrstvy" : "Název vrstvy"}>
           <input
             type="text"
             value={layer.name}
@@ -294,9 +294,11 @@ export function LayerInspectorControls({
       {isImageLikeLayer(layer) ? (
         <Section title="Obrázek">
           {asset ? (
-            <p className="truncate text-[10px] text-zinc-500" title={asset.fileName}>
-              {asset.fileName}
-            </p>
+            <Field label="Soubor média">
+              <p className="truncate text-xs text-zinc-300" title={asset.fileName}>
+                {asset.fileName}
+              </p>
+            </Field>
           ) : emptySlot ? (
             <p className="text-[10px] text-zinc-500">Slot je prázdný</p>
           ) : null}

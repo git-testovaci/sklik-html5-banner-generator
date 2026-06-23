@@ -438,7 +438,13 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
           ) : null}
           {leftTab === "assets" && (
             <>
-              <AssetUploadPanel state={state} onUpdate={onUpdate} onPlaced={handleAssetPlaced} />
+              <AssetUploadPanel
+                state={state}
+                onUpdate={onUpdate}
+                onPlaced={handleAssetPlaced}
+                selectedLayer={selectedLayer}
+                scrubTimeMs={localPreviewTimeMs}
+              />
               <AssetLibrary
                 state={state}
                 onUpdate={onUpdate}

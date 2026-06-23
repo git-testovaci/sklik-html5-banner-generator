@@ -11,6 +11,7 @@ import {
   resolveLayerFromSelection,
   slotLayerSelection,
 } from "@/lib/assets/slot-utils";
+import { countLayerInstancesUsingAsset } from "@/lib/animation/layer-instance-utils";
 import type { BannerAssetKind } from "@/types/assets";
 import type { BannerEditorState, BannerEditorStateUpdater, SelectedLayer } from "@/types/editor";
 
@@ -46,6 +47,12 @@ function useThumbnails(metaKey: string) {
   return metaKey ? urls : {};
 }
 
+function usageLabel(count: number): string {
+  if (count === 0) return "Nepoužito";
+  if (count === 1) return "Použito 1×";
+  return `Použito ${count}×`;
+}
+
 export function AssetLibrary({
   state,
   onUpdate,
@@ -75,19 +82,9 @@ export function AssetLibrary({
 
   function addToTimeline(assetId: string) {
     if (!hasStoryboard) return;
-    const asset = assets.find((a) => a.id === assetId);
-    const label = asset ? KIND_LABELS[asset.kind] : "Obrázek";
-    const { state: next, layer } = addMediaLayerAtPlayhead(
-      state,
-      assetId,
-      scrubTimeMs,
-      asset?.fileName,
-    );
+    const { state: next, layer } = addMediaLayerAtPlayhead(state, assetId, scrubTimeMs);
     onUpdate(next);
-    onPlaced?.(
-      slotLayerSelection(layer),
-      `${label} přidán na časovou osu`,
-    );
+    onPlaced?.(slotLayerSelection(layer), `${layer.name} přidán na časovou osu`);
   }
 
   function insertIntoSelectedSlot(assetId: string) {
@@ -112,6 +109,7 @@ export function AssetLibrary({
       <ul className="max-h-72 space-y-2 overflow-y-auto p-3">
         {assets.map((asset) => {
           const url = urls[asset.id];
+          const usedCount = countLayerInstancesUsingAsset(state, asset.id);
           return (
             <li
               key={asset.id}
@@ -139,7 +137,10 @@ export function AssetLibrary({
                   </p>
                   <p className="truncate text-xs font-medium text-zinc-200">{asset.fileName}</p>
                   <p className="text-[10px] text-zinc-600">
-                    {asset.width}×{asset.height} · {formatFileSize(asset.size)}
+                    {asset.width}×{asset.height} · {formatFileSize(asset.size)} ·{" "}
+                    <span className={usedCount === 0 ? "text-zinc-500" : "text-violet-400/80"}>
+                      {usageLabel(usedCount)}
+                    </span>
                   </p>
                 </div>
               </div>

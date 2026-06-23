@@ -12,6 +12,7 @@ import {
   syncFlatFromActiveScene,
   updateBannerLayer,
 } from "@/lib/animation/storyboard-utils";
+import { nextMediaLayerInstanceName } from "@/lib/animation/layer-instance-utils";
 import {
   defaultInsertDurationMs,
   updateLayerTimelineRange,
@@ -222,17 +223,17 @@ export function addMediaLayerAtPlayhead(
   startMs = 0,
   name?: string,
 ): { state: BannerEditorState; layer: BannerLayer } {
-  const asset = (state.assets ?? []).find((a) => a.id === assetId);
   const w = state.width;
   const h = state.height;
   const iw = Math.round(w * 0.35);
   const ih = Math.round(h * 0.35);
   const scene = getActiveScene(state);
+  const instanceName = nextMediaLayerInstanceName(state, assetId);
   const layer: BannerLayer = {
     id: newId("layer"),
     sceneId: scene?.id,
     persistent: false,
-    name: name ?? asset?.fileName ?? "Obrázek",
+    name: name ?? instanceName,
     type: "image",
     visible: true,
     locked: false,
@@ -297,6 +298,16 @@ export function isSelectedSlotLayer(
       layer.type === "image" ||
       layer.type === "badge",
   );
+}
+
+export function slotAcceptsAssetKind(
+  layer: BannerLayer,
+  kind: BannerAssetKind,
+): boolean {
+  if (kind === "decoration") {
+    return layer.slotKind === "image" || layer.slotKind === "badge" || layer.slotKind === "product";
+  }
+  return layer.slotKind === kind || layer.legacyKey === kind;
 }
 
 export function isSelectedEmptySlot(

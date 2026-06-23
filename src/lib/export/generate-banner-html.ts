@@ -1,6 +1,7 @@
 import type { ExportAssetFile } from "@/lib/assets/asset-export";
 import { layerAnimGroupClassName, presetClassName } from "@/lib/animation/animation-presets";
 import { clampParticleCount } from "@/lib/animation/keyframe-utils";
+import { animationTargetIdForLayer } from "@/lib/animation/layer-instance-utils";
 import { buildFlatSliceForScene, getLayersForScene, totalStoryboardDurationMs } from "@/lib/animation/storyboard-utils";
 import type { BannerLayer } from "@/types/animation";
 import type { BannerEditorState } from "@/types/editor";
@@ -154,22 +155,23 @@ function renderSceneLayers(
     if ((layer.type === "image" || layer.type === "badge") && layer.assetId) {
       const path = paths.get(layer.assetId);
       const kind = layer.legacyKey ?? "decoration";
-      const layerId = kind === "decoration" ? `decoration-${layer.assetId}` : kind;
+      const animKey = animationTargetIdForLayer(layer, layer.id);
       const fx = (state.layerEffects ?? []).find(
         (e) => e.layerId === layer.id && e.sceneId === sceneId,
       );
       const fxClass =
         fx?.preset === "flip-180" || fx?.preset === "zoom-rotate-badge"
-          ? ` ${layer.assetId}-fx`
+          ? ` ${layer.id}-fx`
           : "";
+      const borderRadius = layer.borderRadius ? `border-radius:${layer.borderRadius}px;` : "";
       if (path) {
         parts.push(
-          `<div class="layer layer--${kind}${animClass(sceneState, layerId)}${fxClass}" data-layer="${kind}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)}"><img class="layer__img layer__img--${layer.fit ?? "contain"}" src="${escapeHtmlAttribute(path)}" alt=""></div>`,
+          `<div class="layer layer--${kind}${animClass(sceneState, animKey)}${fxClass}" data-layer="${layer.id}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)};${borderRadius}"><img class="layer__img layer__img--${layer.fit ?? "contain"}" src="${escapeHtmlAttribute(path)}" alt=""></div>`,
         );
       } else {
         const placeholder = kind === "logo" ? logo : kind === "product" ? product : kind;
         parts.push(
-          `<div class="layer layer--${kind} layer--placeholder${animClass(sceneState, layerId)}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)}"><span>${placeholder}</span></div>`,
+          `<div class="layer layer--${kind} layer--placeholder${animClass(sceneState, animKey)}" data-layer="${layer.id}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)}"><span>${placeholder}</span></div>`,
         );
       }
     }

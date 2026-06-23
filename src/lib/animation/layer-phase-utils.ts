@@ -13,6 +13,7 @@ import {
   type LoopUiPresetId,
   type OutUiPresetId,
 } from "@/lib/animation/layer-phase-presets";
+import { animationTargetIdForLayer } from "@/lib/animation/layer-instance-utils";
 import {
   getLayerTimelineRange,
   MIN_LAYER_DURATION_MS,
@@ -401,9 +402,7 @@ export function buildPhaseLayerAnimationsForScene(
   const anims: LayerAnimation[] = [];
   for (const effect of getEffectsForScene(state, sceneId)) {
     const layer = getLayerById(state, effect.layerId);
-    const animLayerId =
-      layer?.legacyKey ??
-      (layer?.type === "text" ? layer.id : layer?.assetId ?? effect.layerId);
+    const animLayerId = animationTargetIdForLayer(layer, effect.layerId);
     const anim = phaseEffectToLayerAnimation(
       effect,
       layerTypeFromBannerLayer(layer),

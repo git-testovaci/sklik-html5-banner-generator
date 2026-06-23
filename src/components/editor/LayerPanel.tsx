@@ -1,21 +1,28 @@
 "use client";
 
-import type { BannerAssetPlacement, TextLayerPlacement } from "@/types/assets";
+import type { TextLayerPlacement } from "@/types/assets";
 import {
   centerHorizontally,
   centerVertically,
   clampPlacementToBanner,
   clampTextPlacementFields,
-  createDefaultAssetPlacement,
-  getLayerAnimation,
 } from "@/lib/animation/timeline-utils";
 import type { BannerEditorState, BannerEditorStateUpdater, SelectedLayer } from "@/types/editor";
-import { getActiveScene } from "@/lib/animation/storyboard-utils";
+import {
+  getActiveScene,
+  patchBannerLayerSlice,
+  reorderLayerInScene,
+  resolveBannerLayerForSelection,
+} from "@/lib/animation/storyboard-utils";
 import {
   getOrderedSceneLayersForUi,
-  layerTimelineLabel,
   selectionForBannerLayer,
 } from "@/lib/animation/layer-timeline-utils";
+import {
+  animationTargetIdForLayer,
+  layerDisplayStackLabel,
+} from "@/lib/animation/layer-instance-utils";
+import { getLayerAnimation } from "@/lib/animation/timeline-utils";
 import { LayerControls } from "./LayerControls";
 
 interface LayerPanelProps {
@@ -23,18 +30,6 @@ interface LayerPanelProps {
   selectedLayer: SelectedLayer;
   onSelectLayer: (layer: SelectedLayer) => void;
   onUpdate: BannerEditorStateUpdater;
-}
-
-const TEXT_LAYERS: { id: TextLayerPlacement["layerId"]; label: string }[] = [
-  { id: "headline", label: "Nadpis" },
-  { id: "subheadline", label: "Podnadpis" },
-  { id: "cta", label: "Výzva k akci" },
-];
-
-function layerListLabel(layer: ReturnType<typeof getOrderedSceneLayersForUi>[number]): string {
-  const legacy = TEXT_LAYERS.find((t) => t.id === layer.legacyKey);
-  if (legacy) return legacy.label;
-  return layerTimelineLabel(layer);
 }
 
 function clampText(p: TextLayerPlacement, w: number, h: number): TextLayerPlacement {
@@ -51,93 +46,47 @@ export function LayerPanel({
   const orderedLayers = activeScene
     ? getOrderedSceneLayersForUi(state, activeScene.id)
     : [];
-  const topZ = orderedLayers.length ? orderedLayers[0]!.zIndex : 0;
+  const selectedBannerLayer = resolveBannerLayerForSelection(state, selectedLayer);
 
-  const allZ = [
-    ...(state.textPlacements ?? []).map((p) => p.zIndex),
-    ...(state.assetPlacements ?? []).map((p) => p.zIndex),
-  ];
-  const minZ = allZ.length ? Math.min(...allZ) : 1;
-  const maxZ = allZ.length ? Math.max(...allZ) : 40;
-
-  function updateTextPlacement(
-    layerId: TextLayerPlacement["layerId"],
-    patch: Partial<TextLayerPlacement>,
-  ) {
-    onUpdate({
-      textPlacements: (state.textPlacements ?? []).map((p) =>
-        p.layerId === layerId ? clampText({ ...p, ...patch }, state.width, state.height) : p,
-      ),
-    });
-  }
-
-  function updateAssetPlacement(assetId: string, patch: Partial<BannerAssetPlacement>) {
-    onUpdate({
-      assetPlacements: (state.assetPlacements ?? []).map((p) => {
-        if (p.assetId !== assetId) return p;
-        const merged = { ...p, ...patch };
-        const c = clampPlacementToBanner(merged, state.width, state.height);
-        return { ...merged, ...c };
-      }),
-    });
-  }
-
-  function bumpZ(current: number, delta: number): number {
-    return Math.min(99, Math.max(1, current + delta));
+  function updateBannerLayerPatch(layerId: string, patch: Parameters<typeof patchBannerLayerSlice>[2]) {
+    onUpdate(patchBannerLayerSlice(state, layerId, patch));
   }
 
   function applyZQuick(action: "front" | "back" | "fwd" | "backwd") {
-    if (selectedLayer.type === "text") {
-      const p = (state.textPlacements ?? []).find((x) => x.layerId === selectedLayer.id);
-      if (!p) return;
-      const z =
-        action === "front" ? maxZ + 1 : action === "back" ? minZ - 1 : action === "fwd" ? bumpZ(p.zIndex, 1) : bumpZ(p.zIndex, -1);
-      updateTextPlacement(selectedLayer.id, { zIndex: Math.min(99, Math.max(1, z)) });
-    } else {
-      const p = (state.assetPlacements ?? []).find((x) => x.assetId === selectedLayer.id);
-      if (!p) return;
-      const z =
-        action === "front" ? maxZ + 1 : action === "back" ? minZ - 1 : action === "fwd" ? bumpZ(p.zIndex, 1) : bumpZ(p.zIndex, -1);
-      updateAssetPlacement(selectedLayer.id, { zIndex: Math.min(99, Math.max(1, z)) });
-    }
+    if (!activeScene || !selectedBannerLayer) return;
+    const map = {
+      front: "front",
+      back: "back",
+      fwd: "forward",
+      backwd: "backward",
+    } as const;
+    onUpdate(
+      reorderLayerInScene(state, activeScene.id, selectedBannerLayer.id, map[action]),
+    );
   }
 
   function centerSelected(axis: "h" | "v" | "both") {
-    if (selectedLayer.type === "text") {
-      const p = (state.textPlacements ?? []).find((x) => x.layerId === selectedLayer.id);
-      if (!p) return;
-      let next = p;
-      if (axis === "h" || axis === "both") next = centerHorizontally(next, state.width);
-      if (axis === "v" || axis === "both") next = centerVertically(next, state.height);
-      updateTextPlacement(selectedLayer.id, next);
-    } else {
-      const p = (state.assetPlacements ?? []).find((x) => x.assetId === selectedLayer.id);
-      if (!p) return;
-      let next = p;
-      if (axis === "h" || axis === "both") next = centerHorizontally(next, state.width);
-      if (axis === "v" || axis === "both") next = centerVertically(next, state.height);
-      updateAssetPlacement(selectedLayer.id, next);
+    if (!selectedBannerLayer) return;
+    let patch = { x: selectedBannerLayer.x, y: selectedBannerLayer.y };
+    if (axis === "h" || axis === "both") {
+      patch = centerHorizontally(
+        { ...selectedBannerLayer, ...patch },
+        state.width,
+      );
     }
+    if (axis === "v" || axis === "both") {
+      patch = centerVertically({ ...selectedBannerLayer, ...patch }, state.height);
+    }
+    updateBannerLayerPatch(selectedBannerLayer.id, patch);
   }
 
   function resetSelected() {
-    if (selectedLayer.type === "text") {
-      const defaults = (state.textPlacements ?? []).find((p) => p.layerId === selectedLayer.id);
-      if (defaults) {
-        updateTextPlacement(selectedLayer.id, {
-          visible: true,
-          opacity: 1,
-          rotation: 0,
-        });
-      }
-    } else {
-      const asset = (state.assets ?? []).find((a) => a.id === selectedLayer.id);
-      if (!asset) return;
-      updateAssetPlacement(
-        selectedLayer.id,
-        createDefaultAssetPlacement(asset.id, asset.kind, state.width, state.height),
-      );
-    }
+    if (!selectedBannerLayer) return;
+    updateBannerLayerPatch(selectedBannerLayer.id, {
+      visible: true,
+      opacity: 1,
+      rotation: 0,
+    });
   }
 
   const selectedText =
@@ -146,13 +95,13 @@ export function LayerPanel({
       : undefined;
 
   const selectedAsset =
-    selectedLayer.type === "asset"
+    selectedLayer.type === "asset" && !selectedBannerLayer
       ? (state.assetPlacements ?? []).find((p) => p.assetId === selectedLayer.id)
       : undefined;
 
   return (
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
-      <div className="max-h-44 overflow-y-auto border-b border-zinc-800/60 p-2">
+      <div className="max-h-52 overflow-y-auto border-b border-zinc-800/60 p-2">
         <p className="px-2 py-1 text-[10px] uppercase tracking-wide text-zinc-600">
           Vrstvy ve scéně · vpředu nahoře
         </p>
@@ -163,11 +112,22 @@ export function LayerPanel({
             const sel = selectionForBannerLayer(layer);
             const anim = getLayerAnimation(
               state,
-              layer.legacyKey ?? (layer.assetId ? layer.assetId : layer.id),
+              animationTargetIdForLayer(layer, layer.id),
             );
             const animOn = anim?.enabled && anim.preset !== "none";
             const isSelected = selectedLayer.type === sel.type && selectedLayer.id === sel.id;
             const isFront = index === 0;
+            const primary = layerDisplayStackLabel(layer, state);
+            const asset = layer.assetId
+              ? (state.assets ?? []).find((a) => a.id === layer.assetId)
+              : undefined;
+            const secondary =
+              layer.type === "text" && layer.text
+                ? null
+                : asset && layer.name !== asset.fileName
+                  ? asset.fileName
+                  : null;
+
             return (
               <button
                 key={layer.id}
@@ -178,41 +138,85 @@ export function LayerPanel({
                     ? "bg-violet-950/50 text-violet-200 ring-violet-800/50"
                     : !layer.visible
                       ? "text-zinc-600 opacity-50 hover:bg-zinc-800/50"
-                      : "text-zinc-400 hover:bg-zinc-800/50"
+                      : layer.locked
+                        ? "text-zinc-500 opacity-80 hover:bg-zinc-800/50"
+                        : "text-zinc-400 hover:bg-zinc-800/50"
                 }`}
               >
-                {layer.locked ? "🔒 " : ""}
-                {layerListLabel(layer)}
-                {!layer.visible ? " · skryté" : ""}
-                {isFront ? " · popředí" : ""}
-                {layer.zIndex === topZ && !isFront ? "" : !isFront ? ` · z${layer.zIndex}` : ""}
-                {animOn ? " · anim" : ""}
+                <span className="block truncate">
+                  {layer.locked ? "🔒 " : ""}
+                  {primary}
+                  {!layer.visible ? " · skryté" : ""}
+                  {isFront ? " · popředí" : ""}
+                  {animOn ? " · anim" : ""}
+                </span>
+                {secondary ? (
+                  <span className="block truncate text-[10px] text-zinc-600">{secondary}</span>
+                ) : null}
               </button>
             );
           })
         )}
       </div>
       <div className="space-y-3 p-3">
-        {(selectedText || selectedAsset) && (
-          <div className="flex flex-wrap gap-1">
-            {(["fwd", "backwd", "front", "back"] as const).map((a) => (
+        {selectedBannerLayer ? (
+          <>
+            <div className="flex flex-wrap gap-1">
+              {(["fwd", "backwd", "front", "back"] as const).map((a) => (
+                <button
+                  key={a}
+                  type="button"
+                  onClick={() =>
+                    applyZQuick(a === "fwd" ? "fwd" : a === "backwd" ? "backwd" : a)
+                  }
+                  className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800"
+                >
+                  {a === "fwd" ? "↑" : a === "backwd" ? "↓" : a === "front" ? "Vpřed" : "Dozadu"}
+                </button>
+              ))}
               <button
-                key={a}
                 type="button"
-                onClick={() =>
-                  applyZQuick(a === "fwd" ? "fwd" : a === "backwd" ? "backwd" : a)
-                }
+                onClick={() => centerSelected("h")}
                 className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800"
               >
-                {a === "fwd" ? "↑" : a === "backwd" ? "↓" : a === "front" ? "Vpřed" : "Dozadu"}
+                Na střed ↔
               </button>
-            ))}
-            <button type="button" onClick={() => centerSelected("h")} className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800">Na střed ↔</button>
-            <button type="button" onClick={() => centerSelected("v")} className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800">Na střed ↕</button>
-            <button type="button" onClick={resetSelected} className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800">Resetovat</button>
-          </div>
-        )}
-        {selectedText ? (
+              <button
+                type="button"
+                onClick={() => centerSelected("v")}
+                className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800"
+              >
+                Na střed ↕
+              </button>
+              <button
+                type="button"
+                onClick={resetSelected}
+                className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800"
+              >
+                Resetovat
+              </button>
+            </div>
+            <LayerControls
+              label={selectedBannerLayer.name}
+              visible={selectedBannerLayer.visible}
+              x={selectedBannerLayer.x}
+              y={selectedBannerLayer.y}
+              width={selectedBannerLayer.width}
+              height={selectedBannerLayer.height}
+              opacity={selectedBannerLayer.opacity}
+              rotation={selectedBannerLayer.rotation}
+              zIndex={selectedBannerLayer.zIndex}
+              fontSize={selectedBannerLayer.fontSize}
+              textAlign={selectedBannerLayer.textAlign}
+              fit={selectedBannerLayer.fit}
+              borderRadius={selectedBannerLayer.borderRadius}
+              shadow={selectedBannerLayer.shadow}
+              onCenterH={() => centerSelected("h")}
+              onCenterV={() => centerSelected("v")}
+              onChange={(patch) => updateBannerLayerPatch(selectedBannerLayer.id, patch)}
+            />
+          </>
+        ) : selectedText ? (
           <LayerControls
             label={selectedLayer.type === "text" ? selectedLayer.id : "layer"}
             visible={selectedText.visible}
@@ -228,7 +232,13 @@ export function LayerPanel({
             onCenterH={() => centerSelected("h")}
             onCenterV={() => centerSelected("v")}
             onChange={(patch) =>
-              updateTextPlacement(selectedLayer.id as TextLayerPlacement["layerId"], patch)
+              onUpdate({
+                textPlacements: (state.textPlacements ?? []).map((p) =>
+                  p.layerId === selectedLayer.id
+                    ? clampText({ ...p, ...patch }, state.width, state.height)
+                    : p,
+                ),
+              })
             }
           />
         ) : selectedAsset ? (
@@ -245,18 +255,20 @@ export function LayerPanel({
             fit={selectedAsset.fit}
             borderRadius={selectedAsset.borderRadius}
             shadow={selectedAsset.shadow}
-            onChange={(patch) => updateAssetPlacement(selectedAsset.assetId, patch)}
+            onChange={(patch) =>
+              onUpdate({
+                assetPlacements: (state.assetPlacements ?? []).map((p) => {
+                  if (p.assetId !== selectedAsset.assetId) return p;
+                  const merged = { ...p, ...patch };
+                  const c = clampPlacementToBanner(merged, state.width, state.height);
+                  return { ...merged, ...c };
+                }),
+              })
+            }
           />
         ) : (
           <p className="text-xs text-zinc-500">Vyberte vrstvu pro úpravu pozice.</p>
         )}
-        {(state.bannerLayers ?? []).length > 0 &&
-        (state.assetPlacements ?? []).length === 0 &&
-        !(state.textPlacements ?? []).some((p) => p.visible) ? (
-          <p className="text-[10px] text-zinc-600">
-            Otevřete záložku Šablony pro storyboard, nebo nahrajte obrázky v Assety.
-          </p>
-        ) : null}
       </div>
     </section>
   );

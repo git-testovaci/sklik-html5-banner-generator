@@ -22,6 +22,7 @@ import { clampParticleCount } from "@/lib/animation/keyframe-utils";
 import { buildSceneSequenceCss } from "@/lib/animation/scene-sequence-css";
 import { isLayerVisibleAtTimelineTime } from "@/lib/animation/layer-timeline-utils";
 import { getLayerScrubStyle, scrubStyleToCss } from "@/lib/animation/layer-scrub-utils";
+import { animationTargetIdForLayer } from "@/lib/animation/layer-instance-utils";
 import {
   buildFlatSliceForScene,
   getActiveScene,
@@ -376,11 +377,10 @@ function CanvasContent({
           storyboardLayers,
           placement.bannerLayerId,
         );
-        const animTargetId =
-          sbLayer?.legacyKey ??
-          (placement.kind === "decoration"
-            ? `decoration-${sbLayer?.id ?? placement.assetId}`
-            : placement.kind);
+        const animTargetId = animationTargetIdForLayer(
+          sbLayer,
+          sbLayer?.legacyKey ?? sbLayer?.id ?? placement.assetId,
+        );
         const fx = (state.layerEffects ?? []).find(
           (e) =>
             e.layerId === (sbLayer?.id ?? placement.assetId) && e.sceneId === sceneId,

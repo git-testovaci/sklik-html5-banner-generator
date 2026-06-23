@@ -29,17 +29,20 @@ export async function collectExportAssets(
   const warnings: string[] = [];
   const usedNames = new Set<string>();
 
-  const visiblePlacements = (state.assetPlacements ?? []).filter((p) => p.visible);
-  const usedAssetIds = new Set(visiblePlacements.map((p) => p.assetId));
+  const usedAssetIds = new Set<string>();
+
+  for (const layer of state.bannerLayers ?? []) {
+    if (layer.visible && layer.assetId) usedAssetIds.add(layer.assetId);
+  }
+  for (const p of (state.assetPlacements ?? []).filter((pl) => pl.visible)) {
+    usedAssetIds.add(p.assetId);
+  }
 
   for (const assetId of usedAssetIds) {
     const asset = (state.assets ?? []).find((a) => a.id === assetId);
-    const placement = visiblePlacements.find((p) => p.assetId === assetId);
 
     if (!asset) {
-      if (placement) {
-        errors.push(`Missing asset metadata for visible layer (${assetId}).`);
-      }
+      errors.push(`Missing asset metadata for export (${assetId}).`);
       continue;
     }
 

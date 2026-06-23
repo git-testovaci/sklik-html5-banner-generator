@@ -515,6 +515,17 @@ export function removeLayerFromEditor(
   const layer = getLayerById(state, layerId);
   if (!layer) return state;
 
+  const isTimelineMedia =
+    layer.type === "image" &&
+    !!layer.assetId &&
+    !layer.isTemplateSlot &&
+    !layer.slotKind &&
+    !layer.legacyKey;
+
+  if (isTimelineMedia) {
+    return deleteBannerLayer(state, layerId);
+  }
+
   if ((layer.isTemplateSlot || layer.slotKind) && layer.assetId) {
     return clearLayerAsset(state, layerId);
   }

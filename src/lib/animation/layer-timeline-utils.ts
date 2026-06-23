@@ -158,7 +158,7 @@ export function layerTimelineLabel(layer: BannerLayer): string {
     case "text":
       return layer.name || "Text";
     case "image":
-      return "Obrázek";
+      return layer.name || "Obrázek";
     case "badge":
       return layer.isTemplateSlot || layer.slotKind ? layer.name || "Slot" : "Odznak";
     case "shape":

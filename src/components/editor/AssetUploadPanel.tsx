@@ -6,8 +6,13 @@ import {
   invalidateAssetObjectUrl,
   saveAssetBlob,
 } from "@/lib/assets/asset-storage";
-import { autoPlaceUploadedAsset } from "@/lib/assets/slot-utils";
-import { nextStepAfterAssetPlacement } from "@/lib/editor/workflow-guidance";
+import {
+  applyLayerTimingAtPlayhead,
+  assignAssetToSlotLayer,
+  isSelectedEmptySlot,
+  resolveLayerFromSelection,
+  slotAcceptsAssetKind,
+} from "@/lib/assets/slot-utils";
 import {
   compressImageIfNeeded,
   formatFileSize,
@@ -17,23 +22,30 @@ import {
 } from "@/lib/assets/image-utils";
 import { createDefaultAssetPlacement } from "@/lib/animation/timeline-utils";
 import type { BannerAssetKind } from "@/types/assets";
-import type { BannerEditorState, BannerEditorStateUpdater } from "@/types/editor";
-import type { SelectedLayer } from "@/types/editor";
+import type { BannerEditorState, BannerEditorStateUpdater, SelectedLayer } from "@/types/editor";
 
 interface AssetUploadPanelProps {
   state: BannerEditorState;
   onUpdate: BannerEditorStateUpdater;
   onPlaced?: (selection: SelectedLayer, message: string) => void;
+  selectedLayer?: SelectedLayer | null;
+  scrubTimeMs?: number;
 }
 
 const UPLOAD_SLOTS: { kind: BannerAssetKind; label: string; hint: string; id: string }[] = [
-  { kind: "logo", label: "Nahrát logo", hint: "Vloží se do slotu loga v banneru", id: "upload-logo" },
-  { kind: "product", label: "Nahrát produkt", hint: "Vloží se do slotu produktu", id: "upload-product" },
-  { kind: "background", label: "Nahrát pozadí", hint: "Vloží se jako pozadí scény", id: "upload-background" },
-  { kind: "decoration", label: "Nahrát obrázek", hint: "Uloží do médií — přidejte na časovou osu", id: "upload-decoration" },
+  { kind: "logo", label: "Nahrát logo", hint: "Uloží se do médií · slot vyplníte volitelně", id: "upload-logo" },
+  { kind: "product", label: "Nahrát produkt", hint: "Uloží se do médií · slot vyplníte volitelně", id: "upload-product" },
+  { kind: "background", label: "Nahrát pozadí", hint: "Uloží se do médií · slot vyplníte volitelně", id: "upload-background" },
+  { kind: "decoration", label: "Nahrát obrázek", hint: "Uloží do médií — poté + Přidat na časovou osu", id: "upload-decoration" },
 ];
 
-export function AssetUploadPanel({ state, onUpdate, onPlaced }: AssetUploadPanelProps) {
+export function AssetUploadPanel({
+  state,
+  onUpdate,
+  onPlaced,
+  selectedLayer,
+  scrubTimeMs = 0,
+}: AssetUploadPanelProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -103,19 +115,20 @@ export function AssetUploadPanel({ state, onUpdate, onPlaced }: AssetUploadPanel
         };
 
         const hasStoryboard = (state.scenes ?? []).length > 0;
-        let placedInSlot = false;
         if (hasStoryboard) {
-          const placed = autoPlaceUploadedAsset(nextState, assetId, kind);
-          nextState = placed.state;
-          placedInSlot = Boolean(placed.layerId);
-          onUpdate(nextState);
-          setSuccess(placed.message);
-          if (placed.layerId) {
-            const nextMsg = nextStepAfterAssetPlacement(kind);
-            onPlaced?.(
-              { type: "asset", id: placed.layerId },
-              nextMsg ?? placed.message,
-            );
+          const emptySlot = isSelectedEmptySlot(state, selectedLayer ?? null);
+          const slot = emptySlot
+            ? resolveLayerFromSelection(state, selectedLayer ?? null)
+            : undefined;
+          if (slot && slotAcceptsAssetKind(slot, kind)) {
+            nextState = assignAssetToSlotLayer(nextState, slot.id, assetId);
+            nextState = applyLayerTimingAtPlayhead(nextState, slot.id, scrubTimeMs);
+            onUpdate(nextState);
+            setSuccess("Soubor nahrán a vložen do vybraného slotu");
+            onPlaced?.({ type: "asset", id: slot.id }, "Soubor vložen do slotu");
+          } else {
+            onUpdate(nextState);
+            setSuccess("Soubor nahrán do médií. Klikněte + Přidat na časovou osu.");
           }
         } else {
           const placement = createDefaultAssetPlacement(
@@ -137,7 +150,7 @@ export function AssetUploadPanel({ state, onUpdate, onPlaced }: AssetUploadPanel
           onPlaced?.({ type: "asset", id: assetId }, "Obrázek nahrán a umístěn");
         }
 
-        if (validation.warnings.length > 0 && !placedInSlot) {
+        if (validation.warnings.length > 0) {
           setErrors((prev) => ({ ...prev, [kind]: validation.warnings[0] ?? "" }));
         }
       } catch {
@@ -146,7 +159,7 @@ export function AssetUploadPanel({ state, onUpdate, onPlaced }: AssetUploadPanel
         setLoading(null);
       }
     },
-    [onUpdate, onPlaced, state],
+    [onUpdate, onPlaced, scrubTimeMs, selectedLayer, state],
   );
 
   async function handleRemove(assetId: string) {
@@ -171,7 +184,7 @@ export function AssetUploadPanel({ state, onUpdate, onPlaced }: AssetUploadPanel
   return (
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <div className="border-b border-zinc-800/60 px-4 py-3">
-        <h2 className="text-sm font-medium text-zinc-300">Nahrát assety</h2>
+        <h2 className="text-sm font-medium text-zinc-300">Nahrát média</h2>
         <p className="mt-1 text-xs text-zinc-500">
           PNG, JPEG nebo WebP · max 200 kB · doporučeno 300×300 px a více
         </p>
@@ -189,7 +202,7 @@ export function AssetUploadPanel({ state, onUpdate, onPlaced }: AssetUploadPanel
           const current = kind !== "decoration" ? asset : undefined;
 
           return (
-            <div key={kind} id={id} className="rounded-lg border border-zinc-800/60 bg-zinc-950/40 p-3 scroll-mt-4">
+            <div key={kind} id={id} className="scroll-mt-4 rounded-lg border border-zinc-800/60 bg-zinc-950/40 p-3">
               <label htmlFor={id} className="mb-1 block text-xs font-medium text-zinc-300">
                 {label}
               </label>
