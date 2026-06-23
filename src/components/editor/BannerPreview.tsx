@@ -1,51 +1,289 @@
-import type { BannerAnimation, BannerEditorState } from "@/types/editor";
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { createAssetObjectUrl } from "@/lib/assets/asset-storage";
+import {
+  buildLayerAnimationStyle,
+  collectUniqueKeyframes,
+  presetClassName,
+} from "@/lib/animation/animation-presets";
+import {
+  getLayerAnimation,
+  getTextPlacement,
+  normalizeEditorState,
+} from "@/lib/animation/timeline-utils";
+import type { BannerEditorState } from "@/types/editor";
 
 interface BannerPreviewProps {
   state: BannerEditorState;
   className?: string;
+  replayKey?: number;
+  loopPreview?: boolean;
 }
 
-const ANIMATION_CLASS: Record<BannerAnimation, string> = {
-  none: "",
-  "fade-in": "banner-anim-fade-in",
-  "slide-up": "banner-anim-slide-up",
-  "soft-pulse": "banner-anim-soft-pulse",
-};
+function useAssetUrls(assetIds: string[]) {
+  const [urls, setUrls] = useState<Record<string, string>>({});
+  const [missing, setMissing] = useState<Set<string>>(new Set());
 
-function getLayoutMode(width: number, height: number): "horizontal" | "vertical" | "square" {
-  const ratio = width / height;
-  if (ratio >= 2.5) return "horizontal";
-  if (ratio <= 0.75) return "vertical";
-  return "square";
+  const assetIdsKey = assetIds.join(",");
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      const next: Record<string, string> = {};
+      const miss = new Set<string>();
+      for (const id of assetIds) {
+        const result = await createAssetObjectUrl(id);
+        if (result.ok) next[id] = result.value;
+        else miss.add(id);
+      }
+      if (!cancelled) {
+        setUrls(next);
+        setMissing(miss);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [assetIdsKey, assetIds]);
+
+  return { urls, missing };
 }
 
-export function BannerPreview({ state, className = "" }: BannerPreviewProps) {
-  const layout = getLayoutMode(state.width, state.height);
-  const animClass = ANIMATION_CLASS[state.animation];
-  const showProduct = state.productImageLabel.trim().length > 0;
+export function BannerPreview({
+  state: rawState,
+  className = "",
+  replayKey = 0,
+  loopPreview = false,
+}: BannerPreviewProps) {
+  const state = useMemo(() => normalizeEditorState(rawState), [rawState]);
+  const assets = state.assets ?? [];
+  const assetIds = assets.map((a) => a.id);
+  const { urls, missing } = useAssetUrls(assetIds);
+
+  const animationCss = useMemo(() => {
+    const presets = (state.layerAnimations ?? [])
+      .filter((a) => a.enabled && a.preset !== "none")
+      .map((a) => a.preset);
+    const keyframes = collectUniqueKeyframes(presets, 12, false);
+    const rules: string[] = keyframes ? [keyframes] : [];
+
+    for (const anim of state.layerAnimations ?? []) {
+      if (!anim.enabled || anim.preset === "none") continue;
+      const loop = loopPreview || (anim.preset === "soft-pulse" && (state.timeline?.loop ?? false));
+      const style = buildLayerAnimationStyle(
+        anim.preset,
+        anim.startMs,
+        anim.durationMs,
+        anim.easing,
+        loop,
+        anim.distancePx,
+        false,
+      );
+      if (style) {
+        rules.push(`.${presetClassName(anim.layerId)} { ${style} }`);
+      }
+    }
+    return rules.join("\n");
+  }, [state.layerAnimations, state.timeline?.loop, loopPreview]);
+
+  const layers = useMemo(() => {
+    const items: Array<{
+      key: string;
+      zIndex: number;
+      node: React.ReactNode;
+    }> = [];
+
+    const bgColorOnly = !(state.assetPlacements ?? []).some(
+      (p) => p.visible && p.kind === "background",
+    );
+
+    if (bgColorOnly) {
+      items.push({
+        key: "bg-color",
+        zIndex: 0,
+        node: (
+          <div
+            className="absolute inset-0"
+            style={{ backgroundColor: state.backgroundColor }}
+          />
+        ),
+      });
+    }
+
+    for (const placement of [...(state.assetPlacements ?? [])].sort((a, b) => a.zIndex - b.zIndex)) {
+      if (!placement.visible) continue;
+      const asset = assets.find((a) => a.id === placement.assetId);
+      const layerId =
+        placement.kind === "decoration"
+          ? `decoration-${placement.assetId}`
+          : placement.kind;
+      const anim = getLayerAnimation(state, layerId);
+      const animClass =
+        anim?.enabled && anim.preset !== "none"
+          ? presetClassName(layerId)
+          : "";
+
+      const baseStyle: React.CSSProperties = {
+        position: "absolute",
+        left: placement.x,
+        top: placement.y,
+        width: placement.width,
+        height: placement.height,
+        opacity: placement.opacity,
+        transform: `rotate(${placement.rotation}deg)`,
+        zIndex: placement.zIndex,
+        borderRadius: placement.borderRadius,
+        boxShadow: placement.shadow ? "0 4px 12px rgba(0,0,0,0.25)" : undefined,
+        overflow: "hidden",
+      };
+
+      const url = urls[placement.assetId];
+      const isMissing = missing.has(placement.assetId);
+
+      items.push({
+        key: placement.assetId,
+        zIndex: placement.zIndex,
+        node: (
+          <div key={`${placement.assetId}-${replayKey}`} className={animClass} style={baseStyle}>
+            {url ? (
+              <img
+                src={url}
+                alt={asset?.kind ?? "asset"}
+                className="h-full w-full"
+                style={{
+                  objectFit: placement.fit,
+                }}
+              />
+            ) : (
+              <div
+                className="flex h-full w-full items-center justify-center border border-dashed text-[10px] uppercase"
+                style={{
+                  borderColor: `${state.accentColor}66`,
+                  color: state.accentColor,
+                }}
+              >
+                {isMissing ? "Missing image" : "Loading…"}
+              </div>
+            )}
+          </div>
+        ),
+      });
+    }
+
+    const textLayers: Array<{
+      id: "headline" | "subheadline" | "cta";
+      content: string;
+      style: React.CSSProperties;
+      className: string;
+    }> = [];
+
+    const h = getTextPlacement(state, "headline");
+    if (h?.visible !== false) {
+      textLayers.push({
+        id: "headline",
+        content: state.headline,
+        className: presetClassName("headline"),
+        style: {
+          position: "absolute",
+          left: h?.x ?? 8,
+          top: h?.y ?? 28,
+          width: h?.width ?? state.width * 0.55,
+          height: h?.height ?? 40,
+          opacity: h?.opacity ?? 1,
+          transform: `rotate(${h?.rotation ?? 0}deg)`,
+          zIndex: h?.zIndex ?? 30,
+          margin: 0,
+          fontWeight: 700,
+          fontSize: Math.max(10, Math.round(state.height * 0.08)),
+          lineHeight: 1.15,
+          color: state.textColor,
+          display: "flex",
+          alignItems: "center",
+        },
+      });
+    }
+
+    const s = getTextPlacement(state, "subheadline");
+    if (s?.visible !== false) {
+      textLayers.push({
+        id: "subheadline",
+        content: state.subheadline,
+        className: presetClassName("subheadline"),
+        style: {
+          position: "absolute",
+          left: s?.x ?? 8,
+          top: s?.y ?? 50,
+          width: s?.width ?? state.width * 0.55,
+          height: s?.height ?? 30,
+          opacity: s?.opacity ?? 1,
+          transform: `rotate(${s?.rotation ?? 0}deg)`,
+          zIndex: s?.zIndex ?? 31,
+          margin: 0,
+          fontSize: Math.max(8, Math.round(state.height * 0.055)),
+          lineHeight: 1.25,
+          color: state.textColor,
+          display: "flex",
+          alignItems: "center",
+        },
+      });
+    }
+
+    const c = getTextPlacement(state, "cta");
+    if (c?.visible !== false) {
+      textLayers.push({
+        id: "cta",
+        content: state.cta,
+        className: presetClassName("cta"),
+        style: {
+          position: "absolute",
+          left: c?.x ?? 8,
+          top: c?.y ?? 72,
+          width: c?.width ?? state.width * 0.35,
+          height: c?.height ?? 28,
+          opacity: c?.opacity ?? 1,
+          transform: `rotate(${c?.rotation ?? 0}deg)`,
+          zIndex: c?.zIndex ?? 32,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "4px 10px",
+          borderRadius: 4,
+          backgroundColor: state.ctaBackgroundColor,
+          color: state.ctaTextColor,
+          fontSize: Math.max(8, Math.round(state.height * 0.055)),
+          fontWeight: 600,
+        },
+      });
+    }
+
+    for (const t of textLayers) {
+      const Tag = t.id === "headline" ? "h1" : t.id === "subheadline" ? "p" : "span";
+      items.push({
+        key: t.id,
+        zIndex: (t.style.zIndex as number) ?? 30,
+        node: (
+          <Tag
+            key={`${t.id}-${replayKey}`}
+            className={t.className}
+            style={t.style}
+          >
+            {t.content}
+          </Tag>
+        ),
+      });
+    }
+
+    return items.sort((a, b) => a.zIndex - b.zIndex);
+  }, [state, assets, urls, missing, replayKey]);
 
   return (
     <>
-      <style>{`
-        @keyframes banner-fade-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes banner-slide-up {
-          from { opacity: 0; transform: translateY(12px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes banner-soft-pulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.02); }
-        }
-        .banner-anim-fade-in { animation: banner-fade-in 0.8s ease-out forwards; }
-        .banner-anim-slide-up { animation: banner-slide-up 0.7s ease-out forwards; }
-        .banner-anim-soft-pulse { animation: banner-soft-pulse 2.5s ease-in-out infinite; }
-      `}</style>
-
+      <style>{animationCss}</style>
       <div
-        className={`overflow-hidden shadow-2xl ${animClass} ${className}`}
+        className={`relative overflow-hidden shadow-2xl ${className}`}
         style={{
           width: state.width,
           height: state.height,
@@ -55,176 +293,10 @@ export function BannerPreview({ state, className = "" }: BannerPreviewProps) {
         role="img"
         aria-label={`Banner preview: ${state.headline}`}
       >
-        {layout === "horizontal" ? (
-          <HorizontalLayout state={state} showProduct={showProduct} />
-        ) : layout === "vertical" ? (
-          <VerticalLayout state={state} showProduct={showProduct} />
-        ) : (
-          <SquareLayout state={state} showProduct={showProduct} />
-        )}
+        {layers.map((l) => (
+          <div key={l.key}>{l.node}</div>
+        ))}
       </div>
     </>
-  );
-}
-
-function LogoPlaceholder({ label, accentColor }: { label: string; accentColor: string }) {
-  return (
-    <div
-      className="flex shrink-0 items-center justify-center rounded font-semibold uppercase tracking-wide"
-      style={{
-        backgroundColor: `${accentColor}33`,
-        border: `1px solid ${accentColor}66`,
-        color: accentColor,
-        fontSize: "0.55em",
-        padding: "0.4em 0.6em",
-        minWidth: "3.5em",
-        minHeight: "1.8em",
-      }}
-    >
-      {label.slice(0, 12)}
-    </div>
-  );
-}
-
-function ProductPlaceholder({ label, accentColor }: { label: string; accentColor: string }) {
-  return (
-    <div
-      className="flex items-center justify-center rounded"
-      style={{
-        backgroundColor: `${accentColor}22`,
-        border: `1px dashed ${accentColor}55`,
-        color: accentColor,
-        fontSize: "0.5em",
-        padding: "0.5em",
-        flex: "1 1 auto",
-        minHeight: "2.5em",
-        minWidth: "2.5em",
-      }}
-    >
-      {label.slice(0, 16)}
-    </div>
-  );
-}
-
-function CtaButton({ state }: { state: BannerEditorState }) {
-  return (
-    <span
-      className="inline-block shrink-0 rounded font-semibold"
-      style={{
-        backgroundColor: state.ctaBackgroundColor,
-        color: state.ctaTextColor,
-        fontSize: "0.55em",
-        padding: "0.45em 0.9em",
-        lineHeight: 1.2,
-      }}
-    >
-      {state.cta}
-    </span>
-  );
-}
-
-function TextBlock({ state, compact }: { state: BannerEditorState; compact?: boolean }) {
-  return (
-    <div className="min-w-0 flex-1" style={{ lineHeight: 1.25 }}>
-      <p
-        className="font-bold leading-tight"
-        style={{
-          fontSize: compact ? "0.65em" : "0.75em",
-          color: state.textColor,
-        }}
-      >
-        {state.headline}
-      </p>
-      {!compact && (
-        <p
-          className="mt-1 opacity-80"
-          style={{ fontSize: "0.5em", color: state.textColor }}
-        >
-          {state.subheadline}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function HorizontalLayout({
-  state,
-  showProduct,
-}: {
-  state: BannerEditorState;
-  showProduct: boolean;
-}) {
-  return (
-    <div
-      className="flex h-full items-center gap-[0.6em]"
-      style={{ padding: "0.6em 0.8em" }}
-    >
-      <LogoPlaceholder label={state.logoLabel} accentColor={state.accentColor} />
-      <TextBlock state={state} compact />
-      {showProduct && (
-        <ProductPlaceholder label={state.productImageLabel} accentColor={state.accentColor} />
-      )}
-      <CtaButton state={state} />
-    </div>
-  );
-}
-
-function VerticalLayout({
-  state,
-  showProduct,
-}: {
-  state: BannerEditorState;
-  showProduct: boolean;
-}) {
-  return (
-    <div
-      className="flex h-full flex-col"
-      style={{ padding: "0.8em" }}
-    >
-      <div className="mb-[0.6em] flex items-center justify-between gap-2">
-        <LogoPlaceholder label={state.logoLabel} accentColor={state.accentColor} />
-      </div>
-      {showProduct && (
-        <div className="mb-[0.6em] flex-1">
-          <ProductPlaceholder label={state.productImageLabel} accentColor={state.accentColor} />
-        </div>
-      )}
-      <TextBlock state={state} />
-      <div className="mt-[0.6em]">
-        <CtaButton state={state} />
-      </div>
-    </div>
-  );
-}
-
-function SquareLayout({
-  state,
-  showProduct,
-}: {
-  state: BannerEditorState;
-  showProduct: boolean;
-}) {
-  return (
-    <div
-      className="flex h-full flex-col"
-      style={{ padding: "0.7em" }}
-    >
-      <div className="mb-[0.5em] flex items-start justify-between gap-2">
-        <LogoPlaceholder label={state.logoLabel} accentColor={state.accentColor} />
-      </div>
-      <div className="flex flex-1 gap-[0.5em]">
-        <div className="flex flex-1 flex-col justify-center">
-          <TextBlock state={state} />
-          <div className="mt-[0.5em]">
-            <CtaButton state={state} />
-          </div>
-        </div>
-        {showProduct && (
-          <div className="w-[38%] shrink-0">
-            <ProductPlaceholder label={state.productImageLabel} accentColor={state.accentColor} />
-          </div>
-        )}
-      </div>
-    </div>
   );
 }

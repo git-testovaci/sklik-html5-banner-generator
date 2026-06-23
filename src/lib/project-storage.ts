@@ -1,5 +1,12 @@
 import { generateShareId } from "@/lib/share-links";
 import { MOCK_PROJECTS } from "@/lib/mock-projects";
+import {
+  defaultStudioPlacements,
+  defaultTimeline,
+  layerAnimationsFromLegacy,
+} from "@/lib/animation/timeline-utils";
+import type { BannerAsset, BannerAssetPlacement, TextLayerPlacement } from "@/types/assets";
+import type { BannerTimeline, LayerAnimation } from "@/types/animation";
 import type { BannerProject } from "@/types/project";
 
 export const STORAGE_KEY = "sklik-html5-banner-generator.projects.v1";
@@ -72,12 +79,53 @@ function migrateProject(value: unknown): BannerProject | null {
   const createdAt =
     typeof record.createdAt === "string" ? record.createdAt : updatedAt;
 
+  const width = record.width as number;
+  const height = record.height as number;
+  const animation = isValidAnimation(record.animation)
+    ? record.animation
+    : "fade-in";
+
+  const studioDefaults = defaultStudioPlacements(width, height);
+
+  const assets = Array.isArray(record.assets)
+    ? (record.assets as BannerAsset[]).filter(
+        (a) => a && typeof a.id === "string" && typeof a.fileName === "string",
+      )
+    : [];
+
+  const assetPlacements = Array.isArray(record.assetPlacements)
+    ? (record.assetPlacements as BannerAssetPlacement[])
+    : studioDefaults.assetPlacements;
+
+  const textPlacements = Array.isArray(record.textPlacements)
+    ? (record.textPlacements as TextLayerPlacement[])
+    : studioDefaults.textPlacements;
+
+  const timeline: BannerTimeline =
+    record.timeline && typeof record.timeline === "object"
+      ? {
+          durationMs:
+            typeof (record.timeline as BannerTimeline).durationMs === "number"
+              ? (record.timeline as BannerTimeline).durationMs
+              : defaultTimeline().durationMs,
+          loop: Boolean((record.timeline as BannerTimeline).loop),
+          backgroundAnimation:
+            (record.timeline as BannerTimeline).backgroundAnimation ?? "none",
+        }
+      : defaultTimeline();
+
+  const layerAnimations: LayerAnimation[] = Array.isArray(
+    record.layerAnimations,
+  )
+    ? (record.layerAnimations as LayerAnimation[])
+    : layerAnimationsFromLegacy(animation);
+
   return {
     id: record.id,
     name: record.name,
     status: isValidStatus(record.status) ? record.status : "draft",
-    width: record.width,
-    height: record.height,
+    width,
+    height,
     headline: record.headline,
     subheadline: record.subheadline,
     cta: record.cta,
@@ -99,9 +147,7 @@ function migrateProject(value: unknown): BannerProject | null {
       typeof record.accentColor === "string"
         ? record.accentColor
         : "#a78bfa",
-    animation: isValidAnimation(record.animation)
-      ? record.animation
-      : "fade-in",
+    animation,
     logoLabel:
       typeof record.logoLabel === "string" ? record.logoLabel : "Logo",
     productImageLabel:
@@ -114,6 +160,11 @@ function migrateProject(value: unknown): BannerProject | null {
         : generateShareId(),
     createdAt,
     updatedAt,
+    assets,
+    assetPlacements,
+    textPlacements,
+    timeline,
+    layerAnimations,
   };
 }
 
@@ -233,8 +284,19 @@ export function upsertProject(project: BannerProject): BannerProject[] {
 
 export function deleteProjectById(projectId: string): BannerProject[] {
   const projects = loadProjectsFromStorage();
+  const removed = projects.find((item) => item.id === projectId);
   const next = projects.filter((item) => item.id !== projectId);
   saveProjectsToStorage(next);
+
+  if (removed?.assets?.length && typeof window !== "undefined") {
+    void import("@/lib/assets/asset-storage").then(({ deleteAssetsByProject }) =>
+      deleteAssetsByProject(
+        projectId,
+        removed.assets?.map((a) => a.id) ?? [],
+      ),
+    );
+  }
+
   return next;
 }
 

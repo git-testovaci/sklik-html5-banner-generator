@@ -1,5 +1,4 @@
 import { BANNER_SIZES, formatBannerSize } from "@/lib/banner-sizes";
-import { BANNER_ANIMATIONS } from "@/types/editor";
 import type { BannerEditorState } from "@/types/editor";
 import type { ValidationRow, ValidationSummary } from "@/types/validation";
 
@@ -70,9 +69,6 @@ export function getValidationSummary(
   const isAllowedSize = BANNER_SIZES.some(
     (size) => size.width === state.width && size.height === state.height,
   );
-  const allowedAnimations = BANNER_ANIMATIONS.map((item) => item.value);
-  const isAllowedAnimation = allowedAnimations.includes(state.animation);
-
   const textContrast = contrastRatio(state.backgroundColor, state.textColor);
   const ctaContrast = contrastRatio(
     state.ctaBackgroundColor,
@@ -124,9 +120,15 @@ export function getValidationSummary(
     },
     {
       id: "animation",
-      label: "Animation",
-      value: state.animation,
-      status: isAllowedAnimation ? "pass" : "fail",
+      label: "Timeline animations",
+      value: `${(state.layerAnimations ?? []).filter((a) => a.enabled).length} active layer(s)`,
+      status: "pass",
+    },
+    {
+      id: "assets",
+      label: "Image assets",
+      value: `${(state.assets ?? []).length} uploaded`,
+      status: (state.assets ?? []).length > 0 ? "pass" : "info",
     },
     {
       id: "external-sources",

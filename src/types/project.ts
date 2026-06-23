@@ -1,3 +1,5 @@
+import type { BannerAsset, BannerAssetPlacement, TextLayerPlacement } from "./assets";
+import type { BannerTimeline, LayerAnimation } from "./animation";
 import type { BannerAnimation } from "./editor";
 
 export type ProjectStatus = "draft" | "shared" | "exported";
@@ -22,6 +24,11 @@ export interface BannerProject {
   shareId: string;
   createdAt: string;
   updatedAt: string;
+  assets?: BannerAsset[];
+  assetPlacements?: BannerAssetPlacement[];
+  textPlacements?: TextLayerPlacement[];
+  timeline?: BannerTimeline;
+  layerAnimations?: LayerAnimation[];
 }
 
 export interface DashboardStats {

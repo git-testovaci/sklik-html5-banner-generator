@@ -3,7 +3,7 @@ import type { ValidationRowStatus } from "./validation";
 export interface GeneratedBannerFile {
   path: string;
   size: number;
-  kind: "html" | "css" | "js";
+  kind: "html" | "css" | "js" | "image";
 }
 
 export interface GeneratedBannerBundle {

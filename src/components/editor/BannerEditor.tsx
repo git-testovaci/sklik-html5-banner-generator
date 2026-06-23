@@ -2,11 +2,9 @@
 
 import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
-import {
-  editorStateToProject,
-  getProjectById,
-  projectToEditorState,
-} from "@/lib/mock-projects";
+import { normalizeEditorState, projectToEditorState } from "@/lib/animation/timeline-utils";
+import { getProjectById } from "@/lib/mock-projects";
+import { editorStateToProject } from "@/lib/project-factory";
 import {
   getProjectByIdSnapshot,
   getStoredProjectById,
@@ -19,9 +17,13 @@ import {
   type BannerEditorState,
   type BannerEditorStateUpdater,
 } from "@/types/editor";
+import { AssetLibrary } from "./AssetLibrary";
+import { AssetUploadPanel } from "./AssetUploadPanel";
 import { BannerPreviewStage } from "./BannerPreviewStage";
 import { EditorSettingsPanel } from "./EditorSettingsPanel";
 import { EditorTopBar } from "./EditorTopBar";
+import { LayerPanel } from "./LayerPanel";
+import { TimelinePanel } from "./TimelinePanel";
 import { ValidationExportPanel } from "./ValidationExportPanel";
 
 interface BannerEditorProps {
@@ -44,27 +46,36 @@ function useProjectLookup(projectId: string) {
   );
 }
 
+type SelectedLayer =
+  | { type: "text"; id: "headline" | "subheadline" | "cta" }
+  | { type: "asset"; id: string };
+
 interface BannerEditorInnerProps {
   initialState: BannerEditorState;
   projectId: string;
 }
 
 function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) {
-  const [state, setState] = useState<BannerEditorState>(initialState);
-  const [savedState, setSavedState] = useState<BannerEditorState>(initialState);
+  const [state, setState] = useState<BannerEditorState>(() =>
+    normalizeEditorState(initialState),
+  );
+  const [savedState, setSavedState] = useState<BannerEditorState>(() =>
+    normalizeEditorState(initialState),
+  );
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
+  const [selectedLayer, setSelectedLayer] = useState<SelectedLayer>({
+    type: "text",
+    id: "headline",
+  });
 
   const onUpdate: BannerEditorStateUpdater = (patch) => {
-    setState((prev) => ({ ...prev, ...patch }));
+    setState((prev) => normalizeEditorState({ ...prev, ...patch }));
     setSaveStatus("idle");
   };
 
   const hasUnsavedChanges = !editorStatesEqual(state, savedState);
 
-  const validation = useMemo(
-    () => getValidationSummary(state),
-    [state],
-  );
+  const validation = useMemo(() => getValidationSummary(state), [state]);
 
   function handleSave() {
     const existing =
@@ -72,7 +83,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
     const project = editorStateToProject(state, existing);
     upsertProject(project);
 
-    const nextState = projectToEditorState(project);
+    const nextState = normalizeEditorState(projectToEditorState(project));
     setState(nextState);
     setSavedState(nextState);
     setSaveStatus("saved");
@@ -87,16 +98,25 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
         onSave={handleSave}
       />
 
-      <div className="flex flex-1 flex-col gap-4 p-4 lg:flex-row lg:items-stretch lg:gap-4 lg:p-4">
-        <div className="order-2 lg:order-1">
+      <div className="flex flex-1 flex-col gap-4 p-4 lg:flex-row lg:items-start">
+        <div className="order-2 flex w-full shrink-0 flex-col gap-4 lg:order-1 lg:w-[300px] xl:w-[320px]">
           <EditorSettingsPanel state={state} onUpdate={onUpdate} />
+          <AssetUploadPanel state={state} onUpdate={onUpdate} />
+          <AssetLibrary state={state} />
+          <LayerPanel
+            state={state}
+            selectedLayer={selectedLayer}
+            onSelectLayer={setSelectedLayer}
+            onUpdate={onUpdate}
+          />
         </div>
 
-        <div className="order-1 flex min-h-[320px] flex-1 flex-col lg:order-2 lg:min-h-0">
-          <BannerPreviewStage state={state} />
+        <div className="order-1 flex min-w-0 flex-1 flex-col gap-4 lg:order-2">
+          <BannerPreviewStage state={state} onUpdate={onUpdate} />
+          <TimelinePanel state={state} onUpdate={onUpdate} />
         </div>
 
-        <div className="order-3">
+        <div className="order-3 w-full shrink-0 lg:w-[300px] xl:w-[320px]">
           <ValidationExportPanel
             state={state}
             validation={validation}

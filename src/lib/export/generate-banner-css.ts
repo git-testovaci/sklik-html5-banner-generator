@@ -1,9 +1,44 @@
+import {
+  buildLayerAnimationStyle,
+  collectUniqueKeyframes,
+  presetClassName,
+} from "@/lib/animation/animation-presets";
 import type { BannerEditorState } from "@/types/editor";
 import { sanitizeCssColor } from "./sanitize-export-content";
 
 function fontSize(width: number, height: number, base: number): string {
   const scale = Math.min(width, height) / 300;
-  return `${Math.max(9, Math.round(base * scale))}px`;
+  return `${Math.max(8, Math.round(base * scale))}px`;
+}
+
+function buildAnimationRules(state: BannerEditorState): string {
+  const anims = state.layerAnimations ?? [];
+  const presets = anims
+    .filter((a) => a.enabled && a.preset !== "none")
+    .map((a) => a.preset);
+
+  const keyframes = collectUniqueKeyframes(presets, 12, true);
+  const rules: string[] = [];
+
+  if (keyframes) rules.push(keyframes);
+
+  for (const anim of anims) {
+    if (!anim.enabled || anim.preset === "none") continue;
+    const style = buildLayerAnimationStyle(
+      anim.preset,
+      anim.startMs,
+      anim.durationMs,
+      anim.easing,
+      state.timeline?.loop ?? false,
+      anim.distancePx,
+      true,
+    );
+    if (style) {
+      rules.push(`.${presetClassName(anim.layerId)} { ${style} }`);
+    }
+  }
+
+  return rules.join("\n");
 }
 
 export function generateBannerCss(state: BannerEditorState): string {
@@ -18,26 +53,13 @@ export function generateBannerCss(state: BannerEditorState): string {
   const ctaSize = fontSize(state.width, state.height, 11);
   const labelSize = fontSize(state.width, state.height, 9);
 
-  const animationBlock =
-    state.animation === "none"
-      ? ""
-      : `
-@keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes slide-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@keyframes soft-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.015); }
-}
-.anim-fade-in { animation: fade-in 0.8s ease-out forwards; }
-.anim-slide-up { animation: slide-up 0.7s ease-out forwards; }
-.anim-soft-pulse { animation: soft-pulse 2.4s ease-in-out infinite; }
-`;
+  const hasBgImage = (state.assetPlacements ?? []).some(
+    (p) => p.visible && p.kind === "background" && (state.assets ?? []).some((a) => a.id === p.assetId),
+  );
+
+  const bannerBg = hasBgImage ? "transparent" : bg;
+
+  const animationBlock = buildAnimationRules(state);
 
   return `*, *::before, *::after { box-sizing: border-box; }
 html, body {
@@ -53,78 +75,64 @@ body {
   color: ${text};
 }
 .banner {
+  position: relative;
   width: ${state.width}px;
   height: ${state.height}px;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px;
-  background: ${bg};
+  background: ${bannerBg};
   color: ${text};
 }
-.banner__logo {
-  flex-shrink: 0;
+.layer {
+  position: absolute;
+  overflow: hidden;
+  transform-origin: center center;
+}
+.layer--background { pointer-events: none; }
+.layer__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.layer__img--contain { object-fit: contain; }
+.layer__img--cover { object-fit: cover; }
+.layer__img--fill { object-fit: fill; }
+.layer--placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 48px;
-  min-height: 28px;
-  padding: 4px 6px;
-  border: 1px solid ${accent};
-  background: ${bg};
+  border: 1px dashed ${accent};
   color: ${accent};
   font-size: ${labelSize};
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  text-align: center;
+  background: ${bg};
 }
-.banner__content {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-}
-.banner__headline {
+.layer--headline {
   margin: 0;
   font-size: ${headlineSize};
   line-height: 1.15;
   font-weight: 700;
+  display: flex;
+  align-items: center;
 }
-.banner__subheadline {
+.layer--subheadline {
   margin: 0;
   font-size: ${subSize};
   line-height: 1.25;
-  opacity: 0.88;
+  opacity: 0.9;
+  display: flex;
+  align-items: center;
 }
-.banner__cta {
-  display: inline-block;
-  align-self: flex-start;
-  margin-top: 4px;
-  padding: 5px 10px;
+.layer--cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
   border-radius: 4px;
   background: ${ctaBg};
   color: ${ctaText};
   font-size: ${ctaSize};
   font-weight: 600;
   line-height: 1.2;
-}
-.banner__product {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 56px;
-  min-height: 56px;
-  max-width: 38%;
-  padding: 6px;
-  border: 1px dashed ${accent};
-  background: ${bg};
-  color: ${accent};
-  font-size: ${labelSize};
-  text-align: center;
 }
 ${animationBlock}`;
 }

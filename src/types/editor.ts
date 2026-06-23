@@ -1,3 +1,5 @@
+import type { BannerAsset, BannerAssetPlacement, TextLayerPlacement } from "./assets";
+import type { BannerTimeline, LayerAnimation } from "./animation";
 import type { ProjectStatus } from "./project";
 
 export type BannerAnimation = "none" | "fade-in" | "slide-up" | "soft-pulse";
@@ -16,10 +18,16 @@ export interface BannerEditorState {
   ctaBackgroundColor: string;
   ctaTextColor: string;
   accentColor: string;
+  /** @deprecated Legacy single animation — timeline layerAnimations preferred */
   animation: BannerAnimation;
   logoLabel: string;
   productImageLabel: string;
   shareId: string;
+  assets?: BannerAsset[];
+  assetPlacements?: BannerAssetPlacement[];
+  textPlacements?: TextLayerPlacement[];
+  timeline?: BannerTimeline;
+  layerAnimations?: LayerAnimation[];
 }
 
 export const BANNER_ANIMATIONS: readonly {

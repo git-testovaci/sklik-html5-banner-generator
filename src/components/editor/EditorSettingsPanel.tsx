@@ -1,4 +1,4 @@
-import { BANNER_ANIMATIONS, type BannerEditorStateUpdater } from "@/types/editor";
+import type { BannerEditorStateUpdater } from "@/types/editor";
 import type { BannerEditorState } from "@/types/editor";
 import { ColorField } from "./ColorField";
 import { SizeSelect } from "./SizeSelect";
@@ -95,25 +95,9 @@ export function EditorSettingsPanel({ state, onUpdate }: EditorSettingsPanelProp
           </div>
         </div>
 
-        <div>
-          <label htmlFor="animation" className="mb-1.5 block text-sm font-medium text-zinc-300">
-            Animation
-          </label>
-          <select
-            id="animation"
-            value={state.animation}
-            onChange={(e) =>
-              onUpdate({ animation: e.target.value as BannerEditorState["animation"] })
-            }
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
-          >
-            {BANNER_ANIMATIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <p className="text-xs text-zinc-500">
+          Per-layer animations are configured in the timeline below.
+        </p>
 
         <TextField
           id="logo-label"

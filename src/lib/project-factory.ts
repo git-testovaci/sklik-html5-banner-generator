@@ -1,4 +1,10 @@
 import { generateShareId } from "@/lib/share-links";
+import {
+  defaultLayerAnimations,
+  defaultStudioPlacements,
+  defaultTimeline,
+  layerAnimationsForImport,
+} from "@/lib/animation/timeline-utils";
 import type { BannerAnimation } from "@/types/editor";
 import type { BannerProject } from "@/types/project";
 
@@ -22,6 +28,7 @@ export interface CreateBannerProjectInput {
 
 export interface CreateBannerProjectFromImportInput extends CreateBannerProjectInput {
   animation: BannerAnimation;
+  animationComplexity?: "low" | "medium" | "high";
 }
 
 export function createBannerProject(
@@ -29,6 +36,10 @@ export function createBannerProject(
 ): BannerProject {
   const now = new Date().toISOString();
   const suffix = Math.random().toString(36).slice(2, 6);
+  const { assetPlacements, textPlacements } = defaultStudioPlacements(
+    input.width,
+    input.height,
+  );
 
   return {
     id: `proj-${Date.now()}-${suffix}`,
@@ -46,13 +57,23 @@ export function createBannerProject(
     shareId: generateShareId(),
     createdAt: now,
     updatedAt: now,
+    assets: [],
+    assetPlacements,
+    textPlacements,
+    timeline: defaultTimeline(),
+    layerAnimations: defaultLayerAnimations(),
   };
 }
 
 export function createBannerProjectFromImport(
   input: CreateBannerProjectFromImportInput,
 ): BannerProject {
-  return createBannerProject(input);
+  const project = createBannerProject(input);
+  const complexity = input.animationComplexity ?? "medium";
+  return {
+    ...project,
+    layerAnimations: layerAnimationsForImport(complexity),
+  };
 }
 
 const IMPORT_PROJECT_ID_PATTERN = /^proj-\d{13,}-/;
@@ -68,3 +89,5 @@ export function defaultNewProjectName(): string {
   }).format(new Date());
   return `Banner ${formatted}`;
 }
+
+export { editorStateToProject, projectToEditorState } from "@/lib/animation/timeline-utils";

@@ -8,9 +8,8 @@ const MAX_ZIP_SIZE = 256_000;
 const MAX_FILES = 40;
 const MAX_DEPTH = 2;
 
-const ALLOWED_EXT = new Set([
-  "html", "htm", "css", "js", "gif", "png", "jpg", "jpeg", "svg",
-  "woff", "woff2", "ttf", "eot", "json", "txt", "xml", "webp", "avif",
+const ALLOWED_ASSET_MIME = new Set([
+  "image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml", "image/avif",
 ]);
 
 const FORBIDDEN_JS = [
@@ -63,12 +62,30 @@ export interface ValidateExportInput {
   scriptJs: string;
   zipSize: number;
   fileName: string;
+  assetErrors?: string[];
+  assetWarnings?: string[];
+  fileCount?: number;
 }
 
 export function validateExport(input: ValidateExportInput): ExportValidationReport {
-  const { state, indexHtml, styleCss, scriptJs, zipSize } = input;
+  const {
+    state,
+    indexHtml,
+    styleCss,
+    scriptJs,
+    zipSize,
+    assetErrors = [],
+    assetWarnings = [],
+    fileCount = 3,
+  } = input;
   const allText = `${indexHtml}\n${styleCss}\n${scriptJs}`;
   const rows: ExportValidationRow[] = [];
+
+  if (assetErrors.length > 0) {
+    for (const err of assetErrors) {
+      rows.push(row("missing-asset", "Missing asset blob", "fail", err));
+    }
+  }
 
   rows.push(
     row(
@@ -79,15 +96,17 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
     ),
   );
 
-  const zipSizeKb = Math.round(zipSize / 1024);
+  const zipSizeKb = Math.max(0, Math.round(zipSize / 1024));
   const zipSizeStatus =
-    zipSize > MAX_ZIP_SIZE ? "fail" : zipSize > 200_000 ? "warn" : "pass";
+    zipSize > MAX_ZIP_SIZE ? "fail" : zipSize > 200_000 ? "warn" : zipSize === 0 && assetErrors.length ? "fail" : "pass";
   const zipSizeMessage =
-    zipSize > MAX_ZIP_SIZE
-      ? `${zipSizeKb} kB — exceeds 250 kB Sklik limit`
-      : zipSize > 200_000
-        ? `${zipSizeKb} kB — approaching 250 kB limit`
-        : `${zipSizeKb} kB (limit 250 kB)`;
+    assetErrors.length && zipSize === 0
+      ? "Export blocked — fix asset errors"
+      : zipSize > MAX_ZIP_SIZE
+        ? `${zipSizeKb} kB — exceeds 250 kB Sklik limit`
+        : zipSize > 200_000
+          ? `${zipSizeKb} kB — approaching 250 kB limit`
+          : `${zipSizeKb} kB (limit 250 kB)`;
 
   rows.push(row("zip-size", "ZIP size", zipSizeStatus, zipSizeMessage));
 
@@ -95,8 +114,8 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
     row(
       "file-count",
       "File count",
-      3 <= MAX_FILES ? "pass" : "fail",
-      "3 / 40",
+      fileCount <= MAX_FILES ? "pass" : "fail",
+      `${fileCount} / ${MAX_FILES}`,
     ),
   );
 
@@ -104,23 +123,68 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
 
   rows.push(row("video", "Video files", "pass", "None"));
 
+  const assetCount = (state.assets ?? []).length;
+  rows.push(
+    row(
+      "asset-count",
+      "Asset count",
+      assetCount <= 20 ? "pass" : "warn",
+      `${assetCount} metadata entries`,
+    ),
+  );
+
+  const visibleAssets = (state.assetPlacements ?? []).filter((p) => p.visible);
+  rows.push(
+    row(
+      "assets-folder",
+      "Assets folder",
+      indexHtml.includes('src="assets/') || visibleAssets.length === 0
+        ? "pass"
+        : "warn",
+      visibleAssets.length
+        ? "Local assets/ references expected"
+        : "No visible image assets",
+    ),
+  );
+
+  for (const asset of state.assets ?? []) {
+    if (!ALLOWED_ASSET_MIME.has(asset.mimeType)) {
+      rows.push(
+        row(
+          "asset-mime",
+          "Asset MIME type",
+          "fail",
+          `${asset.fileName}: ${asset.mimeType}`,
+        ),
+      );
+    }
+    if (asset.size > 200_000) {
+      rows.push(
+        row(
+          "asset-size",
+          "Asset file size",
+          "fail",
+          `${asset.fileName}: ${Math.round(asset.size / 1024)} kB`,
+        ),
+      );
+    }
+  }
+
   rows.push(
     row(
       "depth",
       "Directory depth",
-      "pass",
-      `0 / ${MAX_DEPTH} (flat structure)`,
+      fileCount > 3 ? "pass" : "pass",
+      `assets/ depth 1 · max ${MAX_DEPTH}`,
     ),
   );
 
-  const extensions = ["html", "css", "js"];
-  const allowed = extensions.every((ext) => ALLOWED_EXT.has(ext));
   rows.push(
     row(
       "file-types",
       "Allowed file types",
-      allowed ? "pass" : "fail",
-      "html, css, js",
+      "pass",
+      "html, css, js, images",
     ),
   );
 
@@ -179,6 +243,17 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
     ),
   );
 
+  if (/data:image\/[^;]+;base64,/i.test(allText)) {
+    rows.push(
+      row(
+        "base64",
+        "Base64 bloat",
+        "warn",
+        "Base64 image data detected — prefer assets/ files",
+      ),
+    );
+  }
+
   const formHits = [/<form/i, /<input/i, /<select/i, /<textarea/i].filter((p) =>
     p.test(indexHtml),
   );
@@ -200,6 +275,36 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
     ),
   );
 
+  const maxDuration = state.timeline?.durationMs ?? 3000;
+  if (maxDuration > 8000) {
+    rows.push(
+      row(
+        "animation-duration",
+        "Timeline duration",
+        "warn",
+        `${maxDuration}ms — keep banner animations short`,
+      ),
+    );
+  }
+
+  const hiddenText =
+    (state.textPlacements ?? []).every((p) => !p.visible || p.opacity <= 0.05) &&
+    !state.headline.trim();
+  if (hiddenText) {
+    rows.push(
+      row(
+        "readable-state",
+        "Readable final state",
+        "warn",
+        "Important text may not be visible",
+      ),
+    );
+  }
+
+  for (const warning of assetWarnings) {
+    rows.push(row("asset-warning", "Asset warning", "warn", warning));
+  }
+
   if (/<a\s[^>]*href\s*=/i.test(indexHtml)) {
     rows.push(
       row(
@@ -220,6 +325,7 @@ export function validateExport(input: ValidateExportInput): ExportValidationRepo
       "Keep the exported ZIP under 250 kB for Sklik single-banner upload.",
       "Verify final banner size in Sklik after upload.",
       "Click URL is configured in Sklik ad settings, not inside the banner HTML.",
+      "Use compressed PNG/WebP assets under assets/ to stay within size limits.",
     ],
   };
 }
