@@ -11,6 +11,10 @@ import {
   syncFlatFromActiveScene,
   updateBannerLayer,
 } from "@/lib/animation/storyboard-utils";
+import {
+  defaultInsertDurationMs,
+  updateLayerTimelineRange,
+} from "@/lib/animation/layer-timeline-utils";
 
 export function isSlotEmpty(layer: BannerLayer): boolean {
   return !layer.assetId;
@@ -199,14 +203,16 @@ export function insertImageLayerInScene(
   state: BannerEditorState,
   assetId: string,
   name = "Obrázek",
+  startMs = 0,
 ): { state: BannerEditorState; layer: BannerLayer } {
   const w = state.width;
   const h = state.height;
   const iw = Math.round(w * 0.35);
   const ih = Math.round(h * 0.35);
+  const scene = getActiveScene(state);
   const layer: BannerLayer = {
     id: newId("layer"),
-    sceneId: getActiveScene(state)?.id,
+    sceneId: scene?.id,
     persistent: false,
     name,
     type: "image",
@@ -224,7 +230,23 @@ export function insertImageLayerInScene(
     fit: "contain",
     shadow: false,
   };
-  return { state: addLayerToScene(state, layer), layer };
+  const withLayer = addLayerToScene(state, layer);
+  if (!scene) return { state: withLayer, layer };
+  const durationMs = defaultInsertDurationMs(scene.durationMs, startMs);
+  const next = updateLayerTimelineRange(withLayer, scene.id, layer.id, startMs, durationMs);
+  return { state: next, layer: getLayerById(next, layer.id)! };
+}
+
+/** Apply playhead-based timing after placing an asset into a scene layer. */
+export function applyLayerTimingAtPlayhead(
+  state: BannerEditorState,
+  layerId: string,
+  startMs: number,
+): BannerEditorState {
+  const scene = getActiveScene(state);
+  if (!scene) return state;
+  const durationMs = defaultInsertDurationMs(scene.durationMs, startMs);
+  return updateLayerTimelineRange(state, scene.id, layerId, startMs, durationMs);
 }
 
 export function slotLayerSelection(layer: BannerLayer): {

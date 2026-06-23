@@ -31,6 +31,8 @@ interface BannerPreviewStageProps {
   onReplayScene?: () => void;
   onQuickAdd?: (kind: QuickAddLayerType) => void;
   onSlotActivate?: (layerId: string) => void;
+  previewTimeMs?: number | null;
+  gateLayersByPreviewTime?: boolean;
 }
 
 export function BannerPreviewStage({
@@ -43,6 +45,8 @@ export function BannerPreviewStage({
   onReplayScene,
   onQuickAdd,
   onSlotActivate,
+  previewTimeMs = null,
+  gateLayersByPreviewTime = false,
 }: BannerPreviewStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -178,6 +182,8 @@ export function BannerPreviewStage({
             playAll={playback.playAllView}
             playbackSceneId={playback.playbackSceneId}
             playbackPaused={playback.isPaused}
+            previewTimeMs={previewTimeMs}
+            gateLayersByPreviewTime={gateLayersByPreviewTime}
             onSlotActivate={onSlotActivate}
           />
         </div>

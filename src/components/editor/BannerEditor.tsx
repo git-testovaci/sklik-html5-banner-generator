@@ -15,8 +15,10 @@ import {
   getLayerById,
   getSceneById,
   resolveBannerLayerForSelection,
+  sceneLocalPlaybackTime,
   setActiveScene,
 } from "@/lib/animation/storyboard-utils";
+import { updateLayerTimelineRange } from "@/lib/animation/layer-timeline-utils";
 import { createQuickLayer, type QuickAddLayerType } from "@/lib/animation/layer-factory";
 import { findEmptySlotForKind, getTemplateSlotLayers } from "@/lib/assets/slot-utils";
 import { usePlaybackController } from "@/lib/playback/use-playback-controller";
@@ -43,6 +45,7 @@ import { BannerPreviewStage } from "./BannerPreviewStage";
 import { InspectorPanel } from "./InspectorPanel";
 import { KeyframeTimeline } from "./KeyframeTimeline";
 import { LayerPanel } from "./LayerPanel";
+import { UnifiedLayerTimeline } from "./UnifiedLayerTimeline";
 import { MotionPresetQuickActions } from "./MotionPresetQuickActions";
 import { SceneStrip } from "./SceneStrip";
 import { TemplatePresetsPanel } from "./TemplatePresetsPanel";
@@ -113,6 +116,8 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   const [placementMessage, setPlacementMessage] = useState<string | null>(null);
   const [selectedTransitionSceneId, setSelectedTransitionSceneId] = useState<string | null>(null);
   const [expandTiming, setExpandTiming] = useState(false);
+  const [showEffectDetail, setShowEffectDetail] = useState(false);
+  const [scrubTimeMs, setScrubTimeMs] = useState(0);
   const [dismissedGuidanceId, setDismissedGuidanceId] = useState<string | null>(null);
   const copiedLayerIdRef = useRef<string | null>(null);
 
@@ -128,6 +133,35 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
     timelineDurationMs: state.timeline?.durationMs ?? 3000,
     activeSceneId: state.activeSceneId,
   });
+
+  const activeScene = getActiveScene(state);
+
+  const localPreviewTimeMs = useMemo(() => {
+    const sceneId = activeScene?.id;
+    if (!sceneId) return scrubTimeMs;
+    if (
+      playback.isPlaying &&
+      playback.playbackSceneId === sceneId
+    ) {
+      return sceneLocalPlaybackTime(
+        playback.playbackTimeMs,
+        state.scenes ?? [],
+        sceneId,
+        playback.playAllView,
+      );
+    }
+    return scrubTimeMs;
+  }, [
+    activeScene?.id,
+    playback.isPlaying,
+    playback.playbackTimeMs,
+    playback.playbackSceneId,
+    playback.playAllView,
+    scrubTimeMs,
+    state.scenes,
+  ]);
+
+  const gatePreviewByTime = !playback.isPlaying;
 
   const onUpdate: BannerEditorStateUpdater = (patch) => {
     setState((prev) => {
@@ -218,6 +252,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
 
   function handleSceneSelect(sceneId: string) {
     playback.stop();
+    setScrubTimeMs(0);
     onUpdate(setActiveScene(state, sceneId));
     setSelectedEffectId(null);
     setSelectedTransitionSceneId(null);
@@ -339,7 +374,8 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
       }
       case "timing":
         setExpandTiming(true);
-        document.getElementById("keyframe-timeline")?.scrollIntoView({ behavior: "smooth" });
+        setShowEffectDetail(true);
+        document.getElementById("unified-layer-timeline")?.scrollIntoView({ behavior: "smooth" });
         break;
       case "export":
         setShowExport(true);
@@ -407,6 +443,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
                 onUpdate={onUpdate}
                 selectedLayer={selectedLayer}
                 onPlaced={handleAssetPlaced}
+                scrubTimeMs={localPreviewTimeMs}
               />
             </>
           )}
@@ -430,6 +467,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
                 setSelectedLayer(selection);
                 setSelectedEffectId(null);
                 setSelectedTransitionSceneId(null);
+                setScrubTimeMs(0);
                 playback.stop();
                 if (meta?.switchToAssets) setLeftTab("assets");
                 if (meta?.message) {
@@ -456,6 +494,8 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             onReplayScene={handleReplayScene}
             onQuickAdd={handleQuickAdd}
             onSlotActivate={handleSlotActivate}
+            previewTimeMs={localPreviewTimeMs}
+            gateLayersByPreviewTime={gatePreviewByTime}
           />
           <SceneStrip
             state={state}
@@ -477,22 +517,63 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             selectedLayer={selectedLayer}
             onSelectEffect={setSelectedEffectId}
           />
-          <KeyframeTimeline
+          <UnifiedLayerTimeline
             state={state}
-            onUpdate={onUpdate}
-            selectedEffectId={selectedEffectId}
-            onSelectEffect={setSelectedEffectId}
-            forceExpandAdvanced={expandTiming}
-            onExpanded={() => setExpandTiming(false)}
-            onSelectTransition={(sceneId) => {
-              setSelectedTransitionSceneId(sceneId);
+            selectedLayer={selectedLayer}
+            onSelectLayer={(sel) => {
+              setSelectedLayer(sel);
               setSelectedEffectId(null);
             }}
-            playbackMode={playback.mode}
-            playbackTimeMs={playback.playbackTimeMs}
-            playbackSceneId={playback.playbackSceneId}
-            playAllView={playback.playAllView}
+            playheadMs={localPreviewTimeMs}
+            isPlaying={playback.isPlaying}
+            onScrub={(ms) => {
+              if (!playback.isPlaying) setScrubTimeMs(ms);
+            }}
+            onRangeChange={(layerId, startMs, durationMs) => {
+              const sceneId = activeScene?.id;
+              if (!sceneId) return;
+              onUpdate(updateLayerTimelineRange(state, sceneId, layerId, startMs, durationMs));
+            }}
           />
+          {showEffectDetail ? (
+            <>
+              <KeyframeTimeline
+                state={state}
+                onUpdate={onUpdate}
+                selectedEffectId={selectedEffectId}
+                onSelectEffect={setSelectedEffectId}
+                forceExpandAdvanced={expandTiming}
+                onExpanded={() => setExpandTiming(false)}
+                onSelectTransition={(sceneId) => {
+                  setSelectedTransitionSceneId(sceneId);
+                  setSelectedEffectId(null);
+                }}
+                playbackMode={playback.mode}
+                playbackTimeMs={playback.playbackTimeMs}
+                playbackSceneId={playback.playbackSceneId}
+                playAllView={playback.playAllView}
+              />
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowEffectDetail(false)}
+                  className="text-[10px] text-zinc-500 hover:text-violet-400 hover:underline"
+                >
+                  Skrýt detail animací
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowEffectDetail(true)}
+                className="text-[10px] text-zinc-500 hover:text-violet-400 hover:underline"
+              >
+                Detail animací / pokročilé časování
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Right — checklist + inspector + export */}

@@ -18,6 +18,7 @@ import {
 } from "@/lib/animation/animation-presets";
 import { clampParticleCount } from "@/lib/animation/keyframe-utils";
 import { buildSceneSequenceCss } from "@/lib/animation/scene-sequence-css";
+import { isLayerVisibleAtTimelineTime } from "@/lib/animation/layer-timeline-utils";
 import {
   buildFlatSliceForScene,
   getActiveScene,
@@ -62,6 +63,9 @@ interface BannerPreviewProps {
   playbackSceneId?: string | null;
   /** Freezes CSS preview animations while playback RAF is paused. */
   playbackPaused?: boolean;
+  /** When set with gateLayersByPreviewTime, hides layers outside their timeline window */
+  previewTimeMs?: number | null;
+  gateLayersByPreviewTime?: boolean;
   /** When true, render read-only (public preview) with storyboard playback */
   publicMode?: boolean;
   onSlotActivate?: (layerId: string) => void;
@@ -199,6 +203,8 @@ interface CanvasContentProps {
   onUpdateStoryboardLayer?: BannerPreviewProps["onUpdateStoryboardLayer"];
   publicMode?: boolean;
   onSlotActivate?: (layerId: string) => void;
+  previewTimeMs?: number | null;
+  gateLayersByPreviewTime?: boolean;
 }
 
 function CanvasContent({
@@ -219,6 +225,8 @@ function CanvasContent({
   onUpdateStoryboardLayer,
   publicMode = false,
   onSlotActivate,
+  previewTimeMs = null,
+  gateLayersByPreviewTime = false,
 }: CanvasContentProps) {
   const slice = buildFlatSliceForScene(state, sceneId);
   const renderState: BannerEditorState = { ...state, ...slice };
@@ -226,6 +234,11 @@ function CanvasContent({
   const sceneBg = scene?.backgroundColor ?? state.backgroundColor;
   const assets = state.assets ?? [];
   const storyboardLayers = getLayersForScene(state, sceneId);
+
+  function layerVisibleAtPreview(bannerLayerId: string): boolean {
+    if (!gateLayersByPreviewTime || previewTimeMs == null) return true;
+    return isLayerVisibleAtTimelineTime(state, sceneId, bannerLayerId, previewTimeMs);
+  }
   const slotLayers = storyboardLayers.filter(
     (l) =>
       l.visible &&
@@ -299,12 +312,13 @@ function CanvasContent({
         const asset = assets.find((a) => a.id === placement.assetId);
         const url = urls[placement.assetId];
         const isMissing = missingSet.has(placement.assetId);
+        const sbLayer = storyboardLayers.find((l) => l.assetId === placement.assetId);
+        if (sbLayer && !layerVisibleAtPreview(sbLayer.id)) return null;
         const selected = isAssetPlacementSelected(
           selectedLayer,
           placement.assetId,
           storyboardLayers,
         );
-        const sbLayer = storyboardLayers.find((l) => l.assetId === placement.assetId);
         const layerId =
           placement.kind === "decoration" ? `decoration-${placement.assetId}` : placement.kind;
         const anim = getLayerAnimation(renderState, layerId);
@@ -410,6 +424,7 @@ function CanvasContent({
       })}
 
       {slotLayers.map((layer) => {
+        if (!layerVisibleAtPreview(layer.id)) return null;
         const selected = selectedLayer?.type === "asset" && selectedLayer.id === layer.id;
         return (
           <InteractiveCanvasLayer
@@ -440,6 +455,7 @@ function CanvasContent({
 
       {extraLayers.map((layer) => {
         if (!layer.visible) return null;
+        if (!layerVisibleAtPreview(layer.id)) return null;
         if (layer.type === "particle") {
           return <ParticleRender key={`${sceneId}-${layer.id}`} layer={layer} replayKey={replayKey} />;
         }
@@ -527,6 +543,7 @@ function CanvasContent({
         const sbLayer = storyboardLayers.find(
           (l) => l.legacyKey === layerId || l.id === layerId,
         );
+        if (sbLayer && !layerVisibleAtPreview(sbLayer.id)) return null;
         const content =
           sbLayer?.text ??
           (layerId === "headline"
@@ -627,6 +644,7 @@ function CanvasContent({
       })}
 
       {extraTextLayers.map((layer) => {
+        if (!layerVisibleAtPreview(layer.id)) return null;
         const anim = (renderState.layerAnimations ?? []).find((a) => a.layerId === layer.id);
         const animClass =
           anim?.enabled && anim.preset !== "none"
@@ -699,6 +717,8 @@ export function BannerPreview({
   playAll = false,
   playbackSceneId,
   playbackPaused = false,
+  previewTimeMs = null,
+  gateLayersByPreviewTime = false,
   publicMode = false,
   onSlotActivate,
 }: BannerPreviewProps) {
@@ -731,6 +751,8 @@ export function BannerPreview({
     onUpdateStoryboardLayer,
     publicMode,
     onSlotActivate,
+    previewTimeMs,
+    gateLayersByPreviewTime,
   };
 
   const pauseStyle = playbackPaused

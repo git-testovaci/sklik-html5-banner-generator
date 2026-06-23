@@ -164,6 +164,9 @@ export interface BannerLayer extends BannerLayerBase {
   slotKind?: TemplateAssetSlotKind;
   slotLabel?: string;
   isTemplateSlot?: boolean;
+  /** Optional editor timeline window when layer has no layerEffects */
+  timelineStartMs?: number;
+  timelineDurationMs?: number;
 }
 
 export interface LayerKeyframe {

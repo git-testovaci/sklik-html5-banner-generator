@@ -7,6 +7,7 @@ import {
   insertImageLayerInScene,
   isSelectedSlotLayer,
   placeAssetInSlot,
+  applyLayerTimingAtPlayhead,
   resolveLayerFromSelection,
   slotLayerSelection,
 } from "@/lib/assets/slot-utils";
@@ -25,6 +26,8 @@ interface AssetLibraryProps {
   onUpdate: BannerEditorStateUpdater;
   selectedLayer?: SelectedLayer | null;
   onPlaced?: (selection: SelectedLayer, message: string) => void;
+  /** Local playhead for inserting assets at the current timeline position */
+  scrubTimeMs?: number;
 }
 
 const KIND_LABELS: Record<BannerAssetKind, string> = {
@@ -63,6 +66,7 @@ export function AssetLibrary({
   onUpdate,
   selectedLayer,
   onPlaced,
+  scrubTimeMs = 0,
 }: AssetLibraryProps) {
   const assets = state.assets ?? [];
   const metaKey = buildAssetsMetaKey(assets);
@@ -96,7 +100,8 @@ export function AssetLibrary({
       allowFilled: kind === "logo",
     });
     if (result.layerId) {
-      onUpdate(result.state);
+      const timed = applyLayerTimingAtPlayhead(result.state, result.layerId, scrubTimeMs);
+      onUpdate(timed);
       onPlaced?.(
         { type: "asset", id: result.layerId },
         result.message,
@@ -109,7 +114,7 @@ export function AssetLibrary({
   function insertIntoScene(assetId: string) {
     const asset = assets.find((a) => a.id === assetId);
     const name = asset ? KIND_LABELS[asset.kind] ?? "Obrázek" : "Obrázek";
-    const { state: next, layer } = insertImageLayerInScene(state, assetId, name);
+    const { state: next, layer } = insertImageLayerInScene(state, assetId, name, scrubTimeMs);
     onUpdate(next);
     onPlaced?.(slotLayerSelection(layer), `${name} vložen do scény`);
   }
@@ -218,7 +223,12 @@ export function AssetLibrary({
                         allowFilled: true,
                       });
                       if (result.layerId) {
-                        onUpdate(result.state);
+                        const timed = applyLayerTimingAtPlayhead(
+                          result.state,
+                          result.layerId,
+                          scrubTimeMs,
+                        );
+                        onUpdate(timed);
                         onPlaced?.({ type: "asset", id: result.layerId }, "Slot nahrazen");
                       }
                     }}
