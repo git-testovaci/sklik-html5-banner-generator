@@ -105,8 +105,8 @@ export function LayerInspectorControls({
 
   return (
     <div className="space-y-3">
-      <Section title="Vrstva">
-        <Field label={isImageLikeLayer(layer) && asset ? "Název instance vrstvy" : "Název vrstvy"}>
+      <div className="rounded-lg border border-zinc-800/60 bg-zinc-950/50 px-3 py-2.5">
+        <Field label="Název vrstvy">
           <input
             type="text"
             value={layer.name}
@@ -114,12 +114,11 @@ export function LayerInspectorControls({
             className={inputClass}
           />
         </Field>
-        <p className="text-[10px] text-zinc-500">
-          Typ vrstvy · <span className="text-zinc-400">{layerTypeLabelCs(layer)}</span>
-        </p>
-      </Section>
+        <p className="mt-1.5 text-[11px] font-medium text-zinc-300">{layerDisplayName(layer)}</p>
+        <p className="text-[10px] text-zinc-500">{layerTypeLabelCs(layer)}</p>
+      </div>
 
-      <Section title="Transformace">
+      <Section title="Pozice a vzhled">
         <div className="grid grid-cols-2 gap-2">
           <Field label="Pozice X">
             <input
@@ -176,9 +175,6 @@ export function LayerInspectorControls({
             <span className="text-[10px] text-zinc-500">{Math.round(layer.opacity * 100)} %</span>
           </Field>
         </div>
-      </Section>
-
-      <Section title="Viditelnost">
         <label className="flex items-center justify-between rounded border border-zinc-800/60 px-2 py-1.5 text-[11px] text-zinc-300">
           <span>{layer.visible ? "Viditelné" : "Skryté"}</span>
           <input
@@ -198,7 +194,7 @@ export function LayerInspectorControls({
       </Section>
 
       {scene ? (
-        <Section title="Pořadí vrstev">
+        <Section title="Pořadí">
           <div className="grid grid-cols-2 gap-1">
             <SmallButton onClick={() => reorder("forward")}>Posunout dopředu</SmallButton>
             <SmallButton onClick={() => reorder("backward")}>Posunout dozadu</SmallButton>
@@ -209,7 +205,7 @@ export function LayerInspectorControls({
       ) : null}
 
       {layer.type === "text" && layer.legacyKey !== "cta" ? (
-        <Section title="Text">
+        <Section title="Obsah · text">
           <Field label="Text">
             <textarea
               value={layer.text ?? ""}
@@ -292,7 +288,7 @@ export function LayerInspectorControls({
       ) : null}
 
       {isImageLikeLayer(layer) ? (
-        <Section title="Obrázek">
+        <Section title="Obsah · obrázek">
           {asset ? (
             <Field label="Soubor média">
               <p className="truncate text-xs text-zinc-300" title={asset.fileName}>
@@ -333,7 +329,7 @@ export function LayerInspectorControls({
       ) : null}
 
       {isCtaLikeLayer(layer) ? (
-        <Section title="Tlačítko">
+        <Section title="Obsah · tlačítko">
           <Field label="CTA text">
             <input
               type="text"
@@ -384,6 +380,9 @@ export function LayerInspectorControls({
       <LayerPhaseAnimationControls layer={layer} state={state} onUpdate={onUpdate} />
 
       <div className="border-t border-zinc-800/60 pt-3">
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-zinc-600">
+          Nebezpečná akce
+        </p>
         <button
           type="button"
           onClick={handleDelete}
@@ -391,7 +390,6 @@ export function LayerInspectorControls({
         >
           {deleteLabel}
         </button>
-        <p className="mt-1 text-[10px] text-zinc-600">{layerDisplayName(layer)}</p>
       </div>
     </div>
   );

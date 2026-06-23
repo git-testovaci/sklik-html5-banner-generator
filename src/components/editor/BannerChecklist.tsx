@@ -2,11 +2,10 @@
 
 import type { BannerEditorState } from "@/types/editor";
 import {
-  allTransitionsNone,
   hasAnimations,
+  hasMediaInLibrary,
+  hasMediaOnTimeline,
   hasStoryboardTemplate,
-  logoChecklistStatus,
-  productChecklistStatus,
   textsLookEdited,
   transitionsConfigured,
 } from "@/lib/editor/checklist-utils";
@@ -48,73 +47,62 @@ function statusClass(status: Status): string {
 }
 
 export function BannerChecklist({ state, onAction }: BannerChecklistProps) {
-  const hasTemplate = hasStoryboardTemplate(state);
-  const logoStatus = logoChecklistStatus(state);
-  const productStatus = productChecklistStatus(state);
-  const textEdited = textsLookEdited(state);
-  const transitionsOk = transitionsConfigured(state);
-  const hasEffects = hasAnimations(state);
   const validation = getValidationSummary(state);
 
   const items: Item[] = [
     {
       id: "templates",
       label: "Šablona",
-      status: hasTemplate ? "done" : "warn",
-      hint: hasTemplate ? "Storyboard aktivní" : "Vyberte šablonu",
+      status: hasStoryboardTemplate(state) ? "done" : "warn",
+      hint: hasStoryboardTemplate(state) ? "Vybráno" : "Vyberte šablonu",
     },
     {
       id: "logo-slot",
-      label: "Logo",
-      status: logoStatus,
-      hint:
-        logoStatus === "done"
-          ? "Logo v banneru"
-          : logoStatus === "warn"
-            ? "Nahrát logo"
-            : "Volitelné",
+      label: "Média",
+      status: hasMediaInLibrary(state) ? "done" : "warn",
+      hint: hasMediaInLibrary(state)
+        ? `${(state.assets ?? []).length} souborů`
+        : "Nahrajte média",
     },
     {
       id: "product-slot",
-      label: "Produkt / obrázek",
-      status: productStatus,
-      hint:
-        productStatus === "done"
-          ? "Obrázek v banneru"
-          : productStatus === "warn"
-            ? "Nahrát produkt"
-            : "Volitelné",
+      label: "Časová osa",
+      status: hasMediaOnTimeline(state) ? "done" : hasMediaInLibrary(state) ? "warn" : "missing",
+      hint: hasMediaOnTimeline(state) ? "Média na ose" : "Přidejte na osu",
     },
     {
       id: "text",
-      label: "Texty",
-      status: textEdited ? "done" : "warn",
-      hint: textEdited ? "Copy vypadá hotově" : "Upravte texty",
-    },
-    {
-      id: "transitions",
-      label: "Přechody",
-      status: transitionsOk ? "done" : allTransitionsNone(state) ? "warn" : "missing",
-      hint: transitionsOk ? "Přechody nastaveny" : "Nastavte přechod scén",
+      label: "Vrstvy",
+      status: textsLookEdited(state) ? "done" : "warn",
+      hint: textsLookEdited(state) ? "Upraveno" : "Upravte vrstvy",
     },
     {
       id: "timing",
       label: "Animace",
-      status: hasEffects ? "done" : "warn",
-      hint: hasEffects ? "Motion připraven" : "Zkontrolujte animace",
+      status: hasAnimations(state) ? "done" : "warn",
+      hint: hasAnimations(state) ? "Nastaveno" : "Nastavte animace",
     },
     {
       id: "export",
-      label: "Export",
+      label: "Export ZIP",
       status: validation.exportReady ? "done" : "warn",
-      hint: validation.exportReady ? "Připraveno k exportu" : "Zkontrolovat upozornění",
+      hint: validation.exportReady ? "Připraveno" : "Vyžaduje kontrolu",
     },
   ];
+
+  if ((state.scenes ?? []).length > 1) {
+    items.splice(5, 0, {
+      id: "transitions",
+      label: "Přechody",
+      status: transitionsConfigured(state) ? "done" : "missing",
+      hint: transitionsConfigured(state) ? "OK" : "Volitelné",
+    });
+  }
 
   return (
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 px-3 py-2">
       <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
-        Kontrolní seznam
+        Postup tvorby
       </p>
       <ul className="space-y-1">
         {items.map((item) => (

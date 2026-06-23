@@ -51,6 +51,20 @@ export function hasAnimations(state: BannerEditorState): boolean {
   return (state.layerEffects ?? []).length > 0;
 }
 
+export function hasMediaInLibrary(state: BannerEditorState): boolean {
+  return (state.assets ?? []).length > 0;
+}
+
+export function hasMediaOnTimeline(state: BannerEditorState): boolean {
+  const sceneId = state.activeSceneId ?? state.scenes?.[0]?.id;
+  return (state.bannerLayers ?? []).some((l) => {
+    if (l.type !== "image" || !l.assetId) return false;
+    if (l.isTemplateSlot || l.slotKind) return false;
+    if (sceneId && l.sceneId && l.sceneId !== sceneId && !l.persistent) return false;
+    return true;
+  });
+}
+
 export function logoChecklistStatus(state: BannerEditorState): "done" | "warn" | "missing" {
   const slots = getTemplateSlotLayers(state).filter((s) => s.slotKind === "logo");
   if (slots.length === 0) {

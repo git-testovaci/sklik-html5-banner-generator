@@ -45,6 +45,7 @@ import { AssetWarningsPanel } from "./AssetWarningsPanel";
 import { BannerChecklist, type ChecklistAction } from "./BannerChecklist";
 import { BannerPreviewStage } from "./BannerPreviewStage";
 import { InspectorPanel } from "./InspectorPanel";
+import { InspectorEmptyHelp } from "./InspectorEmptyHelp";
 import { KeyframeTimeline } from "./KeyframeTimeline";
 import { LayerPanel } from "./LayerPanel";
 import { UnifiedLayerTimeline } from "./UnifiedLayerTimeline";
@@ -107,8 +108,8 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [selectedLayer, setSelectedLayer] = useState<SelectedLayer>({
-    type: "text",
-    id: "headline",
+    type: "asset",
+    id: "__none__",
   });
   const [selectedEffectId, setSelectedEffectId] = useState<string | null>(null);
   const [leftTab, setLeftTab] = useState<LeftTab>(() =>
@@ -204,7 +205,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
       onUpdate(next);
       const still = (next.bannerLayers ?? []).some((l) => l.id === layerId);
       if (!still) {
-        setSelectedLayer({ type: "text", id: "headline" });
+        setSelectedLayer({ type: "asset", id: "__none__" });
         setSelectedEffectId(null);
       }
     },
@@ -249,6 +250,15 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
 
   const hasUnsavedChanges = !editorStatesEqual(state, savedState);
   const validation = useMemo(() => getValidationSummary(state), [state]);
+  const resolvedInspectorLayer = useMemo(
+    () =>
+      !selectedEffectId && !selectedTransitionSceneId
+        ? resolveBannerLayerForSelection(state, selectedLayer)
+        : undefined,
+    [state, selectedLayer, selectedEffectId, selectedTransitionSceneId],
+  );
+  const showInspectorHelp =
+    !selectedEffectId && !selectedTransitionSceneId && !resolvedInspectorLayer;
 
   const editorSelection: EditorSelection = selectedEffectId
     ? { type: "effect", effectId: selectedEffectId }
@@ -374,10 +384,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
       }
       case "product-slot": {
         setLeftTab("assets");
-        const productSlot =
-          findEmptySlotForKind(state, "product") ??
-          getTemplateSlotLayers(state).find((s) => s.slotKind === "product" || s.slotKind === "image");
-        if (productSlot) setSelectedLayer({ type: "asset", id: productSlot.id });
+        document.getElementById("unified-layer-timeline")?.scrollIntoView({ behavior: "smooth" });
         break;
       }
       case "text": {
@@ -428,23 +435,44 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
       case "text":
         handleChecklistAction("text");
         break;
+      case "timing":
+        handleChecklistAction("timing");
+        break;
+      case "export":
+        setShowExport(true);
+        window.setTimeout(() => {
+          document.getElementById("editor-export-panel")?.scrollIntoView({ behavior: "smooth" });
+        }, 80);
+        break;
     }
   }
 
+  function handleOpenExport() {
+    setShowExport(true);
+    window.setTimeout(() => {
+      document.getElementById("editor-export-panel")?.scrollIntoView({ behavior: "smooth" });
+    }, 80);
+  }
+
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="flex min-h-full flex-col bg-zinc-950">
       <EditorTopBar
         state={state}
         hasUnsavedChanges={hasUnsavedChanges}
         saveStatus={saveStatus}
         saveError={saveError}
         onSave={handleSave}
+        onExport={handleOpenExport}
+        exportReady={validation.exportReady}
       />
 
-      <div className="flex flex-1 flex-col gap-3 p-4 lg:flex-row lg:items-start">
-        {/* Left sidebar — compact tabs */}
-        <div className="order-2 flex w-full shrink-0 flex-col gap-2 lg:order-1 lg:w-[260px] xl:w-[280px]">
-          <div className="flex gap-1 rounded-lg border border-zinc-800/80 bg-zinc-900/40 p-1">
+      <div className="flex flex-1 flex-col gap-3 p-3 lg:flex-row lg:items-stretch lg:p-4">
+        {/* Left — media / layers / templates library */}
+        <aside className="order-2 flex w-full shrink-0 flex-col gap-2 lg:order-1 lg:w-[260px] xl:w-[280px]">
+          <p className="px-1 text-[10px] font-medium uppercase tracking-wide text-zinc-600">
+            Knihovna
+          </p>
+          <div className="flex gap-1 rounded-lg border border-zinc-800/80 bg-zinc-900/50 p-1">
             {(["assets", "layers", "templates"] as LeftTab[]).map((tab) => (
               <button
                 key={tab}
@@ -515,9 +543,9 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
               }}
             />
           )}
-        </div>
+        </aside>
 
-        {/* Center — canvas + storyboard + timeline */}
+        {/* Center — dominant canvas + timeline */}
         <div className="order-1 flex min-w-0 flex-1 flex-col gap-3 lg:order-2">
           <BannerPreviewStage
             state={state}
@@ -626,8 +654,11 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
           )}
         </div>
 
-        {/* Right — checklist + inspector + export */}
-        <div className="order-3 flex w-full shrink-0 flex-col gap-3 lg:w-[280px] xl:w-[300px]">
+        {/* Right — checklist, inspector, export */}
+        <aside className="order-3 flex w-full shrink-0 flex-col gap-3 lg:w-[280px] xl:w-[300px]">
+          <p className="px-1 text-[10px] font-medium uppercase tracking-wide text-zinc-600">
+            Nastavení a export
+          </p>
           {activeGuidance ? (
             <WorkflowGuidanceBox
               guidance={activeGuidance}
@@ -636,40 +667,52 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             />
           ) : null}
           <BannerChecklist state={state} onAction={handleChecklistAction} />
-          <InspectorPanel
-            state={state}
-            onUpdate={onUpdate}
-            selection={
-              selectedTransitionSceneId
-                ? { type: "scene", sceneId: selectedTransitionSceneId }
-                : editorSelection
-            }
-            onSelectEffect={setSelectedEffectId}
-            onOpenAssets={() => setLeftTab("assets")}
-            onPreviewTransition={handlePreviewTransition}
-            onLayerRemoved={() => {
-              setSelectedLayer({ type: "text", id: "headline" });
-              setSelectedEffectId(null);
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => setShowExport((v) => !v)}
-            className="rounded-lg border border-zinc-700 px-3 py-2 text-xs text-zinc-400 hover:bg-zinc-800/50"
-          >
-            {showExport ? "Skrýt export" : "Export Sklik ZIP"}
-          </button>
-          {showExport && (
-            <>
-              <AssetWarningsPanel state={state} />
-              <ValidationExportPanel
-                state={state}
-                validation={validation}
-                hasUnsavedChanges={hasUnsavedChanges}
-              />
-            </>
+          {showInspectorHelp ? (
+            <InspectorEmptyHelp />
+          ) : (
+            <InspectorPanel
+              state={state}
+              onUpdate={onUpdate}
+              selection={
+                selectedTransitionSceneId
+                  ? { type: "scene", sceneId: selectedTransitionSceneId }
+                  : editorSelection
+              }
+              onSelectEffect={setSelectedEffectId}
+              onOpenAssets={() => setLeftTab("assets")}
+              onPreviewTransition={handlePreviewTransition}
+              onLayerRemoved={() => {
+                setSelectedLayer({ type: "asset", id: "__none__" });
+                setSelectedEffectId(null);
+              }}
+            />
           )}
-        </div>
+          <div id="editor-export-panel">
+            <button
+              type="button"
+              onClick={() => setShowExport((v) => !v)}
+              className={`w-full rounded-lg border px-3 py-2.5 text-xs font-medium ${
+                showExport
+                  ? "border-violet-700/50 bg-violet-950/30 text-violet-200"
+                  : validation.exportReady
+                    ? "border-emerald-800/50 bg-emerald-950/20 text-emerald-300 hover:bg-emerald-950/40"
+                    : "border-zinc-700 text-zinc-400 hover:bg-zinc-800/50"
+              }`}
+            >
+              {showExport ? "Skrýt export" : "Export Sklik HTML5 ZIP"}
+            </button>
+            {showExport && (
+              <>
+                <AssetWarningsPanel state={state} />
+                <ValidationExportPanel
+                  state={state}
+                  validation={validation}
+                  hasUnsavedChanges={hasUnsavedChanges}
+                />
+              </>
+            )}
+          </div>
+        </aside>
       </div>
     </div>
   );

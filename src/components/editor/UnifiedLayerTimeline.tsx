@@ -435,9 +435,9 @@ export function UnifiedLayerTimeline({
       <div className="border-b border-zinc-800/60 px-4 py-2.5">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
-            <h2 className="text-sm font-medium text-zinc-200">Časová osa vrstev</h2>
+            <h2 className="text-sm font-medium text-zinc-200">Časová osa scény</h2>
             <p className="text-[10px] text-zinc-500">
-              {scene.name}
+              Scéna: {scene.name}
               {isPlaying ? " · přehrávání" : timelineFocused ? " · klávesové zkratky aktivní" : ""}
             </p>
           </div>
@@ -498,7 +498,7 @@ export function UnifiedLayerTimeline({
           </div>
         </div>
         <p className="mt-1.5 text-[10px] text-zinc-600">
-          Táhněte bloky pro změnu času vrstvy.
+          Táhněte bloky pro časování · vyberte řádek pro úpravu vrstvy v inspectoru vpravo.
         </p>
       </div>
 
@@ -547,9 +547,12 @@ export function UnifiedLayerTimeline({
           </div>
 
           {layers.length === 0 ? (
-            <p className="px-4 py-8 text-center text-xs leading-relaxed text-zinc-500">
-              Scéna zatím nemá žádné vrstvy. Přidejte text, logo nebo obrázek z panelu Média.
-            </p>
+            <div className="px-4 py-10 text-center">
+              <p className="text-xs font-medium text-zinc-400">Časová osa je prázdná</p>
+              <p className="mt-2 text-xs leading-relaxed text-zinc-500">
+                Nahrajte média vlevo a klikněte + Přidat na časovou osu. Nebo přidejte text přímo na plátně.
+              </p>
+            </div>
           ) : (
             layers.map((layer) => {
               const range = getRange(layer.id);
@@ -571,7 +574,7 @@ export function UnifiedLayerTimeline({
                 <div
                   key={layer.id}
                   className={`flex border-b border-zinc-800/30 ${
-                    selected ? "bg-violet-950/25" : ""
+                    selected ? "bg-violet-950/30 ring-1 ring-inset ring-violet-700/40" : ""
                   } ${!layer.visible ? "opacity-40" : ""}`}
                   style={{ height: TIMELINE_ROW_HEIGHT_PX }}
                 >

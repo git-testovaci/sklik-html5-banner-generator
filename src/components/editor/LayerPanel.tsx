@@ -157,8 +157,9 @@ export function LayerPanel({
   return (
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <div ref={listRef} className="max-h-60 overflow-y-auto border-b border-zinc-800/60 p-2">
-        <p className="px-2 py-1 text-[10px] uppercase tracking-wide text-zinc-600">
-          Vrstvy ve scéně · vpředu nahoře · táhněte ⋮⋮
+        <p className="px-2 py-1.5 text-sm font-medium text-zinc-300">Vrstvy</p>
+        <p className="px-2 pb-1 text-[10px] text-zinc-600">
+          Vpředu nahoře · táhněte ⋮⋮ pro přeskupení
         </p>
         {orderedLayers.length === 0 ? (
           <p className="px-2 py-1 text-[10px] text-zinc-600">Ve scéně zatím nejsou vrstvy</p>

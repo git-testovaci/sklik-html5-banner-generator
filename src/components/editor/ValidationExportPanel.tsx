@@ -44,8 +44,8 @@ const STATUS_STYLES: Record<
 
 const OVERALL_LABELS = {
   pass: { text: "Připraveno k exportu", className: "text-emerald-400" },
-  warn: { text: "Zkontrolujte upozornění před exportem", className: "text-amber-400" },
-  fail: { text: "Opravte chyby před exportem", className: "text-red-400" },
+  warn: { text: "Doporučení", className: "text-amber-400" },
+  fail: { text: "Vyžaduje opravu", className: "text-red-400" },
 } as const;
 
 const EXPORT_SUMMARY_LABELS = {
@@ -141,7 +141,7 @@ export function ValidationExportPanel({
       if (missingAsset) {
         setExportError(
           result.validationReport.rows.find((r) => r.id.startsWith("missing-asset"))
-            ?.message ?? "Export blokován — nejdříve opravte chybějící assety.",
+            ?.message ?? "Export blokován — nejdříve opravte chybějící média.",
         );
       } else if (result.validationReport.summaryStatus !== "fail") {
         const downloaded = downloadBlob(result.zipBlob, result.fileName);
@@ -179,13 +179,16 @@ export function ValidationExportPanel({
     >
       <div className="border-b border-zinc-800/60 px-4 py-3">
         <h2 id="validation-heading" className="text-sm font-medium text-zinc-300">
-          Validace a export
+          Export Sklik HTML5
         </h2>
         <p className="mt-1 text-xs text-zinc-500">
-          Vygenerujte Sklik ZIP pro ruční nahrání. OK = připraveno, VAR = zkontrolovat, CHYBA = blokováno.
-          {" "}
-          Assety v projektu: {(state.assets ?? []).length} · limit Sklik 250 kB.
+          Vygenerujte ZIP pro ruční nahrání do Skliku.
         </p>
+        <ul className="mt-2 space-y-0.5 text-[10px] text-zinc-600">
+          <li>· Max. 250 kB · jeden HTML soubor</li>
+          <li>· Bez videa · bez externích zdrojů</li>
+          <li>· Média v projektu: {(state.assets ?? []).length}</li>
+        </ul>
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
@@ -216,11 +219,16 @@ export function ValidationExportPanel({
           </ul>
           <div className="mt-3 rounded-lg border border-zinc-800/60 bg-zinc-950/40 px-3 py-3">
             <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-              Připravenost exportu
+              Stav exportu
             </p>
             <p className={`mt-1 text-sm font-semibold ${overall.className}`}>
               {overall.text}
             </p>
+            {validation.overallStatus === "warn" ? (
+              <p className="mt-1 text-[10px] text-zinc-500">
+                Export je možný, ale zkontrolujte doporučení níže.
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -270,7 +278,7 @@ export function ValidationExportPanel({
                   <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-zinc-800/60 pt-2 text-[10px] text-zinc-500">
                     <span>Scény: {exportResult.validationReport.summary.sceneCount}</span>
                     <span>Vrstvy: {exportResult.validationReport.summary.layerCount}</span>
-                    <span>Assety: {exportResult.validationReport.summary.assetFileCount}</span>
+                    <span>Média: {exportResult.validationReport.summary.assetFileCount}</span>
                     <span>Velikost: {exportResult.validationReport.summary.zipSizeKb} kB</span>
                     <span className="col-span-2 font-medium text-zinc-400">
                       Stav: {exportResult.validationReport.summary.statusLabel}
@@ -337,7 +345,7 @@ export function ValidationExportPanel({
         <button
           type="button"
           onClick={handleCopyLink}
-          aria-label="Copy preview link"
+          aria-label="Kopírovat odkaz na náhled"
           className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-4 py-2.5 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800"
         >
           {copied ? "Odkaz zkopírován" : "Kopírovat odkaz na náhled"}

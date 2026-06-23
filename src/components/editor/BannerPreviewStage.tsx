@@ -136,12 +136,15 @@ export function BannerPreviewStage({
   return (
     <section
       aria-labelledby="preview-heading"
-      className="flex min-h-[320px] flex-1 flex-col rounded-xl border border-zinc-800/80 bg-zinc-950/50 lg:min-h-0"
+      className="flex min-h-[360px] flex-1 flex-col rounded-xl border border-zinc-700/50 bg-zinc-950/70 shadow-lg shadow-black/20 lg:min-h-[420px]"
     >
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/60 px-4 py-3">
-        <h2 id="preview-heading" className="text-sm font-medium text-zinc-300">
-          Náhled plátna
-        </h2>
+        <div>
+          <h2 id="preview-heading" className="text-sm font-medium text-zinc-200">
+            Plátno
+          </h2>
+          <p className="text-[10px] text-zinc-500">Klikněte na vrstvu pro úpravu v inspectoru</p>
+        </div>
         <div className="flex items-center gap-3">
           {onQuickAdd ? <CanvasQuickAdd onAdd={onQuickAdd} /> : null}
           <label className="flex items-center gap-1.5 text-xs text-zinc-500">

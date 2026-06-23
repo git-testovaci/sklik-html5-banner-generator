@@ -12,6 +12,8 @@ interface EditorTopBarProps {
   saveStatus: "idle" | "saved";
   saveError?: string | null;
   onSave: () => void;
+  onExport?: () => void;
+  exportReady?: boolean;
 }
 
 export function EditorTopBar({
@@ -20,12 +22,14 @@ export function EditorTopBar({
   saveStatus,
   saveError = null,
   onSave,
+  onExport,
+  exportReady = false,
 }: EditorTopBarProps) {
   const sizeLabel = formatBannerSize(state.width, state.height);
   const previewPath = `/preview/${state.shareId}`;
 
   return (
-    <header className="border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-sm">
+    <header className="border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-sm">
       <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div className="flex min-w-0 flex-wrap items-center gap-3">
           <Link
@@ -35,22 +39,30 @@ export function EditorTopBar({
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
             </svg>
-            Zpět na přehled
+            Zpět
           </Link>
           <span className="hidden text-zinc-700 sm:inline" aria-hidden="true">|</span>
-          <h1 className="truncate text-base font-semibold text-zinc-100 sm:text-lg">
-            {state.name}
-          </h1>
-          <ProjectStatusBadge status={state.status} />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="truncate text-base font-semibold text-zinc-100 sm:text-lg">
+                {state.name}
+              </h1>
+              <ProjectStatusBadge status={state.status} />
+            </div>
+            <p className="text-[10px] font-medium uppercase tracking-wide text-violet-400/90">
+              Sklik HTML5 banner · {sizeLabel}
+            </p>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="font-mono text-sm text-zinc-500">{sizeLabel}</p>
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {hasUnsavedChanges ? (
             <span className="text-xs font-medium text-amber-400">Neuložené změny</span>
           ) : saveStatus === "saved" ? (
             <span className="text-xs font-medium text-emerald-400">Uloženo lokálně</span>
-          ) : null}
+          ) : (
+            <span className="text-xs text-zinc-600">Uloženo v prohlížeči</span>
+          )}
           {saveError ? (
             <span className="text-xs font-medium text-red-400" role="alert">{saveError}</span>
           ) : null}
@@ -58,11 +70,24 @@ export function EditorTopBar({
             href={previewPath}
             target="_blank"
             rel="noopener noreferrer"
-            className="hidden text-xs text-zinc-500 underline-offset-2 hover:text-zinc-300 hover:underline sm:inline"
+            className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800/50"
             title={getPreviewUrl(state.shareId)}
           >
-            Veřejný náhled
+            Náhled
           </Link>
+          {onExport ? (
+            <button
+              type="button"
+              onClick={onExport}
+              className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${
+                exportReady
+                  ? "border-emerald-800/60 bg-emerald-950/30 text-emerald-300 hover:bg-emerald-950/50"
+                  : "border-zinc-700 text-zinc-300 hover:bg-zinc-800/50"
+              }`}
+            >
+              Export ZIP
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={onSave}
@@ -74,9 +99,6 @@ export function EditorTopBar({
           </button>
         </div>
       </div>
-      <p className="border-t border-zinc-800/40 px-4 py-2 text-xs text-zinc-600 sm:px-6">
-        Projekt je uložen lokálně v tomto prohlížeči. Obrázky v IndexedDB — veřejný náhled s obrázky funguje nejlépe na stejném zařízení.
-      </p>
     </header>
   );
 }

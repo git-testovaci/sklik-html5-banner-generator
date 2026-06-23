@@ -94,7 +94,8 @@ export function TemplatePresetsPanel({
   return (
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <div className="border-b border-zinc-800/60 px-4 py-3">
-        <h2 className="text-sm font-medium text-zinc-300">Šablony banneru</h2>
+        <h2 className="text-sm font-medium text-zinc-300">Šablony</h2>
+        <p className="mt-0.5 text-[10px] text-zinc-500">Vyberte vzhled banneru a scén</p>
         <p className="mt-1 text-xs text-zinc-500">
           Vyberte šablonu — nahraďte logo a produkt ve slotech.
         </p>

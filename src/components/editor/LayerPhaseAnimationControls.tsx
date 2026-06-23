@@ -70,7 +70,7 @@ export function LayerPhaseAnimationControls({
 
   return (
     <div className="border-t border-zinc-800/60 pt-3">
-      <p className="mb-2 text-xs font-medium text-zinc-300">Animace vrstvy</p>
+      <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-zinc-500">Animace</p>
       <div className="mb-2 flex gap-1 rounded-lg border border-zinc-800/80 bg-zinc-950/40 p-0.5">
         {(["in", "out", "loop"] as PhaseTab[]).map((key) => (
           <button
