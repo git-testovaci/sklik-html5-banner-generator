@@ -7,6 +7,7 @@ import {
   ensureLayerInScene,
   getActiveScene,
   getLayerById,
+  getLayersForScene,
   newId,
   syncFlatFromActiveScene,
   updateBannerLayer,
@@ -205,6 +206,23 @@ export function insertImageLayerInScene(
   name = "Obrázek",
   startMs = 0,
 ): { state: BannerEditorState; layer: BannerLayer } {
+  return addMediaLayerAtPlayhead(state, assetId, startMs, name);
+}
+
+function frontZIndexForScene(state: BannerEditorState, sceneId: string): number {
+  const layers = getLayersForScene(state, sceneId);
+  if (layers.length === 0) return 30;
+  return Math.max(...layers.map((l) => l.zIndex), 1) + 2;
+}
+
+/** Always creates a new image layer at playhead — never reuses an existing layer. */
+export function addMediaLayerAtPlayhead(
+  state: BannerEditorState,
+  assetId: string,
+  startMs = 0,
+  name?: string,
+): { state: BannerEditorState; layer: BannerLayer } {
+  const asset = (state.assets ?? []).find((a) => a.id === assetId);
   const w = state.width;
   const h = state.height;
   const iw = Math.round(w * 0.35);
@@ -214,7 +232,7 @@ export function insertImageLayerInScene(
     id: newId("layer"),
     sceneId: scene?.id,
     persistent: false,
-    name,
+    name: name ?? asset?.fileName ?? "Obrázek",
     type: "image",
     visible: true,
     locked: false,
@@ -225,10 +243,11 @@ export function insertImageLayerInScene(
     opacity: 1,
     rotation: 0,
     scale: 1,
-    zIndex: 22,
+    zIndex: scene ? frontZIndexForScene(state, scene.id) : 30,
     assetId,
     fit: "contain",
     shadow: false,
+    borderRadius: 0,
   };
   const withLayer = addLayerToScene(state, layer);
   if (!scene) return { state: withLayer, layer };
@@ -278,6 +297,15 @@ export function isSelectedSlotLayer(
       layer.type === "image" ||
       layer.type === "badge",
   );
+}
+
+export function isSelectedEmptySlot(
+  state: BannerEditorState,
+  selection: { type: string; id: string } | null | undefined,
+): boolean {
+  const layer = resolveLayerFromSelection(state, selection);
+  if (!layer) return false;
+  return isSlotEmpty(layer) && Boolean(layer.isTemplateSlot || layer.slotKind);
 }
 
 export function hasFilledSlot(

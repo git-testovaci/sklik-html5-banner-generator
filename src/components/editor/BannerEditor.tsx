@@ -58,7 +58,7 @@ import { getValidationSummary } from "@/lib/validation-rules";
 type LeftTab = "assets" | "layers" | "templates";
 
 const TAB_LABELS: Record<LeftTab, string> = {
-  assets: "Assety",
+  assets: "Média",
   layers: "Vrstvy",
   templates: "Šablony",
 };

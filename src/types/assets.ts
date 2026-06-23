@@ -18,6 +18,8 @@ export type TextAlign = "left" | "center" | "right";
 
 export interface BannerAssetPlacement {
   assetId: string;
+  /** Storyboard layer instance — allows multiple canvas layers per asset */
+  bannerLayerId?: string;
   kind: BannerAssetKind;
   visible: boolean;
   x: number;

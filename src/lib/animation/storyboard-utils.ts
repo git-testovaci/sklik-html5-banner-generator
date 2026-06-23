@@ -350,6 +350,7 @@ export function buildFlatSliceForScene(
           : "decoration";
       assetPlacements.push({
         assetId: layer.assetId,
+        bannerLayerId: layer.id,
         kind: kind as BannerAssetPlacement["kind"],
         visible: layer.visible,
         x: layer.x,

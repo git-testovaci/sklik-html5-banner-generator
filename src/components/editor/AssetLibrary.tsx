@@ -4,21 +4,14 @@ import { useEffect, useState } from "react";
 import { buildAssetsMetaKey, loadPreviewAssetUrls } from "@/lib/assets/asset-storage";
 import { formatFileSize } from "@/lib/assets/image-utils";
 import {
-  insertImageLayerInScene,
-  isSelectedSlotLayer,
-  placeAssetInSlot,
+  addMediaLayerAtPlayhead,
   applyLayerTimingAtPlayhead,
+  assignAssetToSlotLayer,
+  isSelectedEmptySlot,
   resolveLayerFromSelection,
   slotLayerSelection,
 } from "@/lib/assets/slot-utils";
-import {
-  assetAtCorner,
-  centerHorizontally,
-  centerVertically,
-  createDefaultAssetPlacement,
-  fitBackgroundPlacement,
-} from "@/lib/animation/timeline-utils";
-import type { BannerAssetKind, BannerAssetPlacement } from "@/types/assets";
+import type { BannerAssetKind } from "@/types/assets";
 import type { BannerEditorState, BannerEditorStateUpdater, SelectedLayer } from "@/types/editor";
 
 interface AssetLibraryProps {
@@ -26,7 +19,6 @@ interface AssetLibraryProps {
   onUpdate: BannerEditorStateUpdater;
   selectedLayer?: SelectedLayer | null;
   onPlaced?: (selection: SelectedLayer, message: string) => void;
-  /** Local playhead for inserting assets at the current timeline position */
   scrubTimeMs?: number;
 }
 
@@ -54,13 +46,6 @@ function useThumbnails(metaKey: string) {
   return metaKey ? urls : {};
 }
 
-function slotActionLabel(kind: BannerAssetKind): string {
-  if (kind === "logo") return "Použít jako logo";
-  if (kind === "product") return "Použít jako produkt";
-  if (kind === "background") return "Použít jako pozadí";
-  return "Použít v banneru";
-}
-
 export function AssetLibrary({
   state,
   onUpdate,
@@ -72,109 +57,74 @@ export function AssetLibrary({
   const metaKey = buildAssetsMetaKey(assets);
   const urls = useThumbnails(metaKey);
   const hasStoryboard = (state.scenes ?? []).length > 0;
-  const canReplaceSlot = isSelectedSlotLayer(state, selectedLayer ?? null);
+  const emptySlotSelected = isSelectedEmptySlot(state, selectedLayer ?? null);
+  const selectedSlot = emptySlotSelected
+    ? resolveLayerFromSelection(state, selectedLayer ?? null)
+    : undefined;
 
   if (assets.length === 0) {
     return (
       <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 px-4 py-6 text-center">
-        <p className="text-xs text-zinc-500">Zatím žádné assety — nahrajte logo nebo produkt výše.</p>
+        <h2 className="text-sm font-medium text-zinc-400">Média</h2>
+        <p className="mt-2 text-xs leading-relaxed text-zinc-500">
+          Nahrajte logo, produkt nebo obrázek. Potom ho můžete přidat na časovou osu jako vrstvu.
+        </p>
       </section>
     );
   }
 
-  function updatePlacement(assetId: string, patch: Partial<BannerAssetPlacement>) {
-    onUpdate({
-      assetPlacements: (state.assetPlacements ?? []).map((p) =>
-        p.assetId === assetId ? { ...p, ...patch } : p,
-      ),
-    });
-  }
-
-  function placeInSlot(assetId: string, kind: BannerAssetKind) {
+  function addToTimeline(assetId: string) {
     if (!hasStoryboard) return;
-    const selectedId =
-      selectedLayer?.type === "asset" ? selectedLayer.id : undefined;
-    const result = placeAssetInSlot(state, assetId, kind, {
-      selectedLayerId: selectedId,
-      activeSceneId: state.activeSceneId,
-      allowFilled: kind === "logo",
-    });
-    if (result.layerId) {
-      const timed = applyLayerTimingAtPlayhead(result.state, result.layerId, scrubTimeMs);
-      onUpdate(timed);
-      onPlaced?.(
-        { type: "asset", id: result.layerId },
-        result.message,
-      );
-    } else {
-      onPlaced?.({ type: "asset", id: assetId }, result.message);
-    }
-  }
-
-  function insertIntoScene(assetId: string) {
     const asset = assets.find((a) => a.id === assetId);
-    const name = asset ? KIND_LABELS[asset.kind] ?? "Obrázek" : "Obrázek";
-    const { state: next, layer } = insertImageLayerInScene(state, assetId, name, scrubTimeMs);
-    onUpdate(next);
-    onPlaced?.(slotLayerSelection(layer), `${name} vložen do scény`);
-  }
-
-  function quickPlace(assetId: string, kind: BannerAssetKind, corner: Parameters<typeof assetAtCorner>[2]) {
-    const asset = assets.find((a) => a.id === assetId);
-    const placement = (state.assetPlacements ?? []).find((p) => p.assetId === assetId);
-    if (!asset || !placement) return;
-    const next = assetAtCorner(
+    const label = asset ? KIND_LABELS[asset.kind] : "Obrázek";
+    const { state: next, layer } = addMediaLayerAtPlayhead(
+      state,
       assetId,
-      kind,
-      corner,
-      placement.width,
-      placement.height,
-      state.width,
-      state.height,
-      placement.zIndex,
+      scrubTimeMs,
+      asset?.fileName,
     );
-    updatePlacement(assetId, next);
+    onUpdate(next);
+    onPlaced?.(
+      slotLayerSelection(layer),
+      `${label} přidán na časovou osu`,
+    );
   }
 
-  function fitBackground(assetId: string) {
-    updatePlacement(assetId, fitBackgroundPlacement(assetId, state.width, state.height));
-  }
-
-  function resetPlacement(assetId: string, kind: BannerAssetKind) {
-    updatePlacement(assetId, createDefaultAssetPlacement(assetId, kind, state.width, state.height));
-  }
-
-  function centerAsset(assetId: string) {
-    const p = (state.assetPlacements ?? []).find((x) => x.assetId === assetId);
-    if (!p) return;
-    let next = centerHorizontally(p, state.width);
-    next = centerVertically(next, state.height);
-    updatePlacement(assetId, next);
+  function insertIntoSelectedSlot(assetId: string) {
+    if (!selectedSlot) return;
+    let next = assignAssetToSlotLayer(state, selectedSlot.id, assetId);
+    next = applyLayerTimingAtPlayhead(next, selectedSlot.id, scrubTimeMs);
+    onUpdate(next);
+    onPlaced?.(
+      { type: "asset", id: selectedSlot.id },
+      `${selectedSlot.slotLabel ?? selectedSlot.name} — vloženo do slotu`,
+    );
   }
 
   return (
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <div className="border-b border-zinc-800/60 px-4 py-3">
-        <h2 className="text-sm font-medium text-zinc-300">Knihovna assetů</h2>
-        <p className="mt-1 text-xs text-zinc-500">{assets.length} obrázků · klikněte pro vložení</p>
+        <h2 className="text-sm font-medium text-zinc-300">Média</h2>
+        <p className="mt-1 text-xs text-zinc-500">
+          {assets.length} {assets.length === 1 ? "soubor" : assets.length < 5 ? "soubory" : "souborů"} · přidejte na časovou osu
+        </p>
       </div>
-      <ul className="max-h-64 space-y-3 overflow-y-auto p-3">
+      <ul className="max-h-72 space-y-2 overflow-y-auto p-3">
         {assets.map((asset) => {
           const url = urls[asset.id];
-          const placement = (state.assetPlacements ?? []).find((p) => p.assetId === asset.id);
           return (
             <li
               key={asset.id}
-              className="rounded-lg border border-zinc-800/60 bg-zinc-950/40 p-2"
+              className="rounded-lg border border-zinc-800/60 bg-zinc-950/40 p-2.5"
             >
-              <div className="flex gap-2">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded bg-zinc-900">
+              <div className="flex gap-2.5">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md bg-zinc-900 ring-1 ring-zinc-800/80">
                   {url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={url}
                       alt=""
-                      className="max-h-full max-w-full object-contain"
+                      className="h-full w-full object-cover"
                       loading="lazy"
                       decoding="async"
                       draggable={false}
@@ -183,99 +133,34 @@ export function AssetLibrary({
                     <span className="text-[9px] text-zinc-600">…</span>
                   )}
                 </div>
-                <div className="min-w-0 flex-1 text-xs">
-                  <p className="font-medium text-zinc-300">{KIND_LABELS[asset.kind]}</p>
-                  <p className="truncate text-zinc-500">{asset.fileName}</p>
-                  <p className="text-zinc-600">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-violet-300/90">
+                    {KIND_LABELS[asset.kind]}
+                  </p>
+                  <p className="truncate text-xs font-medium text-zinc-200">{asset.fileName}</p>
+                  <p className="text-[10px] text-zinc-600">
                     {asset.width}×{asset.height} · {formatFileSize(asset.size)}
                   </p>
                 </div>
               </div>
               {hasStoryboard ? (
-                <div className="mt-2 flex flex-wrap gap-1">
+                <div className="mt-2 flex flex-col gap-1">
                   <button
                     type="button"
-                    onClick={() => placeInSlot(asset.id, asset.kind === "decoration" ? "decoration" : asset.kind)}
-                    className="rounded border border-violet-800/60 bg-violet-950/30 px-2 py-0.5 text-[10px] text-violet-200"
+                    onClick={() => addToTimeline(asset.id)}
+                    className="w-full rounded-md border border-violet-700/60 bg-violet-950/40 px-2 py-1.5 text-[11px] font-medium text-violet-100 hover:bg-violet-950/70"
                   >
-                    {slotActionLabel(asset.kind)}
+                    + Přidat na časovou osu
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => insertIntoScene(asset.id)}
-                    className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800"
-                  >
-                    Vložit do aktuální scény
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!canReplaceSlot}
-                    title={
-                      canReplaceSlot
-                        ? "Nahradí vybraný slot"
-                        : "Nejdříve vyberte slot na plátně"
-                    }
-                    onClick={() => {
-                      const slot = resolveLayerFromSelection(state, selectedLayer ?? null);
-                      if (!slot) return;
-                      const result = placeAssetInSlot(state, asset.id, asset.kind, {
-                        selectedLayerId: slot.id,
-                        allowFilled: true,
-                      });
-                      if (result.layerId) {
-                        const timed = applyLayerTimingAtPlayhead(
-                          result.state,
-                          result.layerId,
-                          scrubTimeMs,
-                        );
-                        onUpdate(timed);
-                        onPlaced?.({ type: "asset", id: result.layerId }, "Slot nahrazen");
-                      }
-                    }}
-                    className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    Nahradit vybraný slot
-                  </button>
-                </div>
-              ) : null}
-              {placement && asset.kind !== "decoration" && !hasStoryboard ? (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {asset.kind === "background" ? (
+                  {emptySlotSelected && selectedSlot ? (
                     <button
                       type="button"
-                      onClick={() => fitBackground(asset.id)}
-                      className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800"
+                      onClick={() => insertIntoSelectedSlot(asset.id)}
+                      className="w-full rounded-md border border-zinc-700 px-2 py-1 text-[10px] text-zinc-400 hover:bg-zinc-800/50"
                     >
-                      Vyplnit banner
+                      Vložit do vybraného slotu
                     </button>
-                  ) : (
-                    (["top-left", "top-right", "center", "bottom-left", "bottom-right"] as const).map(
-                      (c) => (
-                        <button
-                          key={c}
-                          type="button"
-                          onClick={() => quickPlace(asset.id, asset.kind, c)}
-                          className="rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-500 hover:bg-zinc-800"
-                        >
-                          {c.replace("-", " ")}
-                        </button>
-                      ),
-                    )
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => centerAsset(asset.id)}
-                    className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800"
-                  >
-                    Vycentrovat
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => resetPlacement(asset.id, asset.kind)}
-                    className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800"
-                  >
-                    Resetovat
-                  </button>
+                  ) : null}
                 </div>
               ) : null}
             </li>

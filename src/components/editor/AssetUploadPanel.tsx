@@ -30,7 +30,7 @@ const UPLOAD_SLOTS: { kind: BannerAssetKind; label: string; hint: string; id: st
   { kind: "logo", label: "Nahrát logo", hint: "Vloží se do slotu loga v banneru", id: "upload-logo" },
   { kind: "product", label: "Nahrát produkt", hint: "Vloží se do slotu produktu", id: "upload-product" },
   { kind: "background", label: "Nahrát pozadí", hint: "Vloží se jako pozadí scény", id: "upload-background" },
-  { kind: "decoration", label: "Nahrát dekoraci", hint: "Uloží do knihovny", id: "upload-decoration" },
+  { kind: "decoration", label: "Nahrát obrázek", hint: "Uloží do médií — přidejte na časovou osu", id: "upload-decoration" },
 ];
 
 export function AssetUploadPanel({ state, onUpdate, onPlaced }: AssetUploadPanelProps) {

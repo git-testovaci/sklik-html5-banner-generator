@@ -134,8 +134,10 @@ function isAssetPlacementSelected(
   selected: SelectedLayer | null | undefined,
   assetId: string,
   storyboardLayers: BannerLayer[],
+  bannerLayerId?: string,
 ): boolean {
   if (!selected || selected.type !== "asset") return false;
+  if (bannerLayerId && selected.id === bannerLayerId) return true;
   if (selected.id === assetId) return true;
   return storyboardLayers.some(
     (l) => l.id === selected.id && l.assetId === assetId,
@@ -363,27 +365,35 @@ function CanvasContent({
         const asset = assets.find((a) => a.id === placement.assetId);
         const url = urls[placement.assetId];
         const isMissing = missingSet.has(placement.assetId);
-        const sbLayer = storyboardLayers.find((l) => l.assetId === placement.assetId);
+        const sbLayer = placement.bannerLayerId
+          ? storyboardLayers.find((l) => l.id === placement.bannerLayerId)
+          : storyboardLayers.find((l) => l.assetId === placement.assetId);
         if (sbLayer && !layerVisibleAtPreview(sbLayer.id)) return null;
+        const instanceKey = placement.bannerLayerId ?? placement.assetId;
         const selected = isAssetPlacementSelected(
           selectedLayer,
           placement.assetId,
           storyboardLayers,
+          placement.bannerLayerId,
         );
-        const layerId =
-          placement.kind === "decoration" ? `decoration-${placement.assetId}` : placement.kind;
+        const animTargetId =
+          sbLayer?.legacyKey ??
+          (placement.kind === "decoration"
+            ? `decoration-${sbLayer?.id ?? placement.assetId}`
+            : placement.kind);
         const fx = (state.layerEffects ?? []).find(
-          (e) => e.layerId === placement.assetId && e.sceneId === sceneId,
+          (e) =>
+            e.layerId === (sbLayer?.id ?? placement.assetId) && e.sceneId === sceneId,
         );
         const animClass =
           fx?.preset === "flip-180" || fx?.preset === "zoom-rotate-badge"
-            ? `${placement.assetId}-fx-${replayKey}`
-            : resolveAnimClassName(layerId);
+            ? `${sbLayer?.id ?? placement.assetId}-fx-${replayKey}`
+            : resolveAnimClassName(animTargetId);
         const layerChrome = layerInteraction(sbLayer?.id);
 
         return (
           <InteractiveCanvasLayer
-            key={`${sceneId}-${placement.assetId}`}
+            key={`${sceneId}-${instanceKey}`}
             selected={selected}
             interactive={interactive}
             locked={layerChrome.locked}
@@ -405,10 +415,16 @@ function CanvasContent({
             onSelect={() =>
               onSelectLayer?.({
                 type: "asset",
-                id: sbLayer?.id ?? placement.assetId,
+                id: sbLayer?.id ?? placement.bannerLayerId ?? placement.assetId,
               })
             }
-            onPlacementChange={(patch) => onUpdateAssetPlacement?.(placement.assetId, patch)}
+            onPlacementChange={(patch) => {
+              if (placement.bannerLayerId) {
+                onUpdateStoryboardLayer?.(placement.bannerLayerId, patch);
+              } else {
+                onUpdateAssetPlacement?.(placement.assetId, patch);
+              }
+            }}
           >
             <div
               className="h-full w-full overflow-hidden"
