@@ -165,6 +165,18 @@ function migrateProject(value: unknown): BannerProject | null {
     textPlacements,
     timeline,
     layerAnimations,
+    scenes: Array.isArray(record.scenes) ? (record.scenes as BannerProject["scenes"]) : undefined,
+    bannerLayers: Array.isArray(record.bannerLayers)
+      ? (record.bannerLayers as BannerProject["bannerLayers"])
+      : undefined,
+    layerEffects: Array.isArray(record.layerEffects)
+      ? (record.layerEffects as BannerProject["layerEffects"])
+      : undefined,
+    layerKeyframes: Array.isArray(record.layerKeyframes)
+      ? (record.layerKeyframes as BannerProject["layerKeyframes"])
+      : undefined,
+    activeSceneId:
+      typeof record.activeSceneId === "string" ? record.activeSceneId : undefined,
   };
 }
 

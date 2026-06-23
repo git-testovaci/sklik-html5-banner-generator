@@ -7,6 +7,12 @@ import type {
 } from "@/types/assets";
 import type { BannerAnimation, BannerEditorState, SelectedLayer } from "@/types/editor";
 import type { BannerProject } from "@/types/project";
+import {
+  editorStateToProjectWithStoryboard,
+  migrateToStoryboard,
+  resolveStoryboardSelection,
+  syncFlatFromActiveScene,
+} from "./storyboard-utils";
 
 export const DEFAULT_TIMELINE_DURATION_MS = 3000;
 
@@ -322,7 +328,7 @@ export function normalizeEditorState(
   const height = partial.height;
   const defaults = defaultStudioPlacements(width, height);
 
-  return {
+  const base: BannerEditorState = {
     projectId: partial.projectId,
     name: partial.name ?? "Untitled banner",
     status: partial.status ?? "draft",
@@ -347,7 +353,15 @@ export function normalizeEditorState(
     layerAnimations: (partial.layerAnimations ?? layerAnimationsFromLegacy(partial.animation ?? "fade-in")).map(
       normalizeLayerAnimation,
     ),
+    scenes: partial.scenes,
+    bannerLayers: partial.bannerLayers,
+    layerEffects: partial.layerEffects,
+    layerKeyframes: partial.layerKeyframes,
+    activeSceneId: partial.activeSceneId,
   };
+
+  const migrated = migrateToStoryboard(base);
+  return syncFlatFromActiveScene(migrated);
 }
 
 export function projectToEditorState(project: BannerProject): BannerEditorState {
@@ -381,33 +395,7 @@ export function editorStateToProject(
   state: BannerEditorState,
   existing?: BannerProject,
 ): BannerProject {
-  const now = new Date().toISOString();
-  return {
-    id: state.projectId,
-    name: state.name,
-    status: state.status,
-    width: state.width,
-    height: state.height,
-    headline: state.headline,
-    subheadline: state.subheadline,
-    cta: state.cta,
-    backgroundColor: state.backgroundColor,
-    textColor: state.textColor,
-    ctaBackgroundColor: state.ctaBackgroundColor,
-    ctaTextColor: state.ctaTextColor,
-    accentColor: state.accentColor,
-    animation: state.animation,
-    logoLabel: state.logoLabel,
-    productImageLabel: state.productImageLabel,
-    shareId: state.shareId || existing?.shareId || "share-unknown",
-    createdAt: existing?.createdAt ?? now,
-    updatedAt: now,
-    assets: state.assets ?? [],
-    assetPlacements: state.assetPlacements ?? [],
-    textPlacements: state.textPlacements ?? [],
-    timeline: state.timeline ?? defaultTimeline(),
-    layerAnimations: state.layerAnimations ?? defaultLayerAnimations(),
-  };
+  return editorStateToProjectWithStoryboard(state, existing);
 }
 
 export function getLayerAnimation(
@@ -481,6 +469,9 @@ export function resolveSelectedLayer(
   state: BannerEditorState,
   selected: SelectedLayer,
 ): SelectedLayer {
+  if ((state.scenes ?? []).length > 0) {
+    return resolveStoryboardSelection(state, selected);
+  }
   if (selected.type === "text") {
     const exists = (state.textPlacements ?? []).some((p) => p.layerId === selected.id);
     return exists ? selected : { type: "text", id: "headline" };

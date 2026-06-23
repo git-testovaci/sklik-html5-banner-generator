@@ -119,10 +119,33 @@ export function getValidationSummary(
       status: contrastStatus(ctaContrast),
     },
     {
-      id: "animation",
-      label: "Timeline animations",
-      value: `${(state.layerAnimations ?? []).filter((a) => a.enabled).length} active layer(s)`,
-      status: "pass",
+      id: "storyboard-duration",
+      label: "Storyboard duration",
+      value: (() => {
+        const scenes = state.scenes ?? [];
+        const total = scenes.reduce((s, sc) => s + sc.durationMs, 0);
+        return scenes.length > 0 ? `${scenes.length} scenes · ${total}ms` : "Single scene";
+      })(),
+      status: (() => {
+        const total = (state.scenes ?? []).reduce((s, sc) => s + sc.durationMs, 0);
+        if (total > 15000) return "warn";
+        return "pass";
+      })(),
+    },
+    {
+      id: "particles",
+      label: "Particle layers",
+      value: (() => {
+        const count = (state.bannerLayers ?? []).filter((l) => l.type === "particle").length;
+        const particles = (state.bannerLayers ?? []).filter((l) => l.type === "particle");
+        const maxCount = particles.reduce((m, l) => Math.max(m, l.particleCount ?? 0), 0);
+        return count > 0 ? `${count} layer(s), max ${maxCount} particles` : "None";
+      })(),
+      status: (() => {
+        const particles = (state.bannerLayers ?? []).filter((l) => l.type === "particle");
+        if (particles.some((l) => (l.particleCount ?? 0) > 35)) return "warn";
+        return "pass";
+      })(),
     },
     {
       id: "assets",

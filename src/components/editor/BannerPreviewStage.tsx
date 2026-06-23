@@ -6,6 +6,11 @@ import {
   clampPlacementLoose,
   clampTextPlacementFields,
 } from "@/lib/animation/timeline-utils";
+import {
+  getActiveScene,
+  totalStoryboardDurationMs,
+  updateBannerLayer,
+} from "@/lib/animation/storyboard-utils";
 import type { BannerAssetPlacement, TextLayerPlacement } from "@/types/assets";
 import type { BannerEditorState, BannerEditorStateUpdater, SelectedLayer } from "@/types/editor";
 import { BannerPreview } from "./BannerPreview";
@@ -18,6 +23,10 @@ interface BannerPreviewStageProps {
   onSelectLayer: (layer: SelectedLayer) => void;
   replayKey: number;
   onReplay: () => void;
+  onReplayScene?: () => void;
+  onPlayAll?: () => void;
+  playAll?: boolean;
+  playbackSceneId?: string | null;
 }
 
 export function BannerPreviewStage({
@@ -27,11 +36,16 @@ export function BannerPreviewStage({
   onSelectLayer,
   replayKey,
   onReplay,
+  onReplayScene,
+  onPlayAll,
+  playAll = false,
+  playbackSceneId,
 }: BannerPreviewStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [showSafeArea, setShowSafeArea] = useState(false);
   const loopPreview = state.timeline?.loop ?? false;
+  const activeScene = getActiveScene(state);
 
   useEffect(() => {
     function updateScale() {
@@ -70,7 +84,23 @@ export function BannerPreviewStage({
     });
   }
 
+  function updateStoryboardLayer(layerId: string, patch: Partial<BannerAssetPlacement>) {
+    onUpdate?.(
+      updateBannerLayer(state, layerId, {
+        x: patch.x,
+        y: patch.y,
+        width: patch.width,
+        height: patch.height,
+        opacity: patch.opacity,
+        rotation: patch.rotation,
+      }),
+    );
+  }
+
   const sizeLabel = formatBannerSize(state.width, state.height);
+  const sceneLabel = activeScene
+    ? `${activeScene.name} · ${activeScene.durationMs}ms`
+    : undefined;
 
   return (
     <section
@@ -79,7 +109,7 @@ export function BannerPreviewStage({
     >
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/60 px-4 py-3">
         <h2 id="preview-heading" className="text-sm font-medium text-zinc-300">
-          Live preview
+          Canvas preview
         </h2>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-1.5 text-xs text-zinc-500">
@@ -89,7 +119,7 @@ export function BannerPreviewStage({
               onChange={(e) => setShowSafeArea(e.target.checked)}
               className="rounded border-zinc-600"
             />
-            Show safe area
+            Safe area
           </label>
           <span className="font-mono text-xs text-zinc-500">{sizeLabel}</span>
         </div>
@@ -116,6 +146,9 @@ export function BannerPreviewStage({
             onSelectLayer={onSelectLayer}
             onUpdateTextPlacement={updateTextPlacement}
             onUpdateAssetPlacement={updateAssetPlacement}
+            onUpdateStoryboardLayer={updateStoryboardLayer}
+            playAll={playAll}
+            playbackSceneId={playbackSceneId}
           />
         </div>
       </div>
@@ -123,6 +156,8 @@ export function BannerPreviewStage({
       <PreviewPlaybackControls
         loop={loopPreview}
         onReplay={onReplay}
+        onReplayScene={onReplayScene}
+        onPlayAll={onPlayAll}
         onToggleLoop={(loop) =>
           onUpdate?.({
             timeline: {
@@ -132,10 +167,15 @@ export function BannerPreviewStage({
             },
           })
         }
+        sceneLabel={
+          playAll
+            ? `Playing all · ${totalStoryboardDurationMs(state)}ms`
+            : sceneLabel
+        }
       />
 
       <p className="border-t border-zinc-800/60 px-4 py-2 text-center text-xs text-zinc-600">
-        Drag layers on canvas · Scaled to {Math.round(scale * 100)}% · Replay restarts animations
+        Drag layers · {Math.round(scale * 100)}% scale · Storyboard editor
       </p>
     </section>
   );

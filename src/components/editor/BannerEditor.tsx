@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { normalizeEditorState, projectToEditorState, editorStateToProject, resolveSelectedLayer } from "@/lib/animation/timeline-utils";
+import {
+  normalizeEditorState,
+  projectToEditorState,
+  editorStateToProject,
+  resolveSelectedLayer,
+} from "@/lib/animation/timeline-utils";
+import { getActiveScene } from "@/lib/animation/storyboard-utils";
 import {
   getProjectByIdSnapshot,
   getStoredProjectById,
@@ -14,27 +20,23 @@ import {
   editorStatesEqual,
   type BannerEditorState,
   type BannerEditorStateUpdater,
+  type EditorSelection,
   type SelectedLayer,
 } from "@/types/editor";
 import { AssetLibrary } from "./AssetLibrary";
 import { AssetUploadPanel } from "./AssetUploadPanel";
 import { AssetWarningsPanel } from "./AssetWarningsPanel";
 import { BannerPreviewStage } from "./BannerPreviewStage";
-import { EditorSettingsPanel } from "./EditorSettingsPanel";
-import { EditorTopBar } from "./EditorTopBar";
+import { InspectorPanel } from "./InspectorPanel";
+import { KeyframeTimeline } from "./KeyframeTimeline";
 import { LayerPanel } from "./LayerPanel";
+import { MotionPresetQuickActions } from "./MotionPresetQuickActions";
+import { SceneStrip } from "./SceneStrip";
 import { TemplatePresetsPanel } from "./TemplatePresetsPanel";
-import { TimelinePanel } from "./TimelinePanel";
 import { ValidationExportPanel } from "./ValidationExportPanel";
+import { EditorTopBar } from "./EditorTopBar";
 
-function SectionLabel({ title, hint }: { title: string; hint?: string }) {
-  return (
-    <div className="px-1 pb-1">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">{title}</h2>
-      {hint ? <p className="mt-0.5 text-[11px] leading-snug text-zinc-600">{hint}</p> : null}
-    </div>
-  );
-}
+type LeftTab = "assets" | "layers" | "templates";
 
 interface BannerEditorProps {
   projectId: string;
@@ -56,8 +58,6 @@ function useProjectLookup(projectId: string) {
   );
 }
 
-type SelectedLayerState = SelectedLayer;
-
 interface BannerEditorInnerProps {
   initialState: BannerEditorState;
   projectId: string;
@@ -72,11 +72,16 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   );
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [selectedLayer, setSelectedLayer] = useState<SelectedLayerState>({
+  const [selectedLayer, setSelectedLayer] = useState<SelectedLayer>({
     type: "text",
     id: "headline",
   });
+  const [selectedEffectId, setSelectedEffectId] = useState<string | null>(null);
   const [replayKey, setReplayKey] = useState(0);
+  const [playAll, setPlayAll] = useState(false);
+  const [playbackSceneId, setPlaybackSceneId] = useState<string | null>(null);
+  const [leftTab, setLeftTab] = useState<LeftTab>("layers");
+  const [showExport, setShowExport] = useState(false);
 
   const onUpdate: BannerEditorStateUpdater = (patch) => {
     setState((prev) => {
@@ -90,6 +95,11 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
 
   const hasUnsavedChanges = !editorStatesEqual(state, savedState);
   const validation = useMemo(() => getValidationSummary(state), [state]);
+  const activeScene = getActiveScene(state);
+
+  const editorSelection: EditorSelection = selectedEffectId
+    ? { type: "effect", effectId: selectedEffectId }
+    : selectedLayer;
 
   function handleSave() {
     if (!getStoredProjectById(projectId)) {
@@ -97,7 +107,6 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
       setSaveStatus("idle");
       return;
     }
-
     const existing = getStoredProjectById(projectId);
     const project = editorStateToProject(state, existing);
     upsertProject(project);
@@ -106,6 +115,20 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
     setSavedState(nextState);
     setSaveStatus("saved");
     setSaveError(null);
+  }
+
+  function handlePlayAll() {
+    setPlayAll(true);
+    setPlaybackSceneId(null);
+    setReplayKey((k) => k + 1);
+    const total = (state.scenes ?? []).reduce((s, sc) => s + sc.durationMs, 0);
+    window.setTimeout(() => setPlayAll(false), total + 500);
+  }
+
+  function handleReplayScene() {
+    setPlayAll(false);
+    setPlaybackSceneId(activeScene?.id ?? null);
+    setReplayKey((k) => k + 1);
   }
 
   return (
@@ -118,60 +141,115 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
         onSave={handleSave}
       />
 
-      <div className="flex flex-1 flex-col gap-4 p-4 lg:flex-row lg:items-start">
-        <div className="order-2 flex w-full shrink-0 flex-col gap-3 lg:order-1 lg:w-[300px] xl:w-[320px]">
-          <SectionLabel title="Content" hint="Text, colors, and banner size." />
-          <EditorSettingsPanel state={state} onUpdate={onUpdate} />
-          <TemplatePresetsPanel
-            state={state}
-            onUpdate={onUpdate}
-            hasUnsavedChanges={hasUnsavedChanges}
-          />
-
-          <SectionLabel title="Assets" hint="Upload logo, product, or background images." />
-          <AssetUploadPanel state={state} onUpdate={onUpdate} />
-          <AssetLibrary state={state} onUpdate={onUpdate} />
-
-          <SectionLabel title="Layers" hint="Select a layer and adjust position." />
-          <LayerPanel
-            state={state}
-            selectedLayer={selectedLayer}
-            onSelectLayer={setSelectedLayer}
-            onUpdate={onUpdate}
-          />
+      <div className="flex flex-1 flex-col gap-3 p-4 lg:flex-row lg:items-start">
+        {/* Left sidebar — compact tabs */}
+        <div className="order-2 flex w-full shrink-0 flex-col gap-2 lg:order-1 lg:w-[260px] xl:w-[280px]">
+          <div className="flex gap-1 rounded-lg border border-zinc-800/80 bg-zinc-900/40 p-1">
+            {(["assets", "layers", "templates"] as LeftTab[]).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setLeftTab(tab)}
+                className={`flex-1 rounded px-2 py-1.5 text-xs capitalize ${
+                  leftTab === tab
+                    ? "bg-violet-950/50 text-violet-200"
+                    : "text-zinc-400 hover:bg-zinc-800/50"
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+          {leftTab === "assets" && (
+            <>
+              <AssetUploadPanel state={state} onUpdate={onUpdate} />
+              <AssetLibrary state={state} onUpdate={onUpdate} />
+            </>
+          )}
+          {leftTab === "layers" && (
+            <LayerPanel
+              state={state}
+              selectedLayer={selectedLayer}
+              onSelectLayer={(sel) => {
+                setSelectedLayer(sel);
+                setSelectedEffectId(null);
+              }}
+              onUpdate={onUpdate}
+            />
+          )}
+          {leftTab === "templates" && (
+            <TemplatePresetsPanel
+              state={state}
+              onUpdate={onUpdate}
+              hasUnsavedChanges={hasUnsavedChanges}
+            />
+          )}
         </div>
 
+        {/* Center — canvas + storyboard + timeline */}
         <div className="order-1 flex min-w-0 flex-1 flex-col gap-3 lg:order-2">
-          <SectionLabel title="Preview" hint="Click and drag layers on the canvas." />
           <BannerPreviewStage
             state={state}
             onUpdate={onUpdate}
             selectedLayer={selectedLayer}
-            onSelectLayer={setSelectedLayer}
+            onSelectLayer={(sel) => {
+              setSelectedLayer(sel);
+              setSelectedEffectId(null);
+            }}
             replayKey={replayKey}
-            onReplay={() => setReplayKey((k) => k + 1)}
+            playAll={playAll}
+            playbackSceneId={playbackSceneId}
+            onReplay={() => {
+              setPlayAll(false);
+              setReplayKey((k) => k + 1);
+            }}
+            onReplayScene={handleReplayScene}
+            onPlayAll={handlePlayAll}
           />
-
-          <SectionLabel title="Timeline" hint="Drag purple bars to adjust timing." />
-          <TimelinePanel
+          <SceneStrip
+            state={state}
+            onUpdate={onUpdate}
+            playbackSceneId={playAll ? playbackSceneId : activeScene?.id}
+          />
+          <MotionPresetQuickActions
             state={state}
             onUpdate={onUpdate}
             selectedLayer={selectedLayer}
-            onReplay={() => setReplayKey((k) => k + 1)}
+            onSelectEffect={setSelectedEffectId}
+          />
+          <KeyframeTimeline
+            state={state}
+            onUpdate={onUpdate}
+            selectedEffectId={selectedEffectId}
+            onSelectEffect={setSelectedEffectId}
           />
         </div>
 
-        <div className="order-3 flex w-full shrink-0 flex-col gap-3 lg:w-[300px] xl:w-[320px]">
-          <SectionLabel
-            title="Validation & export"
-            hint="Export ZIP when validation passes."
-          />
-          <AssetWarningsPanel state={state} />
-          <ValidationExportPanel
+        {/* Right — inspector + export */}
+        <div className="order-3 flex w-full shrink-0 flex-col gap-3 lg:w-[280px] xl:w-[300px]">
+          <InspectorPanel
             state={state}
-            validation={validation}
-            hasUnsavedChanges={hasUnsavedChanges}
+            onUpdate={onUpdate}
+            selection={editorSelection}
+            onSelectEffect={setSelectedEffectId}
           />
+          <button
+            type="button"
+            onClick={() => setShowExport((v) => !v)}
+            className="rounded-lg border border-zinc-700 px-3 py-2 text-xs text-zinc-400 hover:bg-zinc-800/50"
+          >
+            {showExport ? "Hide" : "Show"} validation & export
+          </button>
+          {showExport && (
+            <>
+              <AssetWarningsPanel state={state} />
+              <ValidationExportPanel
+                state={state}
+                validation={validation}
+                hasUnsavedChanges={hasUnsavedChanges}
+              />
+            </>
+          )}
         </div>
       </div>
     </div>

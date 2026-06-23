@@ -1,0 +1,751 @@
+import type {
+  AnimationEasing,
+  AnimationPreset,
+  BannerLayer,
+  BannerScene,
+  BannerSceneTransition,
+  EffectPreset,
+  LayerAnimation,
+  LayerEffect,
+  LayerKeyframe,
+} from "@/types/animation";
+import { presetDefaultEnterFrom } from "@/types/animation";
+import type { BannerAssetPlacement, TextLayerPlacement } from "@/types/assets";
+import type { BannerEditorState, SelectedLayer } from "@/types/editor";
+import type { BannerProject } from "@/types/project";
+import { effectPresetDefaults, effectToLayerAnimation } from "./effect-presets";
+
+export function newId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+export function defaultScene(name = "Scene 1", durationMs = 3000): BannerScene {
+  const now = new Date().toISOString();
+  return {
+    id: newId("scene"),
+    name,
+    durationMs,
+    transitionIn: "none",
+    transitionOut: "fade",
+    layerIds: [],
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+export function getActiveScene(state: BannerEditorState): BannerScene | undefined {
+  const scenes = state.scenes ?? [];
+  if (scenes.length === 0) return undefined;
+  const id = state.activeSceneId ?? scenes[0]?.id;
+  return scenes.find((s) => s.id === id) ?? scenes[0];
+}
+
+export function getSceneById(state: BannerEditorState, sceneId: string): BannerScene | undefined {
+  return (state.scenes ?? []).find((s) => s.id === sceneId);
+}
+
+export function getLayerById(state: BannerEditorState, layerId: string): BannerLayer | undefined {
+  return (state.bannerLayers ?? []).find((l) => l.id === layerId);
+}
+
+export function getLayersForScene(state: BannerEditorState, sceneId: string): BannerLayer[] {
+  const scene = getSceneById(state, sceneId);
+  if (!scene) return [];
+  const ids = new Set(scene.layerIds);
+  return (state.bannerLayers ?? []).filter(
+    (l) => l.persistent || ids.has(l.id),
+  );
+}
+
+export function getEffectsForScene(state: BannerEditorState, sceneId: string): LayerEffect[] {
+  return (state.layerEffects ?? []).filter((e) => e.sceneId === sceneId);
+}
+
+export function getKeyframesForScene(state: BannerEditorState, sceneId: string): LayerKeyframe[] {
+  return (state.layerKeyframes ?? []).filter((k) => k.sceneId === sceneId);
+}
+
+export function totalStoryboardDurationMs(state: BannerEditorState): number {
+  return (state.scenes ?? []).reduce((sum, s) => sum + s.durationMs, 0);
+}
+
+export function sceneStartOffsetMs(state: BannerEditorState, sceneId: string): number {
+  let offset = 0;
+  for (const scene of state.scenes ?? []) {
+    if (scene.id === sceneId) return offset;
+    offset += scene.durationMs;
+  }
+  return offset;
+}
+
+export function textLayerFromPlacement(
+  pl: TextLayerPlacement,
+  state: BannerEditorState,
+  sceneId: string,
+  persistent = false,
+): BannerLayer {
+  const textMap: Record<TextLayerPlacement["layerId"], string> = {
+    headline: state.headline,
+    subheadline: state.subheadline,
+    cta: state.cta,
+  };
+  const color =
+    pl.layerId === "cta" ? state.ctaTextColor : state.textColor;
+  return {
+    id: pl.layerId,
+    sceneId: persistent ? undefined : sceneId,
+    persistent,
+    name: pl.layerId.charAt(0).toUpperCase() + pl.layerId.slice(1),
+    type: "text",
+    visible: pl.visible,
+    locked: false,
+    x: pl.x,
+    y: pl.y,
+    width: pl.width,
+    height: pl.height,
+    opacity: pl.opacity,
+    rotation: pl.rotation,
+    scale: 1,
+    zIndex: pl.zIndex,
+    text: textMap[pl.layerId],
+    fontSize: pl.fontSize,
+    fontWeight: pl.fontWeight,
+    lineHeight: pl.lineHeight,
+    textAlign: pl.textAlign,
+    color,
+    legacyKey: pl.layerId,
+  };
+}
+
+export function imageLayerFromPlacement(
+  pl: BannerAssetPlacement,
+  sceneId: string,
+  persistent = false,
+): BannerLayer {
+  const nameMap: Record<BannerAssetPlacement["kind"], string> = {
+    logo: "Logo",
+    product: "Product",
+    background: "Background",
+    decoration: "Decoration",
+  };
+  return {
+    id: pl.assetId,
+    sceneId: persistent ? undefined : sceneId,
+    persistent,
+    name: nameMap[pl.kind],
+    type: pl.kind === "decoration" ? "badge" : "image",
+    visible: pl.visible,
+    locked: false,
+    x: pl.x,
+    y: pl.y,
+    width: pl.width,
+    height: pl.height,
+    opacity: pl.opacity,
+    rotation: pl.rotation,
+    scale: 1,
+    zIndex: pl.zIndex,
+    assetId: pl.assetId,
+    fit: pl.fit,
+    borderRadius: pl.borderRadius,
+    shadow: pl.shadow,
+    legacyKey: pl.kind === "decoration" ? `decoration-${pl.assetId}` : pl.kind,
+  };
+}
+
+export function layerEffectFromAnimation(
+  anim: LayerAnimation,
+  sceneId: string,
+): LayerEffect {
+  const preset = animationPresetToEffect(anim.preset);
+  return {
+    id: newId("effect"),
+    layerId: anim.layerId,
+    sceneId,
+    preset,
+    startMs: anim.startMs,
+    durationMs: anim.durationMs,
+    easing: anim.easing,
+    direction: anim.direction,
+    distancePx: anim.distancePx,
+    intensity: 1,
+    loop: anim.preset === "soft-pulse",
+  };
+}
+
+function animationPresetToEffect(preset: AnimationPreset): EffectPreset {
+  const map: Partial<Record<AnimationPreset, EffectPreset>> = {
+    "fade-in": "fade-in",
+    "slide-in-left": "slide-in-left",
+    "slide-in-right": "slide-in-right",
+    "slide-up": "enter-from-top",
+    "slide-down": "enter-from-bottom",
+    "zoom-in": "zoom-in",
+    "bounce-in": "bounce-in",
+    "soft-pulse": "float-subtle",
+  };
+  return map[preset] ?? "fade-in";
+}
+
+export function migrateToStoryboard(state: BannerEditorState): BannerEditorState {
+  if ((state.scenes ?? []).length > 0 && (state.bannerLayers ?? []).length > 0) {
+    return {
+      ...state,
+      activeSceneId: state.activeSceneId ?? state.scenes![0]!.id,
+    };
+  }
+
+  const scene = defaultScene("Scene 1", state.timeline?.durationMs ?? 3000);
+  const layers: BannerLayer[] = [];
+  const effects: LayerEffect[] = [];
+
+  for (const pl of state.textPlacements ?? []) {
+    const persistent = false;
+    layers.push(textLayerFromPlacement(pl, state, scene.id, persistent));
+  }
+
+  for (const pl of state.assetPlacements ?? []) {
+    const persistent = pl.kind === "logo";
+    layers.push(imageLayerFromPlacement(pl, scene.id, persistent));
+  }
+
+  scene.layerIds = layers.filter((l) => !l.persistent).map((l) => l.id);
+
+  for (const anim of state.layerAnimations ?? []) {
+    if (!anim.enabled || anim.preset === "none") continue;
+    effects.push(layerEffectFromAnimation(anim, scene.id));
+  }
+
+  return {
+    ...state,
+    scenes: [scene],
+    bannerLayers: layers,
+    layerEffects: effects,
+    layerKeyframes: state.layerKeyframes ?? [],
+    activeSceneId: scene.id,
+  };
+}
+
+export function syncFlatFromActiveScene(state: BannerEditorState): BannerEditorState {
+  const scene = getActiveScene(state);
+  if (!scene) return state;
+
+  const sceneLayers = getLayersForScene(state, scene.id);
+  const textPlacements: TextLayerPlacement[] = [];
+  const assetPlacements: BannerAssetPlacement[] = [];
+
+  for (const layer of sceneLayers) {
+    if (layer.type === "text" && layer.legacyKey) {
+      const layerId = layer.legacyKey as TextLayerPlacement["layerId"];
+      textPlacements.push({
+        layerId,
+        visible: layer.visible,
+        x: layer.x,
+        y: layer.y,
+        width: layer.width,
+        height: layer.height,
+        opacity: layer.opacity,
+        rotation: layer.rotation,
+        zIndex: layer.zIndex,
+        fontSize: layer.fontSize,
+        fontWeight: layer.fontWeight,
+        lineHeight: layer.lineHeight,
+        textAlign: layer.textAlign,
+      });
+    } else if ((layer.type === "image" || layer.type === "badge") && layer.assetId) {
+      const kind =
+        layer.legacyKey === "logo" ||
+        layer.legacyKey === "product" ||
+        layer.legacyKey === "background"
+          ? layer.legacyKey
+          : "decoration";
+      assetPlacements.push({
+        assetId: layer.assetId,
+        kind: kind as BannerAssetPlacement["kind"],
+        visible: layer.visible,
+        x: layer.x,
+        y: layer.y,
+        width: layer.width,
+        height: layer.height,
+        opacity: layer.opacity,
+        rotation: layer.rotation,
+        zIndex: layer.zIndex,
+        fit: layer.fit ?? "contain",
+        borderRadius: layer.borderRadius ?? 0,
+        shadow: layer.shadow ?? false,
+      });
+    }
+  }
+
+  const sceneEffects = getEffectsForScene(state, scene.id);
+  const layerAnimations: LayerAnimation[] = sceneEffects.map((e) =>
+    effectToLayerAnimation(e, layerTypeFromId(e.layerId, state)),
+  );
+
+  const headline = sceneLayers.find((l) => l.legacyKey === "headline")?.text ?? state.headline;
+  const subheadline = sceneLayers.find((l) => l.legacyKey === "subheadline")?.text ?? state.subheadline;
+  const cta = sceneLayers.find((l) => l.legacyKey === "cta")?.text ?? state.cta;
+
+  return {
+    ...state,
+    headline,
+    subheadline,
+    cta,
+    textPlacements,
+    assetPlacements,
+    layerAnimations,
+    timeline: {
+      durationMs: scene.durationMs,
+      loop: state.timeline?.loop ?? false,
+      backgroundAnimation: state.timeline?.backgroundAnimation ?? "none",
+    },
+  };
+}
+
+function layerTypeFromId(
+  layerId: string,
+  state: BannerEditorState,
+): LayerAnimation["layerType"] {
+  const layer = getLayerById(state, layerId);
+  if (layer?.legacyKey === "headline") return "headline";
+  if (layer?.legacyKey === "subheadline") return "subheadline";
+  if (layer?.legacyKey === "cta") return "cta";
+  if (layer?.legacyKey === "logo") return "logo";
+  if (layer?.legacyKey === "product") return "product";
+  if (layer?.legacyKey === "background") return "background";
+  if (layer?.type === "badge") return "decoration";
+  return "decoration";
+}
+
+export function updateBannerLayer(
+  state: BannerEditorState,
+  layerId: string,
+  patch: Partial<BannerLayer>,
+): BannerEditorState {
+  const next = {
+    ...state,
+    bannerLayers: (state.bannerLayers ?? []).map((l) =>
+      l.id === layerId ? { ...l, ...patch } : l,
+    ),
+  };
+  return syncFlatFromActiveScene(next);
+}
+
+export function addScene(state: BannerEditorState, name?: string): BannerEditorState {
+  const scenes = [...(state.scenes ?? [])];
+  const scene = defaultScene(name ?? `Scene ${scenes.length + 1}`, 3000);
+  const persistentIds = (state.bannerLayers ?? []).filter((l) => l.persistent).map((l) => l.id);
+  scene.layerIds = [...persistentIds];
+  scenes.push(scene);
+  return syncFlatFromActiveScene({
+    ...state,
+    scenes,
+    activeSceneId: scene.id,
+  });
+}
+
+export function duplicateScene(state: BannerEditorState, sceneId: string): BannerEditorState {
+  const source = getSceneById(state, sceneId);
+  if (!source) return state;
+  const now = new Date().toISOString();
+  const newScene: BannerScene = {
+    ...source,
+    id: newId("scene"),
+    name: `${source.name} copy`,
+    layerIds: [],
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const newLayers: BannerLayer[] = [];
+  const newEffects: LayerEffect[] = [];
+  const idMap = new Map<string, string>();
+
+  for (const lid of source.layerIds) {
+    const layer = getLayerById(state, lid);
+    if (!layer || layer.persistent) continue;
+    const newLayerId = newId("layer");
+    idMap.set(lid, newLayerId);
+    newLayers.push({ ...layer, id: newLayerId, sceneId: newScene.id });
+    newScene.layerIds.push(newLayerId);
+  }
+
+  for (const effect of getEffectsForScene(state, sceneId)) {
+    const mappedLayer = idMap.get(effect.layerId);
+    if (!mappedLayer) continue;
+    newEffects.push({
+      ...effect,
+      id: newId("effect"),
+      layerId: mappedLayer,
+      sceneId: newScene.id,
+    });
+  }
+
+  return syncFlatFromActiveScene({
+    ...state,
+    scenes: [...(state.scenes ?? []), newScene],
+    bannerLayers: [...(state.bannerLayers ?? []), ...newLayers],
+    layerEffects: [...(state.layerEffects ?? []), ...newEffects],
+    activeSceneId: newScene.id,
+  });
+}
+
+export function deleteScene(state: BannerEditorState, sceneId: string): BannerEditorState {
+  const scenes = state.scenes ?? [];
+  if (scenes.length <= 1) return state;
+
+  const idx = scenes.findIndex((s) => s.id === sceneId);
+  if (idx < 0) return state;
+
+  const removedIds = new Set(scenes[idx]!.layerIds);
+  const nextScenes = scenes.filter((s) => s.id !== sceneId);
+  const nextLayers = (state.bannerLayers ?? []).filter(
+    (l) => l.persistent || !removedIds.has(l.id),
+  );
+  const nextEffects = (state.layerEffects ?? []).filter((e) => e.sceneId !== sceneId);
+  const nextKeyframes = (state.layerKeyframes ?? []).filter((k) => k.sceneId !== sceneId);
+
+  let activeSceneId = state.activeSceneId;
+  if (activeSceneId === sceneId) {
+    activeSceneId = nextScenes[Math.max(0, idx - 1)]?.id ?? nextScenes[0]?.id;
+  }
+
+  return syncFlatFromActiveScene({
+    ...state,
+    scenes: nextScenes,
+    bannerLayers: nextLayers,
+    layerEffects: nextEffects,
+    layerKeyframes: nextKeyframes,
+    activeSceneId,
+  });
+}
+
+export function moveScene(
+  state: BannerEditorState,
+  sceneId: string,
+  direction: "left" | "right",
+): BannerEditorState {
+  const scenes = [...(state.scenes ?? [])];
+  const idx = scenes.findIndex((s) => s.id === sceneId);
+  if (idx < 0) return state;
+  const swap = direction === "left" ? idx - 1 : idx + 1;
+  if (swap < 0 || swap >= scenes.length) return state;
+  [scenes[idx], scenes[swap]] = [scenes[swap]!, scenes[idx]!];
+  return { ...state, scenes };
+}
+
+export function setActiveScene(state: BannerEditorState, sceneId: string): BannerEditorState {
+  if (!getSceneById(state, sceneId)) return state;
+  return syncFlatFromActiveScene({ ...state, activeSceneId: sceneId });
+}
+
+export function updateScene(
+  state: BannerEditorState,
+  sceneId: string,
+  patch: Partial<BannerScene>,
+): BannerEditorState {
+  const next = {
+    ...state,
+    scenes: (state.scenes ?? []).map((s) =>
+      s.id === sceneId
+        ? { ...s, ...patch, updatedAt: new Date().toISOString() }
+        : s,
+    ),
+  };
+  if (patch.durationMs !== undefined && getActiveScene(state)?.id === sceneId) {
+    return syncFlatFromActiveScene(next);
+  }
+  return next;
+}
+
+export function addLayerEffect(
+  state: BannerEditorState,
+  layerId: string,
+  preset: EffectPreset,
+): BannerEditorState {
+  const scene = getActiveScene(state);
+  if (!scene) return state;
+  const defaults = effectPresetDefaults(preset);
+  const effect: LayerEffect = {
+    id: newId("effect"),
+    layerId,
+    sceneId: scene.id,
+    preset,
+    startMs: defaults.startMs,
+    durationMs: defaults.durationMs,
+    easing: defaults.easing,
+    direction: "normal",
+    distancePx: defaults.distancePx,
+    intensity: defaults.intensity,
+    loop: defaults.loop,
+  };
+  const next = {
+    ...state,
+    layerEffects: [...(state.layerEffects ?? []), effect],
+  };
+  return syncFlatFromActiveScene(next);
+}
+
+export function updateLayerEffect(
+  state: BannerEditorState,
+  effectId: string,
+  patch: Partial<LayerEffect>,
+): BannerEditorState {
+  const next = {
+    ...state,
+    layerEffects: (state.layerEffects ?? []).map((e) =>
+      e.id === effectId ? { ...e, ...patch } : e,
+    ),
+  };
+  return syncFlatFromActiveScene(next);
+}
+
+export function deleteLayerEffect(state: BannerEditorState, effectId: string): BannerEditorState {
+  const next = {
+    ...state,
+    layerEffects: (state.layerEffects ?? []).filter((e) => e.id !== effectId),
+  };
+  return syncFlatFromActiveScene(next);
+}
+
+export function addParticleLayer(state: BannerEditorState): BannerEditorState {
+  const scene = getActiveScene(state);
+  if (!scene) return state;
+  const layer: BannerLayer = {
+    id: newId("particle"),
+    sceneId: scene.id,
+    persistent: false,
+    name: "Particles",
+    type: "particle",
+    visible: true,
+    locked: false,
+    x: 0,
+    y: 0,
+    width: state.width,
+    height: state.height,
+    opacity: 1,
+    rotation: 0,
+    scale: 1,
+    zIndex: 50,
+    particleMode: "dust-to-clean",
+    particleCount: 24,
+    colors: ["#fbbf24", "#a78bfa", "#60a5fa"],
+    speed: 1,
+    spread: 40,
+    particleLoop: true,
+  };
+  return syncFlatFromActiveScene({
+    ...state,
+    bannerLayers: [...(state.bannerLayers ?? []), layer],
+    scenes: (state.scenes ?? []).map((s) =>
+      s.id === scene.id ? { ...s, layerIds: [...s.layerIds, layer.id] } : s,
+    ),
+  });
+}
+
+export function addUnderlineLayer(
+  state: BannerEditorState,
+  targetTextLayerId?: string,
+): BannerEditorState {
+  const scene = getActiveScene(state);
+  if (!scene) return state;
+  const target = targetTextLayerId
+    ? getLayerById(state, targetTextLayerId)
+    : getLayerById(state, "headline");
+  const y = target ? target.y + target.height - 4 : Math.round(state.height * 0.35);
+  const layer: BannerLayer = {
+    id: newId("underline"),
+    sceneId: scene.id,
+    persistent: false,
+    name: "Underline",
+    type: "underline",
+    visible: true,
+    locked: false,
+    x: target?.x ?? Math.round(state.width * 0.08),
+    y,
+    width: target?.width ?? Math.round(state.width * 0.4),
+    height: 4,
+    opacity: 1,
+    rotation: 0,
+    scale: 1,
+    zIndex: (target?.zIndex ?? 30) + 1,
+    targetTextLayerId: target?.id,
+    underlineColor: state.accentColor,
+    thickness: 3,
+    drawDurationMs: 600,
+    offsetY: 0,
+  };
+  const next = {
+    ...state,
+    bannerLayers: [...(state.bannerLayers ?? []), layer],
+    scenes: (state.scenes ?? []).map((s) =>
+      s.id === scene.id ? { ...s, layerIds: [...s.layerIds, layer.id] } : s,
+    ),
+  };
+  const withEffect = addLayerEffect(next, layer.id, "underline-draw");
+  return withEffect;
+}
+
+export function staggerProductLayers(state: BannerEditorState): BannerEditorState {
+  const scene = getActiveScene(state);
+  if (!scene) return state;
+  const products = getLayersForScene(state, scene.id).filter(
+    (l) =>
+      (l.type === "image" || l.type === "badge") &&
+      (l.legacyKey === "product" || l.legacyKey === "decoration" || l.type === "badge"),
+  );
+  if (products.length === 0) return state;
+
+  let next = state;
+  products.forEach((layer, i) => {
+    const preset: EffectPreset = products.length === 1 ? "zoom-in" : "slide-in-left";
+    next = addLayerEffect(next, layer.id, preset);
+    const effects = next.layerEffects ?? [];
+    const last = effects[effects.length - 1];
+    if (last) {
+      next = updateLayerEffect(next, last.id, {
+        startMs: i * 150,
+        durationMs: 600,
+      });
+    }
+  });
+  return next;
+}
+
+export function clearSceneEffects(state: BannerEditorState): BannerEditorState {
+  const scene = getActiveScene(state);
+  if (!scene) return state;
+  const next = {
+    ...state,
+    layerEffects: (state.layerEffects ?? []).filter((e) => e.sceneId !== scene.id),
+  };
+  return syncFlatFromActiveScene(next);
+}
+
+export function sceneTransitionClass(transition: BannerSceneTransition): string {
+  return `scene-transition-${transition}`;
+}
+
+export function resolveStoryboardSelection(
+  state: BannerEditorState,
+  selected: SelectedLayer,
+): SelectedLayer {
+  const scene = getActiveScene(state);
+  if (!scene) return selected;
+
+  if (selected.type === "text") {
+    const exists = getLayersForScene(state, scene.id).some(
+      (l) => l.type === "text" && l.legacyKey === selected.id,
+    );
+    return exists ? selected : { type: "text", id: "headline" };
+  }
+
+  const exists = getLayersForScene(state, scene.id).some(
+    (l) => l.assetId === selected.id || l.id === selected.id,
+  );
+  if (exists) return selected;
+
+  const firstImage = getLayersForScene(state, scene.id).find(
+    (l) => l.type === "image" || l.type === "badge",
+  );
+  if (firstImage?.assetId) return { type: "asset", id: firstImage.assetId };
+  return { type: "text", id: "headline" };
+}
+
+export function editorStateToProjectWithStoryboard(
+  state: BannerEditorState,
+  existing?: BannerProject,
+): BannerProject {
+  const synced = syncFlatFromActiveScene(state);
+  const now = new Date().toISOString();
+  return {
+    id: synced.projectId,
+    name: synced.name,
+    status: synced.status,
+    width: synced.width,
+    height: synced.height,
+    headline: synced.headline,
+    subheadline: synced.subheadline,
+    cta: synced.cta,
+    backgroundColor: synced.backgroundColor,
+    textColor: synced.textColor,
+    ctaBackgroundColor: synced.ctaBackgroundColor,
+    ctaTextColor: synced.ctaTextColor,
+    accentColor: synced.accentColor,
+    animation: synced.animation,
+    logoLabel: synced.logoLabel,
+    productImageLabel: synced.productImageLabel,
+    shareId: synced.shareId || existing?.shareId || "share-unknown",
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+    assets: synced.assets ?? [],
+    assetPlacements: synced.assetPlacements ?? [],
+    textPlacements: synced.textPlacements ?? [],
+    timeline: synced.timeline,
+    layerAnimations: synced.layerAnimations ?? [],
+    scenes: synced.scenes,
+    bannerLayers: synced.bannerLayers,
+    layerEffects: synced.layerEffects,
+    layerKeyframes: synced.layerKeyframes,
+    activeSceneId: synced.activeSceneId,
+  };
+}
+
+export function selectedLayerToBannerLayerId(
+  state: BannerEditorState,
+  selected: SelectedLayer,
+): string | null {
+  const scene = getActiveScene(state);
+  if (!scene) return null;
+  if (selected.type === "text") {
+    const layer = getLayersForScene(state, scene.id).find(
+      (l) => l.type === "text" && l.legacyKey === selected.id,
+    );
+    return layer?.id ?? null;
+  }
+  const layer = getLayersForScene(state, scene.id).find(
+    (l) => l.assetId === selected.id || l.id === selected.id,
+  );
+  return layer?.id ?? null;
+}
+
+export function transitionCss(transition: BannerSceneTransition, durationMs: number): string {
+  const dur = `${durationMs}ms`;
+  switch (transition) {
+    case "fade":
+      return `animation: sceneFade ${dur} ease-out forwards;`;
+    case "swipe-left":
+      return `animation: sceneSwipeLeft ${dur} ease-out forwards;`;
+    case "swipe-right":
+      return `animation: sceneSwipeRight ${dur} ease-out forwards;`;
+    case "push-left":
+      return `animation: scenePushLeft ${dur} ease-out forwards;`;
+    case "push-right":
+      return `animation: scenePushRight ${dur} ease-out forwards;`;
+    default:
+      return "";
+  }
+}
+
+export function transitionKeyframes(): string {
+  return `
+@keyframes sceneFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes sceneSwipeLeft {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes sceneSwipeRight {
+  from { transform: translateX(-100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes scenePushLeft {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+@keyframes scenePushRight {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}`;
+}

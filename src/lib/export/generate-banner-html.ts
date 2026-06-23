@@ -1,8 +1,12 @@
 import type { ExportAssetFile } from "@/lib/assets/asset-export";
+import { presetClassName } from "@/lib/animation/animation-presets";
+import { clampParticleCount } from "@/lib/animation/keyframe-utils";
 import {
-  presetClassName,
-} from "@/lib/animation/animation-presets";
+  getLayersForScene,
+  totalStoryboardDurationMs,
+} from "@/lib/animation/storyboard-utils";
 import { getLayerAnimation, getTextPlacement } from "@/lib/animation/timeline-utils";
+import type { BannerLayer } from "@/types/animation";
 import type { BannerEditorState } from "@/types/editor";
 import {
   escapeHtmlAttribute,
@@ -40,72 +44,117 @@ function animClass(state: BannerEditorState, layerId: string): string {
   return ` ${presetClassName(layerId)}`;
 }
 
+function renderParticleLayer(layer: BannerLayer): string {
+  const count = clampParticleCount(layer.particleCount ?? 16);
+  const dots = Array.from({ length: count })
+    .map(
+      (_, i) =>
+        `<span class="p-${layer.id}-${i}" style="left:${(i * 17 + 5) % 95}%;top:${(i * 23 + 10) % 90}%;"></span>`,
+    )
+    .join("");
+  return `<div class="layer layer--particle" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)}">${dots}</div>`;
+}
+
+function renderUnderlineLayer(layer: BannerLayer, state: BannerEditorState): string {
+  const color = layer.underlineColor ?? state.accentColor;
+  return `<div class="layer layer--underline ul-${layer.id}" style="${layerStyle(layer.x, layer.y, layer.width, layer.thickness ?? 3, layer.zIndex, layer.opacity, layer.rotation)};background:${color};"></div>`;
+}
+
+function renderSceneLayers(
+  state: BannerEditorState,
+  sceneId: string,
+  paths: Map<string, string>,
+): string {
+  const headline = escapeHtmlText(sanitizePlainText(state.headline, "Headline", 120));
+  const subheadline = escapeHtmlText(sanitizePlainText(state.subheadline, "Subheadline", 160));
+  const cta = escapeHtmlText(sanitizePlainText(state.cta, "Learn more", 40));
+  const logo = escapeHtmlText(sanitizePlainText(state.logoLabel, "Logo", 24));
+  const product = escapeHtmlText(sanitizePlainText(state.productImageLabel, "Product", 24));
+
+  const layers = getLayersForScene(state, sceneId);
+  const parts: string[] = [];
+
+  for (const layer of layers.sort((a, b) => a.zIndex - b.zIndex)) {
+    if (!layer.visible) continue;
+
+    if (layer.type === "particle") {
+      parts.push(renderParticleLayer(layer));
+      continue;
+    }
+    if (layer.type === "underline") {
+      parts.push(renderUnderlineLayer(layer, state));
+      continue;
+    }
+
+    if (layer.type === "text" && layer.legacyKey) {
+      const content =
+        layer.legacyKey === "headline"
+          ? headline
+          : layer.legacyKey === "subheadline"
+            ? subheadline
+            : cta;
+      const cls =
+        layer.legacyKey === "cta"
+          ? "layer--cta"
+          : layer.legacyKey === "headline"
+            ? "layer--headline"
+            : "layer--subheadline";
+      parts.push(
+        `<div class="layer ${cls}${animClass(state, layer.legacyKey)}" data-layer="${layer.legacyKey}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)}">${content}</div>`,
+      );
+      continue;
+    }
+
+    if ((layer.type === "image" || layer.type === "badge") && layer.assetId) {
+      const path = paths.get(layer.assetId);
+      const kind = layer.legacyKey ?? "decoration";
+      const layerId = kind === "decoration" ? `decoration-${layer.assetId}` : kind;
+      const fx = (state.layerEffects ?? []).find(
+        (e) => e.layerId === layer.id && e.sceneId === sceneId,
+      );
+      const fxClass =
+        fx?.preset === "flip-180" || fx?.preset === "zoom-rotate-badge"
+          ? ` ${layer.assetId}-fx`
+          : "";
+      if (path) {
+        parts.push(
+          `<div class="layer layer--${kind}${animClass(state, layerId)}${fxClass}" data-layer="${kind}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)}"><img class="layer__img layer__img--${layer.fit ?? "contain"}" src="${escapeHtmlAttribute(path)}" alt=""></div>`,
+        );
+      } else {
+        const placeholder = kind === "logo" ? logo : kind === "product" ? product : kind;
+        parts.push(
+          `<div class="layer layer--${kind} layer--placeholder${animClass(state, layerId)}" style="${layerStyle(layer.x, layer.y, layer.width, layer.height, layer.zIndex, layer.opacity, layer.rotation)}"><span>${placeholder}</span></div>`,
+        );
+      }
+    }
+  }
+
+  return parts.join("\n");
+}
+
 export function generateBannerHtml(
   state: BannerEditorState,
   assetFiles: ExportAssetFile[] = [],
 ): string {
   const paths = assetPathMap(assetFiles);
   const title = escapeHtmlText(sanitizePlainText(state.name, "Banner", 80));
-  const headline = escapeHtmlText(
-    sanitizePlainText(state.headline, "Headline", 120),
-  );
-  const subheadline = escapeHtmlText(
-    sanitizePlainText(state.subheadline, "Subheadline", 160),
-  );
-  const cta = escapeHtmlText(sanitizePlainText(state.cta, "Learn more", 40));
-  const logo = escapeHtmlText(
-    sanitizePlainText(state.logoLabel, "Logo", 24),
-  );
-  const product = escapeHtmlText(
-    sanitizePlainText(state.productImageLabel, "Product", 24),
-  );
+  const scenes = state.scenes ?? [];
 
-  const headlinePl = getTextPlacement(state, "headline");
-  const subPl = getTextPlacement(state, "subheadline");
-  const ctaPl = getTextPlacement(state, "cta");
+  let bodyLayers: string;
 
-  const imageLayers = (state.assetPlacements ?? [])
-    .filter((p) => p.visible)
-    .sort((a, b) => a.zIndex - b.zIndex)
-    .map((placement) => {
-      const path = paths.get(placement.assetId);
-      const kind = placement.kind;
-      const layerId = kind === "decoration" ? `decoration-${placement.assetId}` : kind;
-      const cls = `layer layer--${kind}${animClass(state, layerId)}`;
-      const dataLayer = kind === "decoration" ? ` data-layer="decoration-${placement.assetId}"` : ` data-layer="${kind}"`;
-      const style = layerStyle(
-        placement.x,
-        placement.y,
-        placement.width,
-        placement.height,
-        placement.zIndex,
-        placement.opacity,
-        placement.rotation,
-      );
-      const radius = placement.borderRadius ? ` border-radius:${placement.borderRadius}px;` : "";
-      const shadow = placement.shadow ? " box-shadow:0 4px 12px rgba(0,0,0,0.25);" : "";
+  if (scenes.length > 1) {
+    bodyLayers = scenes
+      .map(
+        (scene) =>
+          `    <div class="scene-layer scene-${scene.id}" data-scene="${escapeHtmlAttribute(scene.name)}">\n${renderSceneLayers(state, scene.id, paths)}\n    </div>`,
+      )
+      .join("\n");
+  } else {
+    const sceneId = scenes[0]?.id ?? "default";
+    bodyLayers = renderSceneLayers(state, sceneId, paths);
+  }
 
-      if (path) {
-        return `    <div class="${cls}"${dataLayer} style="${style}${radius}${shadow}"><img class="layer__img layer__img--${placement.fit}" src="${escapeHtmlAttribute(path)}" alt=""></div>`;
-      }
-
-      const placeholder =
-        kind === "logo" ? logo : kind === "product" ? product : kind;
-      return `    <div class="${cls} layer--placeholder"${dataLayer} style="${style}${radius}${shadow}"><span>${escapeHtmlText(placeholder)}</span></div>`;
-    })
-    .join("\n");
-
-  const headlineHtml = headlinePl?.visible !== false
-    ? `    <h1 class="layer layer--headline${animClass(state, "headline")}" data-layer="headline" style="${layerStyle(headlinePl?.x ?? 8, headlinePl?.y ?? 28, headlinePl?.width ?? state.width * 0.5, headlinePl?.height ?? 40, headlinePl?.zIndex ?? 30, headlinePl?.opacity ?? 1, headlinePl?.rotation ?? 0)}">${headline}</h1>`
-    : "";
-
-  const subHtml = subPl?.visible !== false
-    ? `    <p class="layer layer--subheadline${animClass(state, "subheadline")}" data-layer="subheadline" style="${layerStyle(subPl?.x ?? 8, subPl?.y ?? 50, subPl?.width ?? state.width * 0.5, subPl?.height ?? 30, subPl?.zIndex ?? 31, subPl?.opacity ?? 1, subPl?.rotation ?? 0)}">${subheadline}</p>`
-    : "";
-
-  const ctaHtml = ctaPl?.visible !== false
-    ? `    <span class="layer layer--cta${animClass(state, "cta")}" data-layer="cta" style="${layerStyle(ctaPl?.x ?? 8, ctaPl?.y ?? 72, ctaPl?.width ?? state.width * 0.35, ctaPl?.height ?? 28, ctaPl?.zIndex ?? 32, ctaPl?.opacity ?? 1, ctaPl?.rotation ?? 0)}">${cta}</span>`
-    : "";
+  const totalMs = scenes.length > 1 ? totalStoryboardDurationMs(state) : state.timeline?.durationMs ?? 3000;
 
   return `<!doctype html>
 <html lang="cs">
@@ -117,11 +166,8 @@ export function generateBannerHtml(
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="banner" class="banner" role="img" aria-label="${escapeHtmlAttribute(title)}">
-${imageLayers}
-${headlineHtml}
-${subHtml}
-${ctaHtml}
+  <div id="banner" class="banner" role="img" aria-label="${escapeHtmlAttribute(title)}" data-duration-ms="${totalMs}">
+${bodyLayers}
   </div>
   <script src="script.js"></script>
 </body>

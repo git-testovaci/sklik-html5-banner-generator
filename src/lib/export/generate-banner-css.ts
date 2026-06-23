@@ -3,9 +3,77 @@ import {
   collectLayerKeyframes,
   presetClassName,
 } from "@/lib/animation/animation-presets";
+import {
+  badgeFlipKeyframes,
+  underlineDrawKeyframes,
+  zoomRotateKeyframes,
+} from "@/lib/animation/effect-presets";
+import { clampParticleCount } from "@/lib/animation/keyframe-utils";
+import {
+  getEffectsForScene,
+  sceneStartOffsetMs,
+  totalStoryboardDurationMs,
+  transitionKeyframes,
+} from "@/lib/animation/storyboard-utils";
 import { getTextPlacement } from "@/lib/animation/timeline-utils";
+import type { BannerLayer } from "@/types/animation";
 import type { BannerEditorState } from "@/types/editor";
 import { sanitizeCssColor } from "./sanitize-export-content";
+
+function buildStoryboardRules(state: BannerEditorState): string {
+  const scenes = state.scenes ?? [];
+  if (scenes.length <= 1) return buildAnimationRules(state);
+
+  const total = totalStoryboardDurationMs(state);
+  const loop = state.timeline?.loop ?? false;
+  const iter = loop ? "infinite" : 1;
+  const rules: string[] = [transitionKeyframes(), buildAnimationRules(state)];
+
+  for (const scene of scenes) {
+    const start = sceneStartOffsetMs(state, scene.id);
+    const end = start + scene.durationMs;
+    const startPct = (start / total) * 100;
+    const endPct = (end / total) * 100;
+    rules.push(`
+@keyframes sceneShow-${scene.id} {
+  0%, ${startPct > 0 ? `${startPct - 0.1}%` : "0%"} { opacity: 0; visibility: hidden; }
+  ${startPct}% { opacity: 1; visibility: visible; }
+  ${endPct}% { opacity: 1; visibility: visible; }
+  ${Math.min(endPct + 0.1, 100)}%, 100% { opacity: 0; visibility: hidden; }
+}
+.scene-${scene.id} { animation: sceneShow-${scene.id} ${total}ms linear ${iter}; }`);
+
+    for (const effect of getEffectsForScene(state, scene.id)) {
+      if (effect.preset === "flip-180") {
+        rules.push(badgeFlipKeyframes(`${effect.layerId}-fx`, effect.durationMs));
+      }
+      if (effect.preset === "zoom-rotate-badge") {
+        rules.push(zoomRotateKeyframes(`${effect.layerId}-fx`, effect.durationMs));
+      }
+      if (effect.preset === "underline-draw") {
+        rules.push(underlineDrawKeyframes(`ul-${effect.layerId}`, effect.durationMs));
+      }
+    }
+  }
+
+  for (const layer of state.bannerLayers ?? []) {
+    if (layer.type === "particle") rules.push(particleExportCss(layer));
+  }
+
+  return rules.join("\n");
+}
+
+function particleExportCss(layer: BannerLayer): string {
+  const count = clampParticleCount(layer.particleCount ?? 16);
+  const dur = Math.round(2000 / (layer.speed ?? 1));
+  const parts: string[] = [];
+  for (let i = 0; i < count; i++) {
+    parts.push(`
+@keyframes p-${layer.id}-${i} { 0% { opacity: 0.7; } 100% { transform: translateY(-24px); opacity: 0.1; } }
+.p-${layer.id}-${i} { position:absolute; width:3px; height:3px; border-radius:50%; background:#60a5fa; animation: p-${layer.id}-${i} ${dur}ms linear infinite ${(i * 60) % 400}ms; }`);
+  }
+  return parts.join("\n");
+}
 
 function buildAnimationRules(state: BannerEditorState): string {
   const anims = state.layerAnimations ?? [];
@@ -44,7 +112,7 @@ export function generateBannerCss(state: BannerEditorState): string {
   );
 
   const bannerBg = hasBgImage ? "transparent" : bg;
-  const animationBlock = buildAnimationRules(state);
+  const animationBlock = buildStoryboardRules(state);
 
   return `*, *::before, *::after { box-sizing: border-box; }
 html, body {
@@ -110,6 +178,13 @@ body {
   display: flex;
   align-items: center;
   justify-content: ${subPl?.textAlign === "center" ? "center" : subPl?.textAlign === "right" ? "flex-end" : "flex-start"};
+}
+.layer--underline {
+  transform-origin: left center;
+}
+.scene-layer {
+  position: absolute;
+  inset: 0;
 }
 .layer--cta {
   display: inline-flex;

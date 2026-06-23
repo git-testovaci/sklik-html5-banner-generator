@@ -157,26 +157,46 @@ export function LayerPanel({
           <>
             <p className="mt-2 px-2 py-1 text-[10px] uppercase tracking-wide text-zinc-600">Images</p>
             {(state.assetPlacements ?? []).map((p) => {
-              const asset = (state.assets ?? []).find((a) => a.id === p.assetId);
-              const layerId = p.kind === "decoration" ? `decoration-${p.assetId}` : p.kind;
-              const anim = getLayerAnimation(state, layerId);
-              const animOn = anim?.enabled && anim.preset !== "none";
-              return (
-                <button
-                  key={p.assetId}
-                  type="button"
-                  onClick={() => onSelectLayer({ type: "asset", id: p.assetId })}
-                  className={`mb-1 w-full rounded-lg px-3 py-2 text-left text-xs capitalize ring-1 ring-transparent ${
-                    selectedLayer.type === "asset" && selectedLayer.id === p.assetId
-                      ? "bg-violet-950/50 text-violet-200 ring-violet-800/50"
-                      : "text-zinc-400 hover:bg-zinc-800/50"
-                  }`}
-                >
-                  {asset?.kind ?? p.kind} {!p.visible ? "(hidden)" : ""} · z{p.zIndex}
-                  {animOn ? " · anim" : ""}
-                </button>
-              );
-            })}
+          const asset = (state.assets ?? []).find((a) => a.id === p.assetId);
+          const layerId = p.kind === "decoration" ? `decoration-${p.assetId}` : p.kind;
+          const anim = getLayerAnimation(state, layerId);
+          const animOn = anim?.enabled && anim.preset !== "none";
+          const sbLayer = (state.bannerLayers ?? []).find(
+            (l) => l.assetId === p.assetId || l.id === p.assetId,
+          );
+          return (
+            <button
+              key={p.assetId}
+              type="button"
+              onClick={() => onSelectLayer({ type: "asset", id: p.assetId })}
+              className={`mb-1 w-full rounded-lg px-3 py-2 text-left text-xs capitalize ring-1 ring-transparent ${
+                selectedLayer.type === "asset" && selectedLayer.id === p.assetId
+                  ? "bg-violet-950/50 text-violet-200 ring-violet-800/50"
+                  : "text-zinc-400 hover:bg-zinc-800/50"
+              }`}
+            >
+              {asset?.kind ?? p.kind} {sbLayer?.persistent ? "📌" : ""}{" "}
+              {!p.visible ? "(hidden)" : ""} · z{p.zIndex}
+              {animOn ? " · anim" : ""}
+            </button>
+          );
+        })}
+        {(state.bannerLayers ?? [])
+          .filter((l) => l.type === "particle" || l.type === "underline")
+          .map((l) => (
+            <button
+              key={l.id}
+              type="button"
+              onClick={() => onSelectLayer({ type: "asset", id: l.id })}
+              className={`mb-1 w-full rounded-lg px-3 py-2 text-left text-xs ring-1 ring-transparent ${
+                selectedLayer.type === "asset" && selectedLayer.id === l.id
+                  ? "bg-violet-950/50 text-violet-200 ring-violet-800/50"
+                  : "text-zinc-400 hover:bg-zinc-800/50"
+              }`}
+            >
+              {l.name} {l.persistent ? "📌" : ""} · {l.type}
+            </button>
+          ))}
           </>
         ) : null}
       </div>

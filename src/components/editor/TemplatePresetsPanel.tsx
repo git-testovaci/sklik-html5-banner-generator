@@ -1,6 +1,6 @@
 "use client";
 
-import { applyTemplateToState } from "@/lib/templates/apply-template";
+import { applyIonicCareSequence, applyTemplateToState } from "@/lib/templates/apply-template";
 import { BANNER_TEMPLATES } from "@/lib/templates/banner-templates";
 import type { BannerEditorState, BannerEditorStateUpdater } from "@/types/editor";
 import type { BannerTemplateId } from "@/types/templates";
@@ -48,6 +48,24 @@ export function TemplatePresetsPanel({
             </p>
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => {
+            if (hasUnsavedChanges) {
+              const ok = window.confirm(
+                "Apply Ionic Care 3-scene storyboard? This replaces scenes and animations.",
+              );
+              if (!ok) return;
+            }
+            onUpdate(applyIonicCareSequence(state));
+          }}
+          className="rounded-lg border border-violet-800/60 bg-violet-950/30 px-3 py-2.5 text-left hover:bg-violet-950/50 sm:col-span-2"
+        >
+          <p className="text-xs font-medium text-violet-200">Ionic Care sequence</p>
+          <p className="mt-0.5 text-[10px] leading-snug text-zinc-500">
+            3-scene storyboard: headline, product, particles, underline, badge flip, loop.
+          </p>
+        </button>
       </div>
     </section>
   );
