@@ -55,6 +55,11 @@ export function transitionFriendlyLabel(transition: BannerSceneTransition): stri
 
 export function layerDisplayName(layer: BannerLayer | undefined): string {
   if (!layer) return "Vrstva";
+  if (layer.slotKind === "logo") return "Logo";
+  if (layer.slotKind === "product") return "Produkt";
+  if (layer.slotKind === "background") return "Pozadí";
+  if (layer.slotKind === "image") return "Obrázek";
+  if (layer.slotKind === "badge") return "Odznak";
   if (layer.type === "text") {
     if (layer.legacyKey === "headline") return "Nadpis";
     if (layer.legacyKey === "subheadline") return "Podnadpis";

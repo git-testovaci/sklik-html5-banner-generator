@@ -217,7 +217,7 @@ export function LayerPanel({
             ))}
             <button type="button" onClick={() => centerSelected("h")} className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800">Na střed ↔</button>
             <button type="button" onClick={() => centerSelected("v")} className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800">Na střed ↕</button>
-            <button type="button" onClick={resetSelected} className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800">Reset</button>
+            <button type="button" onClick={resetSelected} className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800">Resetovat</button>
           </div>
         )}
         {selectedText ? (

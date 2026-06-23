@@ -3,6 +3,7 @@ import { getTemplateSlotLayers, hasFilledSlot, isSlotEmpty } from "@/lib/assets/
 
 const DEFAULT_HEADLINES = new Set([
   "váš nadpis zde",
+  "nová kampaň",
   "headline here",
   "imported headline",
   "headline",
@@ -10,6 +11,7 @@ const DEFAULT_HEADLINES = new Set([
 
 const DEFAULT_SUBHEADLINES = new Set([
   "podnadpis nebo krátký popis",
+  "krátký popis produktu nebo nabídky",
   "subheadline",
 ]);
 

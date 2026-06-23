@@ -90,10 +90,10 @@ export function NewProjectDialog({
     >
       <form onSubmit={handleSubmit} className="p-6">
         <div className="mb-6">
-          <h2 className="text-lg font-semibold text-zinc-100">New banner</h2>
+          <h2 className="text-lg font-semibold text-zinc-100">Nový banner</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            Create a draft project and open it in the editor. Saved locally in
-            this browser.
+            Vytvořte koncept a otevřete editor. Po vytvoření vyberte profesionální šablonu
+            nebo přidejte vrstvy na plátně. Projekt se uloží lokálně v tomto prohlížeči.
           </p>
         </div>
 
@@ -103,7 +103,7 @@ export function NewProjectDialog({
               htmlFor="new-project-name"
               className="mb-1.5 block text-sm font-medium text-zinc-300"
             >
-              Project name <span className="text-red-400">*</span>
+              Název projektu <span className="text-red-400">*</span>
             </label>
             <input
               ref={nameInputRef}
@@ -112,14 +112,14 @@ export function NewProjectDialog({
               value={name}
               onChange={(e) => setName(e.target.value)}
               onBlur={() => setNameTouched(true)}
-              placeholder="Summer Sale 2026"
+              placeholder="Letní akce 2026"
               aria-invalid={nameError}
               aria-describedby={nameError ? "new-project-name-error" : undefined}
               className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
             />
             {nameError ? (
               <p id="new-project-name-error" className="mt-1 text-xs text-red-400" role="alert">
-                Project name is required.
+                Název projektu je povinný.
               </p>
             ) : null}
           </div>
@@ -129,7 +129,7 @@ export function NewProjectDialog({
               htmlFor="new-project-size"
               className="mb-1.5 block text-sm font-medium text-zinc-300"
             >
-              Banner size
+              Velikost banneru
             </label>
             <select
               id="new-project-size"
@@ -144,7 +144,7 @@ export function NewProjectDialog({
               ))}
             </select>
             <p className="mt-1 text-xs text-zinc-500">
-              Choose the Sklik ad slot size. You can change it later in the editor.
+              Velikost reklamního slotu ve Skliku. V editoru ji lze upravit.
             </p>
           </div>
 
@@ -153,7 +153,7 @@ export function NewProjectDialog({
               htmlFor="new-project-headline"
               className="mb-1.5 block text-sm font-medium text-zinc-300"
             >
-              Headline <span className="text-red-400">*</span>
+              Nadpis <span className="text-red-400">*</span>
             </label>
             <input
               id="new-project-headline"
@@ -164,7 +164,7 @@ export function NewProjectDialog({
               className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
             />
             <p className="mt-1 text-xs text-zinc-500">
-              Main message — keep it short for small banner sizes.
+              Hlavní sdělení — u menších formátů držte text krátký.
             </p>
           </div>
 
@@ -173,7 +173,7 @@ export function NewProjectDialog({
               htmlFor="new-project-subheadline"
               className="mb-1.5 block text-sm font-medium text-zinc-300"
             >
-              Subheadline
+              Podnadpis
             </label>
             <input
               id="new-project-subheadline"
@@ -189,7 +189,7 @@ export function NewProjectDialog({
               htmlFor="new-project-cta"
               className="mb-1.5 block text-sm font-medium text-zinc-300"
             >
-              CTA text <span className="text-red-400">*</span>
+              Výzva k akci <span className="text-red-400">*</span>
             </label>
             <input
               id="new-project-cta"
@@ -200,7 +200,7 @@ export function NewProjectDialog({
               className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
             />
             <p className="mt-1 text-xs text-zinc-500">
-              Button label only — click URL is set in Sklik, not in the banner.
+              Text tlačítka — klik URL se nastavuje ve Skliku, ne v banneru.
             </p>
           </div>
         </div>
@@ -211,14 +211,14 @@ export function NewProjectDialog({
             onClick={handleClose}
             className="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-900"
           >
-            Cancel
+            Zrušit
           </button>
           <button
             type="submit"
             disabled={!canSubmit}
             className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-violet-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Create & open editor
+            Vytvořit a otevřít editor
           </button>
         </div>
       </form>

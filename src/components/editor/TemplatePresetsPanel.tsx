@@ -64,6 +64,8 @@ export function TemplatePresetsPanel({
   onAfterApply,
 }: TemplatePresetsPanelProps) {
   function applyStoryboard(id: StoryboardTemplateId) {
+    const hadLogo = (state.assets ?? []).some((a) => a.kind === "logo");
+    const hadProduct = (state.assets ?? []).some((a) => a.kind === "product");
     let next = applyStoryboardTemplate(state, id);
     const firstSceneId = next.scenes?.[0]?.id;
     if (firstSceneId) {
@@ -72,10 +74,15 @@ export function TemplatePresetsPanel({
     onUpdate(next);
     const missing = findFirstMissingRequiredSlot(next);
     const selection = firstEditableSelection(next);
+    const reusedAssets = hadLogo || hadProduct;
     onAfterApply?.(next, selection, {
       message: missing
-        ? "Šablona připravena. Teď nahrajte logo a produkt."
-        : "Šablona připravena. Upravte texty a spusťte náhled.",
+        ? reusedAssets
+          ? "Šablona připravena. Assety z knihovny byly použity — doplňte chybějící sloty."
+          : "Šablona připravena. Teď nahrajte logo a produkt."
+        : reusedAssets
+          ? "Šablona připravena. Existující assety byly vloženy do slotů."
+          : "Šablona připravena. Upravte texty a spusťte náhled.",
       switchToAssets: Boolean(missing),
     });
   }

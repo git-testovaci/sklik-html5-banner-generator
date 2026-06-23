@@ -183,6 +183,8 @@ export function ValidationExportPanel({
         </h2>
         <p className="mt-1 text-xs text-zinc-500">
           Vygenerujte Sklik ZIP pro ruční nahrání. OK = připraveno, VAR = zkontrolovat, CHYBA = blokováno.
+          {" "}
+          Assety v projektu: {(state.assets ?? []).length} · limit Sklik 250 kB.
         </p>
       </div>
 
@@ -271,6 +273,14 @@ export function ValidationExportPanel({
                         <span className="font-mono text-zinc-400">{file.path}</span>
                         <span>{formatFileSize(file.size)}</span>
                       </li>
+                    ))}
+                  </ul>
+                ) : null}
+
+                {exportResult.validationReport.recommendations.length > 0 ? (
+                  <ul className="mt-2 space-y-1 border-t border-zinc-800/60 pt-2 text-xs text-zinc-500">
+                    {exportResult.validationReport.recommendations.map((tip) => (
+                      <li key={tip}>· {tip}</li>
                     ))}
                   </ul>
                 ) : null}

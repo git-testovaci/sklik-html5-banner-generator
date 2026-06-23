@@ -330,7 +330,7 @@ export function normalizeEditorState(
 
   const base: BannerEditorState = {
     projectId: partial.projectId,
-    name: partial.name ?? "Untitled banner",
+    name: partial.name ?? "Nepojmenovaný banner",
     status: partial.status ?? "draft",
     width,
     height,

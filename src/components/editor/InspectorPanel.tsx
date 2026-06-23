@@ -239,7 +239,12 @@ export function InspectorPanel({
 
   return (
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
-      <Header title={layerDisplayName(layer)} subtitle={layer.name} />
+      <Header
+        title={layerDisplayName(layer)}
+        subtitle={
+          layer.name && layer.name !== layerDisplayName(layer) ? layer.name : undefined
+        }
+      />
       <div className="space-y-2 p-4">
         <LayerQuickActions
           layer={layer}
@@ -289,15 +294,13 @@ function LayerQuickActions({
       <div className="flex flex-wrap gap-1.5">
         {emptySlot ? (
           <>
-            <ActionButton onClick={onOpenAssets}>
-              {layer.slotLabel ?? "Nahrát / vybrat obrázek"}
-            </ActionButton>
-            <ActionButton onClick={onOpenAssets}>Použít z knihovny</ActionButton>
+            <ActionButton onClick={onOpenAssets}>Nahrát obrázek</ActionButton>
+            <ActionButton onClick={onOpenAssets}>Vybrat z knihovny</ActionButton>
           </>
         ) : null}
         {isImageSlot && layer.assetId ? (
           <>
-            <ActionButton onClick={onOpenAssets}>Nahradit obrázek</ActionButton>
+            <ActionButton onClick={onOpenAssets}>Nahradit</ActionButton>
             <ActionButton onClick={() => onUpdate(clearSlotAsset(state, layer.id))}>
               Odebrat z vrstvy
             </ActionButton>
@@ -505,11 +508,11 @@ function ActionButton({
   );
 }
 
-function Header({ title, subtitle }: { title: string; subtitle: string }) {
+function Header({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <div className="border-b border-zinc-800/60 px-4 py-3">
-      <h2 className="text-sm font-medium text-zinc-300">Inspector · {title}</h2>
-      <p className="text-[10px] text-zinc-500">{subtitle}</p>
+      <h2 className="text-sm font-medium text-zinc-300">{title}</h2>
+      {subtitle ? <p className="text-[10px] text-zinc-500">{subtitle}</p> : null}
     </div>
   );
 }

@@ -5,15 +5,15 @@ const STATUS_CONFIG: Record<
   { label: string; className: string }
 > = {
   draft: {
-    label: "Draft",
+    label: "Koncept",
     className: "bg-zinc-700/60 text-zinc-300 ring-zinc-600/50",
   },
   shared: {
-    label: "Shared",
+    label: "Sdíleno",
     className: "bg-sky-950/60 text-sky-300 ring-sky-800/50",
   },
   exported: {
-    label: "Exported",
+    label: "Exportováno",
     className: "bg-emerald-950/60 text-emerald-300 ring-emerald-800/50",
   },
 };

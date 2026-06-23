@@ -15,7 +15,7 @@ export function DashboardHeader({ onNewBanner }: DashboardHeaderProps) {
             Sklik HTML5 Banner Generator
           </h1>
           <p className="mt-1 text-sm text-zinc-500">
-            Internal studio for HTML5 banner creation, validation, preview, import, and ZIP export.
+            Interní studio pro tvorbu HTML5 bannerů, náhled, import a export ZIP pro Sklik.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-3">
@@ -26,26 +26,26 @@ export function DashboardHeader({ onNewBanner }: DashboardHeaderProps) {
             Import HTML5 ZIP
           </Link>
           <button
-          type="button"
-          onClick={onNewBanner}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-violet-950/30 transition-colors hover:bg-violet-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500"
-        >
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={2}
-            stroke="currentColor"
-            aria-hidden="true"
+            type="button"
+            onClick={onNewBanner}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-violet-950/30 transition-colors hover:bg-violet-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 4.5v15m7.5-7.5h-15"
-            />
-          </svg>
-          New banner
-        </button>
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 4.5v15m7.5-7.5h-15"
+              />
+            </svg>
+            Nový banner
+          </button>
         </div>
       </div>
     </header>

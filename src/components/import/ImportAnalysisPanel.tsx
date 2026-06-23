@@ -8,6 +8,14 @@ const STATUS_STYLES = {
   pending: "bg-zinc-800/60 text-zinc-500 ring-zinc-700/50",
 } as const;
 
+const STATUS_LABELS = {
+  pass: "OK",
+  warn: "VAR",
+  fail: "CHYBA",
+  info: "INFO",
+  pending: "…",
+} as const;
+
 const HIGHLIGHT_ROW_IDS = new Set([
   "html-count",
   "nested-zip",
@@ -30,9 +38,9 @@ export function ImportAnalysisPanel({
   imageSummaries = [],
 }: ImportAnalysisPanelProps) {
   const readinessLabel = {
-    ready: "Likely ready for review",
-    review: "Review warnings before reuse",
-    "not-ready": "Fix blocking issues first",
+    ready: "Pravděpodobně připraveno ke kontrole",
+    review: "Zkontrolujte upozornění před dalším použitím",
+    "not-ready": "Nejdříve opravte blokující problémy",
   }[sklikReadiness];
 
   const criticalRows = rows.filter(
@@ -44,16 +52,16 @@ export function ImportAnalysisPanel({
   return (
     <aside className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <div className="border-b border-zinc-800/60 px-4 py-3">
-        <h2 className="text-sm font-medium text-zinc-300">Import analysis</h2>
+        <h2 className="text-sm font-medium text-zinc-300">Analýza importu</h2>
         <p className="mt-1 text-xs text-zinc-500">
-          Overall: <span className="uppercase text-zinc-300">{overallStatus}</span>
+          Celkově: <span className="uppercase text-zinc-300">{overallStatus === "pass" ? "OK" : overallStatus === "warn" ? "VAROVÁNÍ" : "CHYBA"}</span>
         </p>
       </div>
 
       {imageSummaries.length > 0 ? (
         <div className="border-b border-zinc-800/60 px-4 py-3">
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-            Detected images ({imageSummaries.length})
+            Nalezené obrázky ({imageSummaries.length})
           </p>
           <ul className="mt-2 max-h-24 space-y-1 overflow-y-auto text-xs text-zinc-400">
             {imageSummaries.map((img) => (
@@ -68,7 +76,7 @@ export function ImportAnalysisPanel({
       {criticalRows.length > 0 ? (
         <div className="border-b border-amber-900/30 bg-amber-950/15 px-4 py-3">
           <p className="text-xs font-medium uppercase tracking-wide text-amber-400">
-            Review these issues
+            Zkontrolujte tyto body
           </p>
           <ul className="mt-2 space-y-1 text-xs text-amber-200/90">
             {criticalRows.map((row) => (
@@ -93,13 +101,13 @@ export function ImportAnalysisPanel({
             <span
               className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${STATUS_STYLES[row.status]}`}
             >
-              {row.status.toUpperCase()}
+              {STATUS_LABELS[row.status]}
             </span>
           </li>
         ))}
       </ul>
       <div className="border-t border-zinc-800/60 px-4 py-3">
-        <p className="text-xs uppercase tracking-wide text-zinc-500">Sklik readiness estimate</p>
+        <p className="text-xs uppercase tracking-wide text-zinc-500">Odhad pro Sklik</p>
         <p className="mt-1 text-sm font-medium text-zinc-200">{readinessLabel}</p>
       </div>
     </aside>

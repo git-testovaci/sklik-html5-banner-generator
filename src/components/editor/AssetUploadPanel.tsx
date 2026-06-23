@@ -189,7 +189,7 @@ export function AssetUploadPanel({ state, onUpdate, onPlaced }: AssetUploadPanel
           const current = kind !== "decoration" ? asset : undefined;
 
           return (
-            <div key={kind} className="rounded-lg border border-zinc-800/60 bg-zinc-950/40 p-3">
+            <div key={kind} id={id} className="rounded-lg border border-zinc-800/60 bg-zinc-950/40 p-3 scroll-mt-4">
               <label htmlFor={id} className="mb-1 block text-xs font-medium text-zinc-300">
                 {label}
               </label>

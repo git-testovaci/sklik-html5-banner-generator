@@ -10,7 +10,9 @@ import {
 } from "@/lib/animation/timeline-utils";
 import {
   clearSelectedEffectIfMissing,
+  getActiveScene,
   getLayerById,
+  getSceneById,
   setActiveScene,
 } from "@/lib/animation/storyboard-utils";
 import { createQuickLayer, type QuickAddLayerType } from "@/lib/animation/layer-factory";
@@ -94,7 +96,9 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
     id: "headline",
   });
   const [selectedEffectId, setSelectedEffectId] = useState<string | null>(null);
-  const [leftTab, setLeftTab] = useState<LeftTab>("layers");
+  const [leftTab, setLeftTab] = useState<LeftTab>(() =>
+    (initialState.scenes ?? []).length >= 2 ? "layers" : "templates",
+  );
   const [showExport, setShowExport] = useState(false);
   const [placementMessage, setPlacementMessage] = useState<string | null>(null);
   const [selectedTransitionSceneId, setSelectedTransitionSceneId] = useState<string | null>(null);
@@ -157,6 +161,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   }
 
   function handleSceneSelect(sceneId: string) {
+    playback.stop();
     onUpdate(setActiveScene(state, sceneId));
     setSelectedEffectId(null);
     setSelectedTransitionSceneId(null);
@@ -201,6 +206,38 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
     setSelectedLayer({ type: "asset", id: layer.id });
     setSelectedEffectId(null);
     setLeftTab("assets");
+    window.setTimeout(() => {
+      const uploadId =
+        layer.slotKind === "logo"
+          ? "upload-logo"
+          : layer.slotKind === "product" || layer.slotKind === "image"
+            ? "upload-product"
+            : layer.slotKind === "background"
+              ? "upload-background"
+              : "upload-decoration";
+      document.getElementById(uploadId)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 80);
+  }
+
+  function handlePreviewTransition() {
+    const sceneId = selectedTransitionSceneId ?? state.activeSceneId ?? state.scenes?.[0]?.id;
+    const scene = sceneId ? getSceneById(state, sceneId) : getActiveScene(state);
+    if (!scene) {
+      setPlacementMessage("Nejdříve vyberte scénu s přechodem.");
+      window.setTimeout(() => setPlacementMessage(null), 3500);
+      return;
+    }
+    if (scene.transitionOut === "none") {
+      setPlacementMessage("Scéna nemá přechod — vyberte typ přechodu v inspectoru.");
+      window.setTimeout(() => setPlacementMessage(null), 4000);
+      return;
+    }
+    if ((state.scenes ?? []).length <= 1) {
+      setPlacementMessage("Přechod vyžaduje alespoň dvě scény ve storyboardu.");
+      window.setTimeout(() => setPlacementMessage(null), 4000);
+      return;
+    }
+    playback.previewSceneTransition();
   }
 
   function handleChecklistAction(action: ChecklistAction) {
@@ -376,7 +413,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
               setSelectedTransitionSceneId(sceneId);
               setSelectedEffectId(null);
             }}
-            onPreviewTransition={() => playback.previewSceneTransition()}
+            onPreviewTransition={handlePreviewTransition}
           />
           <MotionPresetQuickActions
             state={state}
@@ -418,7 +455,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             }
             onSelectEffect={setSelectedEffectId}
             onOpenAssets={() => setLeftTab("assets")}
-            onPreviewTransition={() => playback.previewSceneTransition()}
+            onPreviewTransition={handlePreviewTransition}
           />
           <button
             type="button"

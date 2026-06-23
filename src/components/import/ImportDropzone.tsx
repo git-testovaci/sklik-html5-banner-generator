@@ -40,13 +40,13 @@ export function ImportDropzone({
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
         </svg>
         <p className="text-sm font-medium text-zinc-200">
-          Drag & drop HTML5 ZIP here
+          Přetáhněte HTML5 ZIP sem
         </p>
         <p className="mt-1 text-sm text-zinc-500">
-          Accepted: <span className="font-mono text-zinc-400">.zip</span> only
+          Povolený formát: <span className="font-mono text-zinc-400">.zip</span>
         </p>
         <p className="mt-3 text-xs text-amber-400/90">
-          Sklik single-banner limit: 250 kB
+          Limit Sklik pro jeden banner: 250 kB
         </p>
       </label>
       <input
@@ -58,8 +58,7 @@ export function ImportDropzone({
         onChange={(e) => handleFiles(e.target.files)}
       />
       <p className="mt-4 text-xs leading-relaxed text-zinc-500">
-        Non-ZIP files and corrupted archives will show an error. Processing stays
-        on your device.
+        Neplatný soubor nebo poškozený ZIP zobrazí chybu. Zpracování probíhá jen v tomto prohlížeči.
       </p>
       {error ? (
         <p className="mt-3 rounded-lg border border-red-900/50 bg-red-950/30 px-3 py-2 text-sm text-red-300" role="alert">

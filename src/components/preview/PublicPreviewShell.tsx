@@ -184,7 +184,7 @@ export function PublicPreviewShell({ shareId }: PublicPreviewShellProps) {
   if (!isClient) {
     return (
       <div className="flex min-h-full items-center justify-center">
-        <p className="text-sm text-zinc-500">Loading preview…</p>
+        <p className="text-sm text-zinc-500">Načítání náhledu…</p>
       </div>
     );
   }
@@ -200,7 +200,7 @@ export function PublicPreviewShell({ shareId }: PublicPreviewShellProps) {
           href="/dashboard"
           className="mt-6 inline-flex items-center rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-violet-500"
         >
-          Zpět na dashboard
+          Zpět na přehled
         </Link>
       </div>
     );

@@ -42,7 +42,7 @@ export function ImportBannerClient() {
 
   const handleFile = useCallback(async (file: File) => {
     if (!file.name.toLowerCase().endsWith(".zip")) {
-      setError("Please upload a .zip file containing an HTML5 banner.");
+      setError("Nahrajte soubor .zip s HTML5 bannerem.");
       return;
     }
 
@@ -60,7 +60,7 @@ export function ImportBannerClient() {
     } catch (err) {
       setAnalysis(null);
       setSourceZipFile(null);
-      setError(err instanceof Error ? err.message : "Import failed.");
+      setError(err instanceof Error ? err.message : "Import selhal.");
     } finally {
       setLoading(false);
     }
@@ -75,13 +75,13 @@ export function ImportBannerClient() {
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
           <div>
             <Link href="/dashboard" className="text-sm text-zinc-500 hover:text-zinc-300">
-              ← Back to dashboard
+              ← Zpět na přehled
             </Link>
             <h1 className="mt-2 text-xl font-semibold text-zinc-100 sm:text-2xl">
-              Import existing HTML5 banner
+              Import HTML5 banneru
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-zinc-500">
-              Upload an existing HTML5 ZIP banner to preview it, inspect structure, and reuse inspiration.
+              Nahrajte existující HTML5 ZIP, prohlédněte strukturu a vytvořte z něj editovatelný projekt.
             </p>
           </div>
         </div>
@@ -89,13 +89,12 @@ export function ImportBannerClient() {
 
       <main className="mx-auto w-full max-w-7xl flex-1 space-y-6 px-4 py-8 sm:px-6 lg:px-8">
         <aside
-          aria-label="Import security notice"
+          aria-label="Upozornění k importu"
           className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 px-4 py-3 text-sm text-zinc-400"
         >
           <p>
-            Files are processed locally in your browser and are not uploaded.
-            Preview runs in a sandboxed iframe. For production/team workflows,
-            cloud storage will be added later.
+            Soubory se zpracovávají lokálně v prohlížeči — nic se nenahrává na server.
+            Náhled běží v izolovaném iframe. Cloudové úložiště přibude později.
           </p>
         </aside>
 
@@ -104,7 +103,7 @@ export function ImportBannerClient() {
         ) : null}
 
         {loading ? (
-          <p className="text-center text-sm text-zinc-500">Analyzing ZIP…</p>
+          <p className="text-center text-sm text-zinc-500">Analyzuji ZIP…</p>
         ) : null}
 
         {analysis ? (
@@ -113,9 +112,9 @@ export function ImportBannerClient() {
               <div className="min-w-0">
                 <p className="truncate font-medium text-zinc-200">{analysis.fileName}</p>
                 <p className="text-xs text-zinc-500">
-                  {analysis.fileCount} files · {formatFileSize(analysis.compressedSize)} compressed
+                  {analysis.fileCount} souborů · {formatFileSize(analysis.compressedSize)} komprimováno
                   {" · "}
-                  {formatFileSize(analysis.uncompressedSize)} uncompressed
+                  {formatFileSize(analysis.uncompressedSize)} nekomprimováno
                 </p>
               </div>
               <button
@@ -129,7 +128,7 @@ export function ImportBannerClient() {
                 }}
                 className="shrink-0 rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
               >
-                Import another ZIP
+                Importovat jiný ZIP
               </button>
             </div>
 

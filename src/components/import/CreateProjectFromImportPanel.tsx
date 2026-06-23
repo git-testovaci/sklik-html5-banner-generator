@@ -86,7 +86,7 @@ export function CreateProjectFromImportPanel({
       upsertProject(project);
       router.push(`/editor/${project.id}`);
     } catch {
-      setError("Could not create project. Try again without image import.");
+      setError("Projekt se nepodařilo vytvořit. Zkuste to bez importu obrázků.");
       setBusy(false);
     }
   }
@@ -95,21 +95,21 @@ export function CreateProjectFromImportPanel({
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <div className="border-b border-zinc-800/60 px-4 py-3">
         <h2 className="text-sm font-medium text-zinc-300">
-          Create editable project from analysis
+          Vytvořit editovatelný projekt
         </h2>
         <p className="mt-1 text-xs text-zinc-500">
-          Reuses extracted text and optional ZIP images as assets. Layout is rebuilt — not a full HTML conversion.
+          Použije extrahované texty a volitelně obrázky z ZIP. Layout se sestaví znovu — nejde o přímou konverzi HTML.
         </p>
       </div>
       <div className="space-y-3 p-4">
         {images.length > 0 && sourceZipFile ? (
           <div className="rounded-lg border border-zinc-800/60 bg-zinc-950/40 p-3 text-xs">
-            <p className="font-medium text-zinc-300">{images.length} image(s) detected in ZIP</p>
-            <p className="mt-1 text-zinc-500">Imported images are reused as assets, layout is rebuilt.</p>
+            <p className="font-medium text-zinc-300">V ZIP nalezeno {images.length} obrázků</p>
+            <p className="mt-1 text-zinc-500">Obrázky se použijí jako assety, layout se sestaví znovu.</p>
             <div className="mt-3 space-y-2">
               <label className="flex items-center gap-2 text-zinc-400">
                 <input type="checkbox" checked={importProduct} onChange={(e) => setImportProduct(e.target.checked)} />
-                Product image
+                Produkt
                 <select value={productPath} onChange={(e) => setProductPath(e.target.value)} className="ml-auto max-w-[55%] rounded border border-zinc-700 bg-zinc-900 px-1 py-0.5 text-zinc-200">
                   {imageOptions.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
@@ -129,7 +129,7 @@ export function CreateProjectFromImportPanel({
               ) : null}
               <label className="flex items-center gap-2 text-zinc-400">
                 <input type="checkbox" checked={importBg} onChange={(e) => setImportBg(e.target.checked)} />
-                Background
+                Pozadí
                 <select value={bgPath} onChange={(e) => setBgPath(e.target.value)} className="ml-auto max-w-[55%] rounded border border-zinc-700 bg-zinc-900 px-1 py-0.5 text-zinc-200">
                   {imageOptions.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
@@ -139,15 +139,15 @@ export function CreateProjectFromImportPanel({
             </div>
           </div>
         ) : images.length > 0 ? (
-          <p className="text-xs text-zinc-500">Re-import ZIP to enable image asset extraction.</p>
+          <p className="text-xs text-zinc-500">Pro import obrázků znovu nahrajte ZIP.</p>
         ) : null}
 
         <label className="block">
-          <span className="mb-1 block text-xs font-medium text-zinc-400">Project name</span>
+          <span className="mb-1 block text-xs font-medium text-zinc-400">Název projektu</span>
           <input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100" />
         </label>
         <label className="block">
-          <span className="mb-1 block text-xs font-medium text-zinc-400">Banner size</span>
+          <span className="mb-1 block text-xs font-medium text-zinc-400">Velikost banneru</span>
           <select value={sizeValue} onChange={(e) => setSizeValue(e.target.value)} className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100">
             {BANNER_SIZES.map((s) => (
               <option key={s.label} value={`${s.width}x${s.height}`}>{s.label}</option>
@@ -155,19 +155,19 @@ export function CreateProjectFromImportPanel({
           </select>
         </label>
         <label className="block">
-          <span className="mb-1 block text-xs font-medium text-zinc-400">Headline</span>
+          <span className="mb-1 block text-xs font-medium text-zinc-400">Nadpis</span>
           <input value={headline} onChange={(e) => setHeadline(e.target.value)} className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100" />
         </label>
         <label className="block">
-          <span className="mb-1 block text-xs font-medium text-zinc-400">Subheadline</span>
+          <span className="mb-1 block text-xs font-medium text-zinc-400">Podnadpis</span>
           <input value={subheadline} onChange={(e) => setSubheadline(e.target.value)} className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100" />
         </label>
         <label className="block">
-          <span className="mb-1 block text-xs font-medium text-zinc-400">CTA</span>
+          <span className="mb-1 block text-xs font-medium text-zinc-400">Výzva k akci</span>
           <input value={cta} onChange={(e) => setCta(e.target.value)} className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100" />
         </label>
         <label className="block">
-          <span className="mb-1 block text-xs font-medium text-zinc-400">Animation</span>
+          <span className="mb-1 block text-xs font-medium text-zinc-400">Animace</span>
           <select value={animation} onChange={(e) => setAnimation(e.target.value as typeof animation)} className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100">
             {BANNER_ANIMATIONS.map((a) => (
               <option key={a.value} value={a.value}>{a.label}</option>
@@ -181,7 +181,7 @@ export function CreateProjectFromImportPanel({
           disabled={!canCreate || busy}
           className="w-full rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50"
         >
-          {busy ? "Creating…" : "Create project & open editor"}
+          {busy ? "Vytvářím…" : "Vytvořit projekt a otevřít editor"}
         </button>
       </div>
     </section>

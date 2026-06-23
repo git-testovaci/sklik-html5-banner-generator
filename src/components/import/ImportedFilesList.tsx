@@ -24,8 +24,8 @@ export function ImportedFilesList({ files }: ImportedFilesListProps) {
   return (
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <div className="border-b border-zinc-800/60 px-4 py-3">
-        <h2 className="text-sm font-medium text-zinc-300">ZIP contents</h2>
-        <p className="text-xs text-zinc-500">{files.length} files</p>
+        <h2 className="text-sm font-medium text-zinc-300">Obsah ZIP</h2>
+        <p className="text-xs text-zinc-500">{files.length} souborů</p>
       </div>
       <div className="max-h-72 overflow-y-auto p-4">
         {groups.map(({ kind, items }) => (

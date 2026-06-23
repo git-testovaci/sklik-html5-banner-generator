@@ -264,7 +264,7 @@ export function AssetLibrary({
                     onClick={() => resetPlacement(asset.id, asset.kind)}
                     className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800"
                   >
-                    Reset
+                    Resetovat
                   </button>
                 </div>
               ) : null}

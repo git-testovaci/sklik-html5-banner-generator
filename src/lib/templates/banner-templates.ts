@@ -137,8 +137,8 @@ function makeTemplate(
 export const BANNER_TEMPLATES: BannerTemplate[] = [
   makeTemplate(
     "product-hero",
-    "Product Hero",
-    "Large product on the right, text on the left.",
+    "Produkt v popředí",
+    "Velký produkt vpravo, text vlevo.",
     (w, h) => {
       const pad = safeInset(w, h);
       return [
@@ -150,8 +150,8 @@ export const BANNER_TEMPLATES: BannerTemplate[] = [
   ),
   makeTemplate(
     "logo-cta",
-    "Logo + CTA",
-    "Compact brand mark with strong CTA.",
+    "Logo + výzva k akci",
+    "Kompaktní logo a výrazné tlačítko.",
     (w, h) => {
       const pad = safeInset(w, h);
       return [
@@ -163,8 +163,8 @@ export const BANNER_TEMPLATES: BannerTemplate[] = [
   ),
   makeTemplate(
     "big-headline",
-    "Big Headline",
-    "Headline-first layout for short messages.",
+    "Velký nadpis",
+    "Layout s důrazem na krátkou zprávu.",
     (w, h) => {
       const pad = safeInset(w, h);
       return [
@@ -176,8 +176,8 @@ export const BANNER_TEMPLATES: BannerTemplate[] = [
   ),
   makeTemplate(
     "split-layout",
-    "Split Layout",
-    "Text left, product right.",
+    "Rozdělený layout",
+    "Text vlevo, produkt vpravo.",
     (w, h) => {
       const pad = safeInset(w, h);
       return [
@@ -189,8 +189,8 @@ export const BANNER_TEMPLATES: BannerTemplate[] = [
   ),
   makeTemplate(
     "minimal-brand",
-    "Minimal Brand",
-    "Clean centered text, subtle motion.",
+    "Minimalistická značka",
+    "Čistý centrovaný text a jemný pohyb.",
     (w, h) => {
       const pad = safeInset(w, h);
       const cw = w - pad * 2;
@@ -203,8 +203,8 @@ export const BANNER_TEMPLATES: BannerTemplate[] = [
   ),
   makeTemplate(
     "square-social",
-    "Square Social",
-    "Stacked layout for square formats.",
+    "Čtvercový formát",
+    "Vrstvený layout pro čtvercové formáty.",
     (w, h) => {
       const pad = safeInset(w, h);
       return [
@@ -216,8 +216,8 @@ export const BANNER_TEMPLATES: BannerTemplate[] = [
   ),
   makeTemplate(
     "wide-leaderboard",
-    "Wide Leaderboard",
-    "Horizontal strip with inline content.",
+    "Leaderboard",
+    "Horizontální pruh s obsahem v řadě.",
     (w, h) => {
       const pad = safeInset(w, h);
       return [

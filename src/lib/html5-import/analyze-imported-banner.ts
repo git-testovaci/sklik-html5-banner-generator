@@ -291,7 +291,7 @@ export async function analyzeImportedBannerZip(
         previewWarning = `${preview.unresolved.length} asset reference(s) could not be resolved locally.`;
       }
     } catch {
-      previewWarning = "Preview could not be built safely.";
+      previewWarning = "Náhled se nepodařilo bezpečně sestavit.";
     }
   } else {
     previewWarning = "No HTML file found for preview.";
@@ -376,7 +376,7 @@ export function getDefaultImportProjectValues(
     height: size.height,
     headline: analysis.extractedText.headline ?? "Imported headline",
     subheadline: analysis.extractedText.subheadline ?? "",
-    cta: analysis.extractedText.cta ?? "Learn more",
+    cta: analysis.extractedText.cta ?? "Zjistit více",
     animation: analysis.animationInsights.suggestedAnimation,
   };
 }

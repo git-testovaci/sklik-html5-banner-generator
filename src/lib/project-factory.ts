@@ -12,8 +12,8 @@ import type { BannerAnimation } from "@/types/editor";
 import type { BannerProject } from "@/types/project";
 
 export const DEFAULT_BANNER_COPY = {
-  headline: "Váš nadpis zde",
-  subheadline: "Podnadpis nebo krátký popis",
+  headline: "Nová kampaň",
+  subheadline: "Krátký popis produktu nebo nabídky",
   cta: "Zjistit více",
 } as const;
 

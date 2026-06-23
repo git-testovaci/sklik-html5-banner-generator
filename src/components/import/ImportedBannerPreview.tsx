@@ -38,18 +38,17 @@ export function ImportedBannerPreview({
     <section className="flex min-h-[320px] flex-col rounded-xl border border-zinc-800/80 bg-zinc-950/50">
       <div className="flex items-center justify-between border-b border-zinc-800/60 px-4 py-3">
         <div>
-          <h2 className="text-sm font-medium text-zinc-300">Sandbox preview</h2>
-          <p className="text-xs text-zinc-500">Isolated iframe · scripts disabled</p>
+          <h2 className="text-sm font-medium text-zinc-300">Náhled importu</h2>
+          <p className="text-xs text-zinc-500">Izolovaný iframe · skripty vypnuté</p>
         </div>
         <span className="font-mono text-xs text-zinc-500">{sizeLabel}</span>
       </div>
       <div className="space-y-0 border-b border-zinc-800/60 bg-zinc-950/30 px-4 py-2 text-xs leading-relaxed text-zinc-500">
         <p>
-          JS animations do not run here because the sandbox disables scripts.
-          Layout and static styles may still appear.
+          JS animace zde neběží — sandbox vypíná skripty. Statický layout a styly se mohou zobrazit.
         </p>
         <p className="mt-1 text-zinc-600">
-          Preview may differ from the original banner when opened in Sklik or a browser.
+          Náhled se může lišit od originálního banneru ve Skliku nebo prohlížeči.
         </p>
       </div>
       {warning ? (
@@ -69,7 +68,7 @@ export function ImportedBannerPreview({
         {previewHtml ? (
           <div style={{ transform: `scale(${scale})`, transformOrigin: "center center" }}>
             <iframe
-              title="Imported banner sandbox preview"
+              title="Náhled importovaného banneru"
               sandbox=""
               srcDoc={previewHtml}
               style={{ width, height, border: "none", background: "#000" }}
@@ -77,7 +76,7 @@ export function ImportedBannerPreview({
             />
           </div>
         ) : (
-          <p className="text-sm text-zinc-500">No preview available</p>
+          <p className="text-sm text-zinc-500">Náhled není k dispozici</p>
         )}
       </div>
     </section>

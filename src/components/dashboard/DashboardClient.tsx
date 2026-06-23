@@ -21,10 +21,10 @@ const STAT_CARDS: {
   label: string;
   accent: string;
 }[] = [
-  { key: "total", label: "Total projects", accent: "text-zinc-100" },
-  { key: "drafts", label: "Drafts", accent: "text-zinc-400" },
-  { key: "shared", label: "Shared", accent: "text-sky-400" },
-  { key: "exported", label: "Exported", accent: "text-emerald-400" },
+  { key: "total", label: "Celkem projektů", accent: "text-zinc-100" },
+  { key: "drafts", label: "Koncepty", accent: "text-zinc-400" },
+  { key: "shared", label: "Sdílené", accent: "text-sky-400" },
+  { key: "exported", label: "Exportované", accent: "text-emerald-400" },
 ];
 
 function useIsClient(): boolean {
@@ -50,7 +50,8 @@ function LocalStorageNotice() {
       className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 px-4 py-3 text-sm text-zinc-400"
     >
       <p>
-        Projects and images stay in this browser. ZIP export works locally. Public preview with images works best on the same device until cloud sync is added.
+        Projekty a obrázky zůstávají v tomto prohlížeči. Export ZIP funguje lokálně.
+        Veřejný náhled s obrázky funguje nejlépe na stejném zařízení.
       </p>
     </aside>
   );
@@ -74,7 +75,7 @@ export function DashboardClient() {
 
   function handleResetDemoData() {
     const confirmed = window.confirm(
-      "Reset local demo data?\n\nThis clears all saved projects in this browser and restores the default demo set. Imported session data in this tab is not affected.",
+      "Resetovat ukázková data?\n\nSmaže všechny uložené projekty v tomto prohlížeči a obnoví výchozí ukázky. Import v aktuální záložce zůstane nedotčen.",
     );
     if (confirmed) {
       resetProjectsToSeed();
@@ -110,7 +111,7 @@ export function DashboardClient() {
 
         <section aria-labelledby="stats-heading" className="mt-6">
           <h2 id="stats-heading" className="sr-only">
-            Project statistics
+            Statistiky projektů
           </h2>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             {STAT_CARDS.map(({ key, label, accent }) => (
@@ -133,19 +134,19 @@ export function DashboardClient() {
               id="projects-heading"
               className="text-lg font-semibold text-zinc-200"
             >
-              Projects
+              Projekty
             </h2>
             <div className="flex flex-wrap items-center gap-3">
               <p className="text-sm text-zinc-500">
                 {projects.length}{" "}
-                {projects.length === 1 ? "project" : "projects"}
+                {projects.length === 1 ? "projekt" : projects.length < 5 ? "projekty" : "projektů"}
               </p>
               <button
                 type="button"
                 onClick={handleResetDemoData}
                 className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-400 transition-colors hover:border-zinc-600 hover:bg-zinc-900 hover:text-zinc-300"
               >
-                Reset local demo data
+                Resetovat ukázková data
               </button>
             </div>
           </div>
