@@ -600,6 +600,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             }}
             onDuplicateLayer={handleDuplicateLayer}
             onDeleteLayer={handleDeleteLayer}
+            onUpdate={onUpdate}
           />
           <SceneStrip
             state={state}

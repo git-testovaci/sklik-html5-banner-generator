@@ -9,10 +9,11 @@ import {
   getTimelineLayersForScene,
   isEditableKeyboardTarget,
   isTimelineLayerSelected,
+  isTimelineRowReorderable,
   layerBlockTooltip,
   layerTimelineBlockColor,
-  layerTimelineLabel,
   layerTimelineTypeGlyph,
+  moveLayerInSceneStack,
   selectionForBannerLayer,
   TIMELINE_LABEL_WIDTH_PX,
   TIMELINE_ROW_HEIGHT_PX,
@@ -20,16 +21,19 @@ import {
   timelineTrackWidthPx,
   type TimelineZoomLevel,
 } from "@/lib/animation/layer-timeline-utils";
+import { layerDisplayStackLabel } from "@/lib/animation/layer-instance-utils";
 import {
   getLayerById,
   getActiveScene,
+  patchBannerLayerSlice,
   resolveBannerLayerForSelection,
 } from "@/lib/animation/storyboard-utils";
 import {
   getLayerPhaseSegments,
   phaseSegmentTooltip,
 } from "@/lib/animation/layer-phase-utils";
-import type { BannerEditorState, SelectedLayer } from "@/types/editor";
+import type { BannerLayer } from "@/types/animation";
+import type { BannerEditorState, BannerEditorStateUpdater, SelectedLayer } from "@/types/editor";
 
 interface UnifiedLayerTimelineProps {
   state: BannerEditorState;
@@ -47,6 +51,7 @@ interface UnifiedLayerTimelineProps {
   onNudgeLayer?: (layerId: string, deltaMs: number) => void;
   onDuplicateLayer?: (layerId: string) => void;
   onDeleteLayer?: (layerId: string) => void;
+  onUpdate?: BannerEditorStateUpdater;
 }
 
 type DragMode = "move" | "resize-left" | "resize-right" | "phase-in" | "phase-out";
@@ -83,10 +88,12 @@ export function UnifiedLayerTimeline({
   onNudgeLayer,
   onDuplicateLayer,
   onDeleteLayer,
+  onUpdate,
 }: UnifiedLayerTimelineProps) {
   const scene = getActiveScene(state);
   const trackRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLElement>(null);
+  const rowsRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
   const liveRangeRef = useRef<{ layerId: string; startMs: number; durationMs: number } | null>(
     null,
@@ -107,6 +114,23 @@ export function UnifiedLayerTimeline({
   const [zoom, setZoom] = useState<TimelineZoomLevel>(1);
   const [timelineFocused, setTimelineFocused] = useState(false);
   const scrubDragRef = useRef(false);
+  const [dragStackLayerId, setDragStackLayerId] = useState<string | null>(null);
+  const [dropStackIndex, setDropStackIndex] = useState<number | null>(null);
+  const dropStackIndexRef = useRef<number | null>(null);
+
+  function patchLayer(layerId: string, patch: Partial<BannerLayer>) {
+    onUpdate?.(patchBannerLayerSlice(state, layerId, patch));
+  }
+
+  const resolveStackDropIndex = useCallback((clientY: number): number => {
+    const rows = rowsRef.current?.querySelectorAll("[data-timeline-row]");
+    if (!rows || rows.length === 0) return 0;
+    for (let i = 0; i < rows.length; i++) {
+      const rect = rows[i]!.getBoundingClientRect();
+      if (clientY < rect.top + rect.height / 2) return i;
+    }
+    return rows.length - 1;
+  }, []);
 
   const sceneDurationMs = scene?.durationMs ?? 3000;
   const trackWidthPx = timelineTrackWidthPx(zoom);
@@ -116,8 +140,35 @@ export function UnifiedLayerTimeline({
   const playheadPct =
     sceneDurationMs > 0 ? (displayPlayheadMs / sceneDurationMs) * 100 : 0;
   const selectedBannerLayer = resolveBannerLayerForSelection(state, selectedLayer);
-  const canActOnSelected =
-    selectedBannerLayer && !selectedBannerLayer.persistent && !selectedBannerLayer.locked;
+
+  useEffect(() => {
+    if (!dragStackLayerId || !scene) return;
+
+    function onMove(e: PointerEvent) {
+      const idx = resolveStackDropIndex(e.clientY);
+      dropStackIndexRef.current = idx;
+      setDropStackIndex(idx);
+    }
+
+    function onUp() {
+      const targetIdx = dropStackIndexRef.current;
+      if (dragStackLayerId != null && targetIdx != null) {
+        onUpdate?.(moveLayerInSceneStack(state, scene!.id, dragStackLayerId, targetIdx));
+      }
+      setDragStackLayerId(null);
+      setDropStackIndex(null);
+      dropStackIndexRef.current = null;
+    }
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [dragStackLayerId, scene, state, onUpdate, resolveStackDropIndex]);
 
   const getRange = (layerId: string) => {
     if (liveRange?.layerId === layerId) {
@@ -497,28 +548,10 @@ export function UnifiedLayerTimeline({
             >
               Přizpůsobit
             </button>
-            {canActOnSelected && onDuplicateLayer ? (
-              <button
-                type="button"
-                onClick={() => onDuplicateLayer(selectedBannerLayer!.id)}
-                className="rounded border border-zinc-700 px-2 py-1 text-[10px] text-zinc-400 hover:bg-zinc-800/60"
-              >
-                Duplikovat
-              </button>
-            ) : null}
-            {selectedBannerLayer && onDeleteLayer ? (
-              <button
-                type="button"
-                onClick={() => onDeleteLayer(selectedBannerLayer.id)}
-                className="rounded border border-red-900/40 px-2 py-1 text-[10px] text-red-400 hover:bg-red-950/30"
-              >
-                Smazat
-              </button>
-            ) : null}
           </div>
         </div>
         <p className="mt-1.5 text-[10px] text-zinc-600">
-          Vyberte vrstvu v řádku · táhněte bloky · Ctrl + kolečko = zoom
+          Nahoře = vpředu na plátně · ⋮⋮ přetáhněte řádek · Ctrl + kolečko = zoom
         </p>
       </div>
 
@@ -576,7 +609,8 @@ export function UnifiedLayerTimeline({
               </p>
             </div>
           ) : (
-            layers.map((layer) => {
+            <div ref={rowsRef}>
+            {layers.map((layer, index) => {
               const range = getRange(layer.id);
               const leftPct =
                 sceneDurationMs > 0 ? (range.startMs / sceneDurationMs) * 100 : 0;
@@ -590,48 +624,131 @@ export function UnifiedLayerTimeline({
               const outPct = blockDur > 0 ? (segments.outDurationMs / blockDur) * 100 : 0;
               const midPct = Math.max(0, 100 - inPct - outPct);
               const blockTitle = layerBlockTooltip(layer, range);
-              const showRowTiming = trackWidthPx >= 280;
+              const rowLabel = layerDisplayStackLabel(layer, state);
+              const canReorder = isTimelineRowReorderable(layer);
+              const isStackDragging = dragStackLayerId === layer.id;
+              const isDropTarget =
+                dropStackIndex === index &&
+                dragStackLayerId != null &&
+                dragStackLayerId !== layer.id;
 
               return (
                 <div
                   key={layer.id}
+                  data-timeline-row
                   className={`flex border-b border-zinc-800/30 ${
                     selected ? "bg-violet-950/30 ring-1 ring-inset ring-violet-700/40" : ""
-                  } ${!layer.visible ? "opacity-40" : ""}`}
+                  } ${!layer.visible ? "opacity-45" : ""} ${
+                    isDropTarget ? "ring-1 ring-inset ring-violet-500/70" : ""
+                  } ${isStackDragging ? "opacity-50" : ""}`}
                   style={{ height: TIMELINE_ROW_HEIGHT_PX }}
                 >
-                  <button
-                    type="button"
-                    onClick={() => onSelectLayer(selectionForBannerLayer(layer))}
-                    className={`flex shrink-0 items-center gap-1.5 border-r border-zinc-800/50 px-2 text-left ${
-                      selected
-                        ? "bg-violet-950/40 text-violet-200"
-                        : "bg-zinc-900/40 text-zinc-400 hover:bg-zinc-800/40"
-                    } ${layer.locked ? "opacity-80" : ""}`}
+                  <div
+                    className={`flex shrink-0 items-stretch border-r border-zinc-800/50 ${
+                      selected ? "bg-violet-950/40" : "bg-zinc-900/40"
+                    }`}
                     style={{ width: TIMELINE_LABEL_WIDTH_PX }}
-                    title={layerTimelineLabel(layer)}
                   >
-                    <span
-                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-bold ${
-                        selected ? "bg-violet-800/50 text-violet-100" : "bg-zinc-800/80 text-zinc-500"
+                    {canReorder ? (
+                      <button
+                        type="button"
+                        className="flex w-5 shrink-0 cursor-grab items-center justify-center text-[10px] text-zinc-600 hover:text-zinc-400 active:cursor-grabbing"
+                        title="Přetáhnout pořadí vrstev"
+                        aria-label="Přetáhnout pořadí vrstev"
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setDragStackLayerId(layer.id);
+                          setDropStackIndex(index);
+                          dropStackIndexRef.current = index;
+                          onSelectLayer(selectionForBannerLayer(layer));
+                        }}
+                      >
+                        ⋮⋮
+                      </button>
+                    ) : (
+                      <span className="w-5 shrink-0" aria-hidden />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => onSelectLayer(selectionForBannerLayer(layer))}
+                      className={`flex min-w-0 flex-1 items-center gap-1 px-0.5 text-left ${
+                        selected ? "text-violet-200" : "text-zinc-400 hover:text-zinc-300"
                       }`}
+                      title={blockTitle}
                     >
-                      {layerTimelineTypeGlyph(layer)}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[11px] leading-tight">
+                      <span
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-bold ${
+                          selected ? "bg-violet-800/50 text-violet-100" : "bg-zinc-800/80 text-zinc-500"
+                        }`}
+                      >
+                        {layerTimelineTypeGlyph(layer)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-[10px] leading-tight">
                         {layer.locked ? "🔒 " : ""}
                         {!layer.visible ? "👁‍🗨 " : ""}
-                        {layerTimelineLabel(layer)}
+                        {rowLabel}
                       </span>
-                      {showRowTiming ? (
-                        <span className="block truncate text-[9px] text-zinc-600">
-                          {formatTimelineSeconds(range.startMs)} ·{" "}
-                          {formatTimelineSeconds(range.durationMs)}
-                        </span>
+                    </button>
+                    <div className="flex shrink-0 items-center gap-px pr-0.5">
+                      {onDuplicateLayer && !layer.persistent ? (
+                        <button
+                          type="button"
+                          title="Duplikovat vrstvu"
+                          aria-label="Duplikovat vrstvu"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDuplicateLayer(layer.id);
+                          }}
+                          className="rounded px-0.5 py-0.5 text-[10px] text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
+                        >
+                          ⧉
+                        </button>
                       ) : null}
-                    </span>
-                  </button>
+                      {onUpdate ? (
+                        <button
+                          type="button"
+                          title={layer.visible ? "Skrýt vrstvu" : "Zobrazit vrstvu"}
+                          aria-label={layer.visible ? "Skrýt vrstvu" : "Zobrazit vrstvu"}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            patchLayer(layer.id, { visible: !layer.visible });
+                          }}
+                          className="rounded px-0.5 py-0.5 text-[10px] text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
+                        >
+                          {layer.visible ? "👁" : "👁‍🗨"}
+                        </button>
+                      ) : null}
+                      {onUpdate ? (
+                        <button
+                          type="button"
+                          title={layer.locked ? "Odemknout vrstvu" : "Zamknout vrstvu"}
+                          aria-label={layer.locked ? "Odemknout vrstvu" : "Zamknout vrstvu"}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            patchLayer(layer.id, { locked: !layer.locked });
+                          }}
+                          className="rounded px-0.5 py-0.5 text-[10px] text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
+                        >
+                          {layer.locked ? "🔓" : "🔒"}
+                        </button>
+                      ) : null}
+                      {onDeleteLayer ? (
+                        <button
+                          type="button"
+                          title="Smazat vrstvu"
+                          aria-label="Smazat vrstvu"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteLayer(layer.id);
+                          }}
+                          className="rounded px-0.5 py-0.5 text-[10px] text-red-500/80 hover:bg-red-950/40 hover:text-red-400"
+                        >
+                          ×
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
 
                   {renderTrackArea(
                     <div
@@ -652,6 +769,7 @@ export function UnifiedLayerTimeline({
                       onPointerDown={(e) => {
                         if (layer.locked) {
                           e.stopPropagation();
+                          onSelectLayer(selectionForBannerLayer(layer));
                           return;
                         }
                         startBlockDrag(e, layer.id, "move");
@@ -744,6 +862,8 @@ export function UnifiedLayerTimeline({
                 </div>
               );
             })
+            }
+            </div>
           )}
         </div>
       </div>

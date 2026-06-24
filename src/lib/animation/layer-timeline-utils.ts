@@ -267,7 +267,7 @@ export const TIMELINE_ZOOM_LEVELS = [1, 1.5, 2, 3] as const;
 export type TimelineZoomLevel = (typeof TIMELINE_ZOOM_LEVELS)[number];
 
 export const TIMELINE_TRACK_BASE_WIDTH_PX = 360;
-export const TIMELINE_LABEL_WIDTH_PX = 140;
+export const TIMELINE_LABEL_WIDTH_PX = 192;
 export const TIMELINE_ROW_HEIGHT_PX = 42;
 export const TIMELINE_RULER_HEIGHT_PX = 32;
 
@@ -375,6 +375,11 @@ const REORDERABLE_LAYER_TYPES = new Set([
 
 function isReorderableLayer(layer: BannerLayer): boolean {
   return REORDERABLE_LAYER_TYPES.has(layer.type);
+}
+
+/** Timeline row can be drag-reordered in the layer stack (front-first list). */
+export function isTimelineRowReorderable(layer: BannerLayer): boolean {
+  return isReorderableLayer(layer) && !layer.persistent && !layer.locked;
 }
 
 export function frontZIndexForScene(state: BannerEditorState, sceneId: string): number {
