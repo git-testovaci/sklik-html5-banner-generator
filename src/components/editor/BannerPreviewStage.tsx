@@ -18,7 +18,6 @@ import type { BannerAssetPlacement, TextLayerPlacement } from "@/types/assets";
 import type { BannerEditorState, BannerEditorStateUpdater, SelectedLayer } from "@/types/editor";
 import { BannerPreview } from "./BannerPreview";
 import { CanvasQuickAdd } from "./CanvasQuickAdd";
-import { PlaybackTimeline } from "./PlaybackTimeline";
 import { PreviewPlaybackControls } from "./PreviewPlaybackControls";
 
 interface BannerPreviewStageProps {
@@ -64,8 +63,13 @@ export function BannerPreviewStage({
       setScale(Math.min(sx, sy, 1) || 1);
     }
     updateScale();
+    const ro = new ResizeObserver(updateScale);
+    if (containerRef.current) ro.observe(containerRef.current);
     window.addEventListener("resize", updateScale);
-    return () => window.removeEventListener("resize", updateScale);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", updateScale);
+    };
   }, [state.width, state.height]);
 
   function updateTextPlacement(
@@ -136,14 +140,14 @@ export function BannerPreviewStage({
   return (
     <section
       aria-labelledby="preview-heading"
-      className="flex min-h-[360px] flex-1 flex-col rounded-xl border border-zinc-700/50 bg-zinc-950/70 shadow-lg shadow-black/20 lg:min-h-[420px]"
+      className="flex flex-col rounded-xl border border-zinc-700/50 bg-zinc-950/70 shadow-lg shadow-black/20"
     >
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/60 px-4 py-3">
         <div>
           <h2 id="preview-heading" className="text-sm font-medium text-zinc-200">
             Plátno
           </h2>
-          <p className="text-[10px] text-zinc-500">Klikněte na vrstvu pro úpravu v inspectoru</p>
+          <p className="text-[10px] text-zinc-500">Klikněte na vrstvu — nastavení vpravo</p>
         </div>
         <div className="flex items-center gap-3">
           {onQuickAdd ? <CanvasQuickAdd onAdd={onQuickAdd} /> : null}
@@ -154,7 +158,7 @@ export function BannerPreviewStage({
               onChange={(e) => setShowSafeArea(e.target.checked)}
               className="rounded border-zinc-600"
             />
-            Safe area
+            Bezpečná zóna
           </label>
           <span className="font-mono text-xs text-zinc-500">{sizeLabel}</span>
         </div>
@@ -162,7 +166,7 @@ export function BannerPreviewStage({
 
       <div
         ref={containerRef}
-        className="relative flex flex-1 items-center justify-center overflow-hidden p-4 sm:p-6"
+        className="relative flex h-[min(480px,52vh)] min-h-[300px] items-center justify-center overflow-hidden p-4 sm:p-6"
         style={{
           backgroundImage:
             "radial-gradient(circle at 1px 1px, rgb(63 63 70 / 0.35) 1px, transparent 0)",
@@ -216,16 +220,6 @@ export function BannerPreviewStage({
             : sceneLabel
         }
       />
-
-      <div className="border-t border-zinc-800/60 px-4 py-3">
-        <PlaybackTimeline
-          state={state}
-          mode={playback.mode}
-          playAllView={playback.playAllView}
-          playbackTimeMs={playback.playbackTimeMs}
-          playbackSceneId={playback.playbackSceneId}
-        />
-      </div>
 
       <p className="border-t border-zinc-800/60 px-4 py-2 text-center text-xs text-zinc-600">
         Přetáhněte vrstvy · rohy mění velikost · {Math.round(scale * 100)} %

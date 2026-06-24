@@ -46,10 +46,7 @@ import { BannerChecklist, type ChecklistAction } from "./BannerChecklist";
 import { BannerPreviewStage } from "./BannerPreviewStage";
 import { InspectorPanel } from "./InspectorPanel";
 import { InspectorEmptyHelp } from "./InspectorEmptyHelp";
-import { KeyframeTimeline } from "./KeyframeTimeline";
-import { LayerPanel } from "./LayerPanel";
 import { UnifiedLayerTimeline } from "./UnifiedLayerTimeline";
-import { MotionPresetQuickActions } from "./MotionPresetQuickActions";
 import { SceneStrip } from "./SceneStrip";
 import { TemplatePresetsPanel } from "./TemplatePresetsPanel";
 import { ValidationExportPanel } from "./ValidationExportPanel";
@@ -57,11 +54,10 @@ import { WorkflowGuidanceBox } from "./WorkflowGuidance";
 import { EditorTopBar } from "./EditorTopBar";
 import { getValidationSummary } from "@/lib/validation-rules";
 
-type LeftTab = "assets" | "layers" | "templates";
+type LeftTab = "assets" | "templates";
 
 const TAB_LABELS: Record<LeftTab, string> = {
   assets: "Média",
-  layers: "Vrstvy",
   templates: "Šablony",
 };
 
@@ -112,14 +108,10 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
     id: "__none__",
   });
   const [selectedEffectId, setSelectedEffectId] = useState<string | null>(null);
-  const [leftTab, setLeftTab] = useState<LeftTab>(() =>
-    (initialState.scenes ?? []).length >= 2 ? "layers" : "templates",
-  );
+  const [leftTab, setLeftTab] = useState<LeftTab>("templates");
   const [showExport, setShowExport] = useState(false);
   const [placementMessage, setPlacementMessage] = useState<string | null>(null);
   const [selectedTransitionSceneId, setSelectedTransitionSceneId] = useState<string | null>(null);
-  const [expandTiming, setExpandTiming] = useState(false);
-  const [showEffectDetail, setShowEffectDetail] = useState(false);
   const [scrubTimeMs, setScrubTimeMs] = useState(0);
   const [dismissedGuidanceId, setDismissedGuidanceId] = useState<string | null>(null);
   const copiedLayerIdRef = useRef<string | null>(null);
@@ -416,7 +408,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
         scrollToTimeline();
         break;
       case "layers": {
-        setLeftTab("layers");
+        scrollToTimeline();
         const sceneId = state.activeSceneId ?? state.scenes?.[0]?.id;
         const sceneLayers = (state.bannerLayers ?? []).filter(
           (l) => l.sceneId === sceneId && !l.persistent,
@@ -444,8 +436,6 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
         break;
       }
       case "timing":
-        setExpandTiming(true);
-        setShowEffectDetail(true);
         scrollToTimeline();
         break;
       case "export":
@@ -494,14 +484,14 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
         exportReady={validation.exportReady}
       />
 
-      <div className="flex flex-1 flex-col gap-3 p-3 lg:flex-row lg:items-stretch lg:p-4">
-        {/* Left — media / layers / templates library */}
+      <div className="flex flex-1 flex-col gap-3 p-3 lg:flex-row lg:items-start lg:p-4">
+        {/* Left — media / templates only */}
         <aside className="order-2 flex w-full shrink-0 flex-col gap-2 lg:order-1 lg:w-[260px] xl:w-[280px]">
           <p className="px-1 text-[10px] font-medium uppercase tracking-wide text-zinc-600">
             Knihovna
           </p>
           <div className="flex gap-1 rounded-lg border border-zinc-800/80 bg-zinc-900/50 p-1">
-            {(["assets", "layers", "templates"] as LeftTab[]).map((tab) => (
+            {(["assets", "templates"] as LeftTab[]).map((tab) => (
               <button
                 key={tab}
                 type="button"
@@ -542,19 +532,6 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
               />
             </>
           )}
-          {leftTab === "layers" && (
-            <LayerPanel
-              state={state}
-              selectedLayer={selectedLayer}
-              onSelectLayer={(sel) => {
-                setSelectedLayer(sel);
-                setSelectedEffectId(null);
-              }}
-              onUpdate={onUpdate}
-              onDuplicateLayer={handleDuplicateLayer}
-              onDeleteLayer={handleDeleteLayer}
-            />
-          )}
           {leftTab === "templates" && (
             <TemplatePresetsPanel
               state={state}
@@ -576,7 +553,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
           )}
         </aside>
 
-        {/* Center — dominant canvas + timeline */}
+        {/* Center — canvas + timeline */}
         <div className="order-1 flex min-w-0 flex-1 flex-col gap-3 lg:order-2">
           <BannerPreviewStage
             state={state}
@@ -593,26 +570,6 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             onSlotActivate={handleSlotActivate}
             previewTimeMs={localPreviewTimeMs}
             gateLayersByPreviewTime={gatePreviewByTime}
-          />
-          <SceneStrip
-            state={state}
-            onUpdate={onUpdate}
-            onSceneSelect={handleSceneSelect}
-            playbackSceneId={
-              playback.mode !== "idle" ? playback.playbackSceneId : null
-            }
-            selectedTransitionSceneId={selectedTransitionSceneId}
-            onSelectTransition={(sceneId) => {
-              setSelectedTransitionSceneId(sceneId);
-              setSelectedEffectId(null);
-            }}
-            onPreviewTransition={handlePreviewTransition}
-          />
-          <MotionPresetQuickActions
-            state={state}
-            onUpdate={onUpdate}
-            selectedLayer={selectedLayer}
-            onSelectEffect={setSelectedEffectId}
           />
           <UnifiedLayerTimeline
             state={state}
@@ -644,60 +601,27 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             onDuplicateLayer={handleDuplicateLayer}
             onDeleteLayer={handleDeleteLayer}
           />
-          {showEffectDetail ? (
-            <>
-              <KeyframeTimeline
-                state={state}
-                onUpdate={onUpdate}
-                selectedEffectId={selectedEffectId}
-                onSelectEffect={setSelectedEffectId}
-                forceExpandAdvanced={expandTiming}
-                onExpanded={() => setExpandTiming(false)}
-                onSelectTransition={(sceneId) => {
-                  setSelectedTransitionSceneId(sceneId);
-                  setSelectedEffectId(null);
-                }}
-                playbackMode={playback.mode}
-                playbackTimeMs={playback.playbackTimeMs}
-                playbackSceneId={playback.playbackSceneId}
-                playAllView={playback.playAllView}
-              />
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowEffectDetail(false)}
-                  className="text-[10px] text-zinc-500 hover:text-violet-400 hover:underline"
-                >
-                  Skrýt detail animací
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowEffectDetail(true)}
-                className="text-[10px] text-zinc-500 hover:text-violet-400 hover:underline"
-              >
-                Detail animací / pokročilé časování
-              </button>
-            </div>
-          )}
+          <SceneStrip
+            state={state}
+            onUpdate={onUpdate}
+            onSceneSelect={handleSceneSelect}
+            playbackSceneId={
+              playback.mode !== "idle" ? playback.playbackSceneId : null
+            }
+            selectedTransitionSceneId={selectedTransitionSceneId}
+            onSelectTransition={(sceneId) => {
+              setSelectedTransitionSceneId(sceneId);
+              setSelectedEffectId(null);
+            }}
+            onPreviewTransition={handlePreviewTransition}
+          />
         </div>
 
-        {/* Right — checklist, inspector, export */}
+        {/* Right — layer properties; export on demand */}
         <aside className="order-3 flex w-full shrink-0 flex-col gap-3 lg:w-[280px] xl:w-[300px]">
           <p className="px-1 text-[10px] font-medium uppercase tracking-wide text-zinc-600">
-            Nastavení a export
+            Vlastnosti
           </p>
-          {activeGuidance ? (
-            <WorkflowGuidanceBox
-              guidance={activeGuidance}
-              onDismiss={() => setDismissedGuidanceId(activeGuidance.id)}
-              onAction={activeGuidance.action ? handleWorkflowGuidanceAction : undefined}
-            />
-          ) : null}
-          <BannerChecklist state={state} onAction={handleChecklistAction} />
           {showInspectorHelp ? (
             <InspectorEmptyHelp />
           ) : (
@@ -714,36 +638,29 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
               }}
             />
           )}
-          <div
-            id="export-panel"
-            tabIndex={-1}
-            className="outline-none scroll-mt-4"
-            aria-label="Export Sklik HTML5"
-          >
-            <button
-              type="button"
-              onClick={() => setShowExport((v) => !v)}
-              className={`w-full rounded-lg border px-3 py-2.5 text-xs font-medium ${
-                showExport
-                  ? "border-violet-700/50 bg-violet-950/30 text-violet-200"
-                  : validation.exportReady
-                    ? "border-emerald-800/50 bg-emerald-950/20 text-emerald-300 hover:bg-emerald-950/40"
-                    : "border-zinc-700 text-zinc-400 hover:bg-zinc-800/50"
-              }`}
+          {showExport ? (
+            <div
+              id="export-panel"
+              tabIndex={-1}
+              className="flex flex-col gap-3 outline-none scroll-mt-4"
+              aria-label="Export Sklik HTML5"
             >
-              {showExport ? "Skrýt export" : "Export Sklik HTML5 ZIP"}
-            </button>
-            {showExport && (
-              <>
-                <AssetWarningsPanel state={state} />
-                <ValidationExportPanel
-                  state={state}
-                  validation={validation}
-                  hasUnsavedChanges={hasUnsavedChanges}
+              {activeGuidance ? (
+                <WorkflowGuidanceBox
+                  guidance={activeGuidance}
+                  onDismiss={() => setDismissedGuidanceId(activeGuidance.id)}
+                  onAction={activeGuidance.action ? handleWorkflowGuidanceAction : undefined}
                 />
-              </>
-            )}
-          </div>
+              ) : null}
+              <BannerChecklist state={state} onAction={handleChecklistAction} />
+              <AssetWarningsPanel state={state} />
+              <ValidationExportPanel
+                state={state}
+                validation={validation}
+                hasUnsavedChanges={hasUnsavedChanges}
+              />
+            </div>
+          ) : null}
         </aside>
       </div>
     </div>

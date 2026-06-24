@@ -15,7 +15,6 @@ export function InspectorEmptyHelp() {
         <ul className="mt-4 space-y-1.5 text-[11px] text-zinc-600">
           <li>· Klikněte na vrstvu v náhledu banneru</li>
           <li>· Nebo vyberte řádek v časové ose dole</li>
-          <li>· Nebo otevřete záložku Vrstvy vlevo</li>
         </ul>
       </div>
     </section>

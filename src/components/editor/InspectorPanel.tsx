@@ -234,7 +234,7 @@ export function InspectorPanel({
   return (
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <Header
-        title="Nastavení vrstvy"
+        title="Vlastnosti vrstvy"
         subtitle={layerDisplayName(layer)}
       />
       <div className="space-y-2 p-4">

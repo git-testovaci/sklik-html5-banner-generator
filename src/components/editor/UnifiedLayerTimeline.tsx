@@ -287,6 +287,18 @@ export function UnifiedLayerTimeline({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [timelineFocused, selectedBannerLayer, onNudgeLayer]);
 
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    function onWheel(e: WheelEvent) {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      setZoom((z) => cycleTimelineZoom(z, e.deltaY > 0 ? "out" : "in"));
+    }
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
   function focusTimeline() {
     rootRef.current?.focus({ preventScroll: true });
   }
@@ -450,26 +462,30 @@ export function UnifiedLayerTimeline({
               {formatTimelineSeconds(displayPlayheadMs)} / {formatTimelineSeconds(sceneDurationMs)}
             </span>
             <div className="flex items-center rounded border border-zinc-800/80 bg-zinc-900/60">
+              <span className="hidden pl-2 text-[9px] text-zinc-600 sm:inline">Zoom</span>
               <button
                 type="button"
                 disabled={atMinZoom}
                 onClick={() => setZoom((z) => cycleTimelineZoom(z, "out"))}
-                className="px-2 py-1 text-sm text-zinc-400 hover:bg-zinc-800/60 disabled:opacity-30"
-                title="Oddálit"
-                aria-label="Oddálit"
+                className="min-w-[2rem] px-2.5 py-1 text-base font-medium text-zinc-300 hover:bg-zinc-800/60 disabled:opacity-30"
+                title="Oddálit (Ctrl + kolečko)"
+                aria-label="Oddálit časovou osu"
               >
                 −
               </button>
-              <span className="border-x border-zinc-800/80 px-2 py-1 text-[10px] text-zinc-500" title="Měřítko časové osy">
+              <span
+                className="min-w-[2.5rem] border-x border-zinc-800/80 px-2 py-1 text-center text-[10px] font-medium text-violet-300"
+                title="Měřítko časové osy · Ctrl + kolečko myši"
+              >
                 {zoom}×
               </span>
               <button
                 type="button"
                 disabled={atMaxZoom}
                 onClick={() => setZoom((z) => cycleTimelineZoom(z, "in"))}
-                className="px-2 py-1 text-sm text-zinc-400 hover:bg-zinc-800/60 disabled:opacity-30"
-                title="Přiblížit"
-                aria-label="Přiblížit"
+                className="min-w-[2rem] px-2.5 py-1 text-base font-medium text-zinc-300 hover:bg-zinc-800/60 disabled:opacity-30"
+                title="Přiblížit (Ctrl + kolečko)"
+                aria-label="Přiblížit časovou osu"
               >
                 +
               </button>
@@ -502,7 +518,7 @@ export function UnifiedLayerTimeline({
           </div>
         </div>
         <p className="mt-1.5 text-[10px] text-zinc-600">
-          Táhněte bloky pro časování · vyberte řádek pro úpravu vrstvy v inspectoru vpravo.
+          Vyberte vrstvu v řádku · táhněte bloky · Ctrl + kolečko = zoom
         </p>
       </div>
 
