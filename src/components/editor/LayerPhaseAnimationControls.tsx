@@ -61,7 +61,7 @@ export function LayerPhaseAnimationControls({
 
   function applyDuration(ms: number) {
     if (phaseState.uiPresetId === "none" || !phaseState.active) return;
-    onUpdate(updateLayerPhaseDuration(state, scene!.id, layer.id, tab, ms));
+    onUpdate(updateLayerPhaseDuration(state, scene!.id, layer.id, tab, ms), { history: "replace" });
   }
 
   function resetPhase() {

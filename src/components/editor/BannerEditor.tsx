@@ -33,6 +33,14 @@ import {
 import { deriveWorkflowGuidance } from "@/lib/editor/workflow-guidance";
 import { findFirstTransitionSceneNeedingAttention } from "@/lib/editor/checklist-utils";
 import {
+  applyHistoryForUpdate,
+  createEmptyHistoryStacks,
+  mergeEditorPatch,
+  redoHistory,
+  undoHistory,
+  type EditorHistoryStacks,
+} from "@/lib/editor/editor-history";
+import {
   editorStatesEqual,
   type BannerEditorState,
   type BannerEditorStateUpdater,
@@ -115,6 +123,16 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   const [scrubTimeMs, setScrubTimeMs] = useState(0);
   const [dismissedGuidanceId, setDismissedGuidanceId] = useState<string | null>(null);
   const copiedLayerIdRef = useRef<string | null>(null);
+  const historyRef = useRef<EditorHistoryStacks>(createEmptyHistoryStacks());
+  const historyCoalesceRef = useRef(false);
+  const historyCoalesceAtRef = useRef(0);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  const syncHistoryAvailability = useCallback(() => {
+    setCanUndo(historyRef.current.past.length > 0);
+    setCanRedo(historyRef.current.future.length > 0);
+  }, []);
 
   const workflowGuidance = useMemo(() => deriveWorkflowGuidance(state), [state]);
   const activeGuidance =
@@ -158,16 +176,67 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
 
   const gatePreviewByTime = !playback.isPlaying;
 
-  const onUpdate = useCallback<BannerEditorStateUpdater>((patch) => {
+  const onUpdate = useCallback<BannerEditorStateUpdater>((patch, options) => {
     setState((prev) => {
-      const next = normalizeEditorState({ ...prev, ...patch });
+      const next = mergeEditorPatch(prev, patch);
+      if (editorStatesEqual(prev, next)) {
+        return prev;
+      }
+
+      const historyResult = applyHistoryForUpdate(
+        historyRef.current,
+        prev,
+        next,
+        {
+          mode: options?.history,
+          coalesceActive: historyCoalesceRef.current,
+          lastCoalesceAt: historyCoalesceAtRef.current,
+        },
+      );
+      historyRef.current = historyResult.stacks;
+      historyCoalesceRef.current = historyResult.coalesceActive;
+      historyCoalesceAtRef.current = historyResult.lastCoalesceAt;
+
       setSelectedLayer((sel) => resolveSelectedLayer(next, sel));
       setSelectedEffectId((id) => clearSelectedEffectIfMissing(next, id));
+      syncHistoryAvailability();
       return next;
     });
     setSaveStatus("idle");
     setSaveError(null);
-  }, []);
+  }, [syncHistoryAvailability]);
+
+  const handleUndo = useCallback(() => {
+    setState((present) => {
+      const result = undoHistory(historyRef.current, present);
+      if (!result) return present;
+      historyRef.current = result.stacks;
+      historyCoalesceRef.current = false;
+      historyCoalesceAtRef.current = 0;
+      setSelectedLayer((sel) => resolveSelectedLayer(result.state, sel));
+      setSelectedEffectId((id) => clearSelectedEffectIfMissing(result.state, id));
+      syncHistoryAvailability();
+      setSaveStatus("idle");
+      setSaveError(null);
+      return result.state;
+    });
+  }, [syncHistoryAvailability]);
+
+  const handleRedo = useCallback(() => {
+    setState((present) => {
+      const result = redoHistory(historyRef.current, present);
+      if (!result) return present;
+      historyRef.current = result.stacks;
+      historyCoalesceRef.current = false;
+      historyCoalesceAtRef.current = 0;
+      setSelectedLayer((sel) => resolveSelectedLayer(result.state, sel));
+      setSelectedEffectId((id) => clearSelectedEffectIfMissing(result.state, id));
+      syncHistoryAvailability();
+      setSaveStatus("idle");
+      setSaveError(null);
+      return result.state;
+    });
+  }, [syncHistoryAvailability]);
 
   const scrollToTimeline = useCallback(() => {
     document.getElementById("unified-layer-timeline")?.scrollIntoView({
@@ -238,6 +307,22 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
       const mod = e.metaKey || e.ctrlKey;
       if (!mod) return;
 
+      if (e.key === "z" || e.key === "Z") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+        return;
+      }
+
+      if (e.key === "y" || e.key === "Y") {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
       if (e.key === "c" || e.key === "C") {
         const layer = resolveBannerLayerForSelection(state, selectedLayer);
         if (!layer || layer.persistent) return;
@@ -256,7 +341,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [state, selectedLayer, handleDeleteLayer, handleDuplicateLayer]);
+  }, [state, selectedLayer, handleDeleteLayer, handleDuplicateLayer, handleUndo, handleRedo]);
 
   const hasUnsavedChanges = !editorStatesEqual(state, savedState);
   const validation = useMemo(() => getValidationSummary(state), [state]);
@@ -315,7 +400,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   function handleSceneSelect(sceneId: string) {
     playback.stop();
     setScrubTimeMs(0);
-    onUpdate(setActiveScene(state, sceneId));
+    onUpdate(setActiveScene(state, sceneId), { history: "skip" });
     setSelectedEffectId(null);
     setSelectedTransitionSceneId(null);
   }
@@ -482,6 +567,10 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
         onSave={handleSave}
         onExport={scrollToExportPanel}
         exportReady={validation.exportReady}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
       />
 
       <div className="flex flex-1 flex-col gap-3 p-3 lg:flex-row lg:items-start lg:p-4">
@@ -586,12 +675,16 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             onRangeChange={(layerId, startMs, durationMs) => {
               const sceneId = activeScene?.id;
               if (!sceneId) return;
-              onUpdate(updateLayerTimelineRange(state, sceneId, layerId, startMs, durationMs));
+              onUpdate(updateLayerTimelineRange(state, sceneId, layerId, startMs, durationMs), {
+                history: "replace",
+              });
             }}
             onPhaseDurationChange={(layerId, phase, durationMs) => {
               const sceneId = activeScene?.id;
               if (!sceneId) return;
-              onUpdate(updateLayerPhaseDuration(state, sceneId, layerId, phase, durationMs));
+              onUpdate(updateLayerPhaseDuration(state, sceneId, layerId, phase, durationMs), {
+                history: "replace",
+              });
             }}
             onNudgeLayer={(layerId, deltaMs) => {
               const sceneId = activeScene?.id;

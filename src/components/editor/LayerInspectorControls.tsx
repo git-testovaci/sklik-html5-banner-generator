@@ -1,7 +1,7 @@
 "use client";
 
 import type { BannerLayer } from "@/types/animation";
-import type { BannerEditorState, BannerEditorStateUpdater } from "@/types/editor";
+import type { BannerEditorState, BannerEditorStateUpdater, EditorHistoryMode } from "@/types/editor";
 import { layerDisplayName } from "@/lib/animation/effect-labels";
 import {
   getActiveScene,
@@ -76,8 +76,8 @@ export function LayerInspectorControls({
     ? (state.assets ?? []).find((a) => a.id === layer.assetId)
     : undefined;
 
-  function patch(p: Partial<BannerLayer>) {
-    onUpdate(patchBannerLayerSlice(state, layer.id, p));
+  function patch(p: Partial<BannerLayer>, history: EditorHistoryMode = "replace") {
+    onUpdate(patchBannerLayerSlice(state, layer.id, p), { history });
   }
 
   function reorder(action: "forward" | "backward" | "front" | "back") {
@@ -194,7 +194,7 @@ export function LayerInspectorControls({
           <input
             type="checkbox"
             checked={layer.visible}
-            onChange={(e) => patch({ visible: e.target.checked })}
+            onChange={(e) => patch({ visible: e.target.checked }, "push")}
           />
         </label>
         <label className="flex items-center justify-between rounded border border-zinc-800/60 px-2 py-1.5 text-[11px] text-zinc-300">
@@ -202,7 +202,7 @@ export function LayerInspectorControls({
           <input
             type="checkbox"
             checked={layer.locked}
-            onChange={(e) => patch({ locked: e.target.checked })}
+            onChange={(e) => patch({ locked: e.target.checked }, "push")}
           />
         </label>
       </Section>
@@ -264,7 +264,7 @@ export function LayerInspectorControls({
                 <button
                   key={align}
                   type="button"
-                  onClick={() => patch({ textAlign: align })}
+                  onClick={() => patch({ textAlign: align }, "push")}
                   className={`flex-1 rounded border px-2 py-1 text-[10px] ${
                     (layer.textAlign ?? "left") === align
                       ? "border-violet-600/60 bg-violet-950/40 text-violet-200"
@@ -321,7 +321,7 @@ export function LayerInspectorControls({
           <Field label="Způsob vyplnění">
             <select
               value={layer.fit ?? "contain"}
-              onChange={(e) => patch({ fit: e.target.value as BannerLayer["fit"] })}
+              onChange={(e) => patch({ fit: e.target.value as BannerLayer["fit"] }, "push")}
               className={inputClass}
             >
               <option value="contain">Zachovat celý</option>

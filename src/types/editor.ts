@@ -63,8 +63,11 @@ export const BANNER_ANIMATIONS: readonly {
   { value: "soft-pulse", label: "Soft pulse" },
 ] as const;
 
+export type EditorHistoryMode = "push" | "replace" | "skip";
+
 export type BannerEditorStateUpdater = (
   patch: Partial<BannerEditorState>,
+  options?: { history?: EditorHistoryMode },
 ) => void;
 
 export function serializeEditorState(state: BannerEditorState): string {

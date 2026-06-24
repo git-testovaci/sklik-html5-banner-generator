@@ -116,7 +116,7 @@ export function BannerPreviewStage({
       patch,
     );
     if (storyboard) {
-      onUpdate?.(storyboard);
+      onUpdate?.(storyboard, { history: "replace" });
       return;
     }
     onUpdate?.({
@@ -125,7 +125,7 @@ export function BannerPreviewStage({
           ? clampTextPlacementFields({ ...p, ...patch }, state.width, state.height)
           : p,
       ),
-    });
+    }, { history: "replace" });
   }
 
   function updateAssetPlacement(assetId: string, patch: Partial<BannerAssetPlacement>) {
@@ -135,7 +135,7 @@ export function BannerPreviewStage({
       patch,
     );
     if (storyboard) {
-      onUpdate?.(storyboard);
+      onUpdate?.(storyboard, { history: "replace" });
       return;
     }
     onUpdate?.({
@@ -144,7 +144,7 @@ export function BannerPreviewStage({
         const merged = { ...p, ...patch };
         return { ...merged, ...clampPlacementLoose(merged, state.width, state.height) };
       }),
-    });
+    }, { history: "replace" });
   }
 
   function updateStoryboardLayer(layerId: string, patch: Partial<BannerAssetPlacement>) {
@@ -157,6 +157,7 @@ export function BannerPreviewStage({
         opacity: patch.opacity,
         rotation: patch.rotation,
       }),
+      { history: "replace" },
     );
   }
 

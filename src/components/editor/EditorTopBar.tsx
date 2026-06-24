@@ -14,6 +14,10 @@ interface EditorTopBarProps {
   onSave: () => void;
   onExport?: () => void;
   exportReady?: boolean;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 export function EditorTopBar({
@@ -24,6 +28,10 @@ export function EditorTopBar({
   onSave,
   onExport,
   exportReady = false,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo,
 }: EditorTopBarProps) {
   const sizeLabel = formatBannerSize(state.width, state.height);
   const previewPath = `/preview/${state.shareId}`;
@@ -65,6 +73,30 @@ export function EditorTopBar({
           )}
           {saveError ? (
             <span className="text-xs font-medium text-red-400" role="alert">{saveError}</span>
+          ) : null}
+          {onUndo && onRedo ? (
+            <div className="flex items-center rounded-lg border border-zinc-800/80 bg-zinc-900/50">
+              <button
+                type="button"
+                onClick={onUndo}
+                disabled={!canUndo}
+                title="Vrátit zpět (Ctrl+Z)"
+                aria-label="Vrátit zpět"
+                className="rounded-l-lg px-2.5 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800/60 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Zpět
+              </button>
+              <button
+                type="button"
+                onClick={onRedo}
+                disabled={!canRedo}
+                title="Provést znovu (Ctrl+Shift+Z)"
+                aria-label="Provést znovu"
+                className="rounded-r-lg border-l border-zinc-800/80 px-2.5 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800/60 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Znovu
+              </button>
+            </div>
           ) : null}
           <Link
             href={previewPath}
