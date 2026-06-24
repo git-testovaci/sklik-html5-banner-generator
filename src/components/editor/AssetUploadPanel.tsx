@@ -33,9 +33,9 @@ interface AssetUploadPanelProps {
 }
 
 const UPLOAD_SLOTS: { kind: BannerAssetKind; label: string; hint: string; id: string }[] = [
-  { kind: "logo", label: "Nahrát logo", hint: "Uloží se do médií · slot vyplníte volitelně", id: "upload-logo" },
-  { kind: "product", label: "Nahrát produkt", hint: "Uloží se do médií · slot vyplníte volitelně", id: "upload-product" },
-  { kind: "background", label: "Nahrát pozadí", hint: "Uloží se do médií · slot vyplníte volitelně", id: "upload-background" },
+  { kind: "logo", label: "Nahrát logo", hint: "Uloží se do Média · místo ve šabloně volitelně", id: "upload-logo" },
+  { kind: "product", label: "Nahrát produkt", hint: "Uloží se do Média · místo ve šabloně volitelně", id: "upload-product" },
+  { kind: "background", label: "Nahrát pozadí", hint: "Uloží se do Média · místo ve šabloně volitelně", id: "upload-background" },
   { kind: "decoration", label: "Nahrát obrázek", hint: "Uloží do médií — poté + Přidat na časovou osu", id: "upload-decoration" },
 ];
 
@@ -124,8 +124,8 @@ export function AssetUploadPanel({
             nextState = assignAssetToSlotLayer(nextState, slot.id, assetId);
             nextState = applyLayerTimingAtPlayhead(nextState, slot.id, scrubTimeMs);
             onUpdate(nextState);
-            setSuccess("Soubor nahrán a vložen do vybraného slotu");
-            onPlaced?.({ type: "asset", id: slot.id }, "Soubor vložen do slotu");
+            setSuccess("Soubor nahrán a vložen do vybraného místa");
+            onPlaced?.({ type: "asset", id: slot.id }, "Soubor vložen do místa");
           } else {
             onUpdate(nextState);
             setSuccess("Soubor nahrán do Média — klikněte + Přidat na časovou osu.");

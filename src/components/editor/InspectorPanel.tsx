@@ -152,17 +152,14 @@ export function InspectorPanel({
         <Header title="Animace" subtitle={friendly} />
         <div className="space-y-3 p-4">
           <p className="text-[11px] text-zinc-400">
-            {effectFriendlyLabel(effect.preset)} · vrstva {layerDisplayName(layer)}
-            {scene ? ` · scéna ${scene.name}` : ""}
-          </p>
-          <p className="text-[11px] text-zinc-500">
-            Začátek {(effect.startMs / 1000).toFixed(1)} s · délka {(effect.durationMs / 1000).toFixed(1)} s
+            {effectFriendlyLabel(effect.preset)} · {layerDisplayName(layer)}
+            {scene ? ` · ${scene.name}` : ""}
           </p>
           <ActionButton onClick={() => onSelectEffect(effect.id)}>
             Upravit v časové ose
           </ActionButton>
           <details className="border-t border-zinc-800/60 pt-3">
-            <summary className="cursor-pointer text-[10px] text-zinc-500">Detailní časování</summary>
+            <summary className="cursor-pointer text-[10px] text-zinc-500">Více nastavení</summary>
             <div className="mt-3 space-y-3">
               <Field label="Typ animace">
                 <EffectPresetPicker
@@ -234,7 +231,7 @@ export function InspectorPanel({
   return (
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <Header
-        title="Vlastnosti vrstvy"
+        title="Vrstva"
         subtitle={layerDisplayName(layer)}
       />
       <div className="space-y-2 p-4">

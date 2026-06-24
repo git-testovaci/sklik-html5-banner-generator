@@ -72,7 +72,7 @@ export function BannerChecklist({ state, onAction }: BannerChecklistProps) {
     },
     {
       id: "layers",
-      label: "Vrstvy",
+      label: "Texty",
       status: textsLookEdited(state) ? "done" : "warn",
       hint: textsLookEdited(state) ? "Upraveno" : "Vyberte a upravte vrstvu",
     },
@@ -102,7 +102,7 @@ export function BannerChecklist({ state, onAction }: BannerChecklistProps) {
   return (
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 px-3 py-2">
       <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
-        Postup tvorby
+        Kontrola před exportem
       </p>
       <ul className="space-y-1">
         {items.map((item) => (

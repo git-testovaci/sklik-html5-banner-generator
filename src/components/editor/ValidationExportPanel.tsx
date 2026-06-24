@@ -179,15 +179,14 @@ export function ValidationExportPanel({
     >
       <div className="border-b border-zinc-800/60 px-4 py-3">
         <h2 id="validation-heading" className="text-sm font-medium text-zinc-300">
-          Export Sklik HTML5
+          Export ZIP
         </h2>
         <p className="mt-1 text-xs text-zinc-500">
           Vygenerujte ZIP pro ruční nahrání do Skliku.
         </p>
         <ul className="mt-2 space-y-0.5 text-[10px] text-zinc-600">
           <li>· Max. 250 kB · jeden HTML soubor</li>
-          <li>· Bez videa · bez externích zdrojů</li>
-          <li>· Média v projektu: {(state.assets ?? []).length}</li>
+          <li>· Žádné video · žádné externí zdroje</li>
         </ul>
       </div>
 
@@ -243,7 +242,7 @@ export function ValidationExportPanel({
               disabled={exporting || validation.overallStatus === "fail"}
               className="mt-3 w-full rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {exporting ? "Generuji ZIP…" : "Exportovat Sklik ZIP"}
+              {exporting ? "Generuji ZIP…" : "Exportovat ZIP"}
             </button>
           </div>
         </div>
@@ -339,7 +338,7 @@ export function ValidationExportPanel({
           disabled={exporting}
           className="w-full rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {exporting ? "Generuji ZIP…" : "Exportovat Sklik ZIP"}
+          {exporting ? "Generuji ZIP…" : "Exportovat ZIP"}
         </button>
 
         {exportResult && exportPassed ? (

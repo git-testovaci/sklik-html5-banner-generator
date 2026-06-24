@@ -15,14 +15,9 @@ interface PreviewPlaybackControlsProps {
   sceneLabel?: string;
 }
 
-function formatPausedTime(ms: number): string {
-  return `${(ms / 1000).toFixed(2)} s`;
-}
-
 export function PreviewPlaybackControls({
   mode,
   loop,
-  playbackTimeMs,
   onPlayAll,
   onReplayScene,
   onPause,
@@ -45,7 +40,7 @@ export function PreviewPlaybackControls({
               onClick={onPlayAll}
               className="rounded-lg border border-violet-700/60 bg-violet-950/40 px-3 py-1.5 text-xs font-medium text-violet-200 hover:bg-violet-900/40"
             >
-              Přehrát vše
+              Přehrát
             </button>
           ) : null}
           {onReplayScene ? (
@@ -95,9 +90,6 @@ export function PreviewPlaybackControls({
           >
             Zastavit
           </button>
-          <span className="text-[10px] text-zinc-500">
-            Pozastaveno · {formatPausedTime(playbackTimeMs)}
-          </span>
         </>
       ) : null}
 
@@ -109,11 +101,11 @@ export function PreviewPlaybackControls({
             onChange={(e) => onToggleLoop(e.target.checked)}
             className="rounded border-zinc-600"
           />
-          Opakovat
+          Smyčka
         </label>
       ) : null}
 
-      {sceneLabel ? (
+      {sceneLabel && isPlaying ? (
         <span className="text-[10px] text-zinc-600">{sceneLabel}</span>
       ) : null}
     </div>

@@ -79,7 +79,7 @@ export function EditorTopBar({
             <button
               type="button"
               onClick={onExport}
-              aria-label="Export Sklik HTML5 ZIP — panel vpravo dole"
+              aria-label="Export ZIP"
               className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${
                 exportReady
                   ? "border-emerald-800/60 bg-emerald-950/30 text-emerald-300 hover:bg-emerald-950/50"

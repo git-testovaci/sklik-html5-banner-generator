@@ -455,9 +455,9 @@ export function UnifiedLayerTimeline({
         data-playhead-handle
         className="absolute top-0 z-30 h-full cursor-ew-resize touch-none"
         style={{ left: `${Math.min(100, playheadPct)}%`, transform: "translateX(-50%)" }}
-        title={`Playhead · ${formatTimelineSeconds(displayPlayheadMs)} · táhněte pro posun`}
+        title={`Posun přehrávání · táhněte pro posun`}
         onPointerDown={startScrubDrag}
-        aria-label="Posun playheadu"
+        aria-label="Posun přehrávání"
       >
         <div className="absolute -left-5 top-0 h-full w-10" aria-hidden />
         <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2">
@@ -504,8 +504,8 @@ export function UnifiedLayerTimeline({
           <div className="min-w-0">
             <h2 className="text-sm font-medium text-zinc-200">Časová osa scény</h2>
             <p className="text-[10px] text-zinc-500">
-              Scéna: {scene.name}
-              {isPlaying ? " · přehrávání" : timelineFocused ? " · klávesové zkratky aktivní" : ""}
+              {scene.name}
+              {isPlaying ? " · přehrávání" : ""}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -513,7 +513,7 @@ export function UnifiedLayerTimeline({
               {formatTimelineSeconds(displayPlayheadMs)} / {formatTimelineSeconds(sceneDurationMs)}
             </span>
             <div className="flex items-center rounded border border-zinc-800/80 bg-zinc-900/60">
-              <span className="hidden pl-2 text-[9px] text-zinc-600 sm:inline">Zoom</span>
+              <span className="hidden pl-2 text-[9px] text-zinc-600 sm:inline">Přibl.</span>
               <button
                 type="button"
                 disabled={atMinZoom}
@@ -551,7 +551,7 @@ export function UnifiedLayerTimeline({
           </div>
         </div>
         <p className="mt-1.5 text-[10px] text-zinc-600">
-          Nahoře = vpředu na plátně · ⋮⋮ přetáhněte řádek · Ctrl + kolečko = zoom
+          Nahoře = vpředu na plátně · Ctrl + kolečko = zoom · Táhněte blok pro změnu času
         </p>
       </div>
 

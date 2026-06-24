@@ -54,7 +54,7 @@ export function deriveWorkflowGuidance(state: BannerEditorState): WorkflowGuidan
   if (!textsLookEdited(state)) {
     return {
       id: "edit-text",
-      message: "Upravte texty a vrstvy — klikněte na plátně nebo otevřete panel Vrstvy.",
+      message: "Upravte texty — klikněte na plátně nebo vyberte vrstvu v časové ose.",
       actionLabel: "Vybrat vrstvu",
       action: "layers",
     };
@@ -73,14 +73,14 @@ export function deriveWorkflowGuidance(state: BannerEditorState): WorkflowGuidan
     return {
       id: "ready-play",
       message: "Banner je připraven. Přehrajte scény a zkontrolujte časování.",
-      actionLabel: "Přehrát vše",
+      actionLabel: "Přehrát",
       action: "play",
     };
   }
 
   return {
     id: "ready-export",
-    message: "Banner vypadá hotově. Exportujte Sklik HTML5 ZIP a nahrajte do Skliku.",
+    message: "Banner vypadá hotově. Exportujte ZIP a nahrajte do Skliku.",
     actionLabel: "Exportovat",
     action: "export",
   };
@@ -92,5 +92,5 @@ export function nextStepAfterAssetPlacement(
   if (kind === "decoration" || kind === "other") {
     return "Soubor je v Média. Klikněte + Přidat na časovou osu.";
   }
-  return "Soubor je v Média. Přidejte na časovou osu nebo vložte do vybraného slotu.";
+  return "Soubor je v Média. Přidejte na časovou osu nebo vložte do vybraného místa.";
 }

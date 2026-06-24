@@ -96,7 +96,7 @@ export function LayerInspectorControls({
 
   const deleteLabel =
     (layer.isTemplateSlot || layer.slotKind) && layer.assetId
-      ? "Vymazat obsah slotu"
+      ? "Vymazat médium"
       : isTemplateProtectedLayer(layer)
         ? "Skrýt vrstvu"
         : "Smazat vrstvu";
@@ -310,7 +310,7 @@ export function LayerInspectorControls({
               </p>
             </Field>
           ) : emptySlot ? (
-            <p className="text-[10px] text-zinc-500">Slot je prázdný</p>
+            <p className="text-[10px] text-zinc-500">Místo je prázdné</p>
           ) : null}
           {emptySlot && onOpenAssets ? (
             <div className="flex flex-wrap gap-1">

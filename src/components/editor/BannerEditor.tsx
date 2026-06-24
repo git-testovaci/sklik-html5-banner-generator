@@ -350,7 +350,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
     }
     setSelectedEffectId(null);
     if (reused) {
-      setPlacementMessage("Logo slot již existuje — vybrán stávající slot");
+      setPlacementMessage("Logo již existuje — vybráno stávající místo");
       window.setTimeout(() => setPlacementMessage(null), 3500);
     }
   }
@@ -388,7 +388,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
       return;
     }
     if ((state.scenes ?? []).length <= 1) {
-      setPlacementMessage("Přechod vyžaduje alespoň dvě scény ve storyboardu.");
+      setPlacementMessage("Přechod vyžaduje alespoň dvě scény v projektu.");
       window.setTimeout(() => setPlacementMessage(null), 4000);
       return;
     }
@@ -623,28 +623,30 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
           <p className="px-1 text-[10px] font-medium uppercase tracking-wide text-zinc-600">
             Vlastnosti
           </p>
-          {showInspectorHelp ? (
-            <InspectorEmptyHelp />
-          ) : (
-            <InspectorPanel
-              state={state}
-              onUpdate={onUpdate}
-              selection={inspectorSelection}
-              onSelectEffect={setSelectedEffectId}
-              onOpenAssets={() => setLeftTab("assets")}
-              onPreviewTransition={handlePreviewTransition}
-              onLayerRemoved={() => {
-                setSelectedLayer({ type: "asset", id: "__none__" });
-                setSelectedEffectId(null);
-              }}
-            />
-          )}
+          <div className="min-h-[280px] shrink-0">
+            {showInspectorHelp ? (
+              <InspectorEmptyHelp />
+            ) : (
+              <InspectorPanel
+                state={state}
+                onUpdate={onUpdate}
+                selection={inspectorSelection}
+                onSelectEffect={setSelectedEffectId}
+                onOpenAssets={() => setLeftTab("assets")}
+                onPreviewTransition={handlePreviewTransition}
+                onLayerRemoved={() => {
+                  setSelectedLayer({ type: "asset", id: "__none__" });
+                  setSelectedEffectId(null);
+                }}
+              />
+            )}
+          </div>
           {showExport ? (
             <div
               id="export-panel"
               tabIndex={-1}
               className="flex flex-col gap-3 outline-none scroll-mt-4"
-              aria-label="Export Sklik HTML5"
+              aria-label="Export ZIP"
             >
               {activeGuidance ? (
                 <WorkflowGuidanceBox

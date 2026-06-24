@@ -8,7 +8,6 @@ import {
 } from "@/lib/animation/timeline-utils";
 import {
   getActiveScene,
-  totalStoryboardDurationMs,
   updateBannerLayer,
   updateLayerGeometryFromCanvas,
 } from "@/lib/animation/storyboard-utils";
@@ -130,12 +129,10 @@ export function BannerPreviewStage({
   const playbackScene = state.scenes?.find((s) => s.id === playback.playbackSceneId);
   const sceneLabel =
     playback.mode === "playing-all"
-      ? `Přehrávání · ${playbackScene?.name ?? "všechny scény"}`
+      ? "Přehrávání"
       : playback.mode === "playing-scene" || playback.mode === "paused"
         ? playbackScene?.name ?? activeScene?.name
-        : activeScene
-          ? `${activeScene.name} · ${(activeScene.durationMs / 1000).toFixed(1)} s`
-          : undefined;
+        : undefined;
 
   return (
     <section
@@ -145,9 +142,9 @@ export function BannerPreviewStage({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/60 px-4 py-3">
         <div>
           <h2 id="preview-heading" className="text-sm font-medium text-zinc-200">
-            Plátno
+            Náhled
           </h2>
-          <p className="text-[10px] text-zinc-500">Klikněte na vrstvu — nastavení vpravo</p>
+          <p className="text-[10px] text-zinc-500">Klikněte na vrstvu — vlastnosti vpravo</p>
         </div>
         <div className="flex items-center gap-3">
           {onQuickAdd ? <CanvasQuickAdd onAdd={onQuickAdd} /> : null}
@@ -214,15 +211,11 @@ export function BannerPreviewStage({
             },
           })
         }
-        sceneLabel={
-          playback.mode === "playing-all"
-            ? `Přehrávání vše · ${(totalStoryboardDurationMs(state) / 1000).toFixed(1)} s`
-            : sceneLabel
-        }
+        sceneLabel={sceneLabel}
       />
 
       <p className="border-t border-zinc-800/60 px-4 py-2 text-center text-xs text-zinc-600">
-        Přetáhněte vrstvy · rohy mění velikost · {Math.round(scale * 100)} %
+        Přetáhněte vrstvy · rohy mění velikost
       </p>
     </section>
   );

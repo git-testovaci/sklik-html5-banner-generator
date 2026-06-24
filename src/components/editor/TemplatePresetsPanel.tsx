@@ -141,7 +141,7 @@ export function TemplatePresetsPanel({
                     ) : null}
                     {template.requiredSlots && template.requiredSlots.length > 0 ? (
                       <p className="mt-1 text-[10px] text-zinc-500">
-                        Sloty:{" "}
+                        Místa:{" "}
                         {template.requiredSlots
                           .map((s) => SLOT_LABELS[s.kind] ?? s.label)
                           .join(" · ")}
@@ -166,19 +166,24 @@ export function TemplatePresetsPanel({
             Jednoduché layouty
           </p>
           <p className="mb-2 px-1 text-[10px] text-zinc-600">
-            Jedna scéna — vhodné pro rychlý start bez storyboardu.
+            Jedna scéna — vhodné pro rychlý start bez více scén.
           </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {BANNER_TEMPLATES.map((template) => (
-              <button
+              <div
                 key={template.id}
-                type="button"
-                onClick={() => applyLayout(template.id)}
-                className="rounded-lg border border-zinc-800/60 bg-zinc-950/40 px-3 py-2 text-left hover:border-zinc-700"
+                className="rounded-lg border border-zinc-800/60 bg-zinc-950/40 px-3 py-2.5"
               >
                 <p className="text-xs font-medium text-zinc-200">{template.name}</p>
                 <p className="mt-0.5 text-[10px] text-zinc-500">{template.description}</p>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => applyLayout(template.id)}
+                  className="mt-2 w-full rounded border border-violet-700/50 bg-violet-950/40 py-1.5 text-[10px] font-medium text-violet-200 hover:bg-violet-900/40"
+                >
+                  Použít šablonu
+                </button>
+              </div>
             ))}
           </div>
         </div>

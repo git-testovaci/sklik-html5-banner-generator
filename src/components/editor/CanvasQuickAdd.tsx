@@ -11,7 +11,7 @@ const PRIMARY: { kind: QuickAddLayerType; label: string }[] = [
   { kind: "text", label: "Přidat text" },
   { kind: "headline", label: "Přidat nadpis" },
   { kind: "subheadline", label: "Přidat podnadpis" },
-  { kind: "cta", label: "Přidat CTA" },
+  { kind: "cta", label: "Přidat výzvu k akci" },
   { kind: "badge", label: "Přidat štítek" },
 ];
 
