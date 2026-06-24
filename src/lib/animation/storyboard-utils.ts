@@ -815,7 +815,14 @@ export function resolveBannerLayerForSelection(
   }
 
   if (selection.type === "text") {
-    return getLayersForScene(state, scene.id).find(
+    const scene = getActiveScene(state);
+    if (scene) {
+      const inScene = getLayersForScene(state, scene.id).find(
+        (l) => l.type === "text" && l.legacyKey === selection.id,
+      );
+      if (inScene) return inScene;
+    }
+    return (state.bannerLayers ?? []).find(
       (l) => l.type === "text" && l.legacyKey === selection.id,
     );
   }

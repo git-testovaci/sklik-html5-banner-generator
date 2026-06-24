@@ -32,7 +32,11 @@ export function SlotPlaceholder({
       ? "Nahrát produkt"
       : isBackground
         ? "Nahrát pozadí"
-        : layer.slotLabel ?? "Nahrát obrázek";
+        : isBadge
+          ? "Přidat obrázek"
+          : friendlySlotLabel(layer.slotLabel, "Přidat obrázek");
+
+  const showTemplateHint = !publicMode && (layer.isTemplateSlot || layer.slotKind);
 
   const gradient = isBackground
     ? `linear-gradient(135deg, ${accentColor}18 0%, ${accentColor}06 50%, #ffffff04 100%)`
@@ -75,8 +79,11 @@ export function SlotPlaceholder({
           <span className="text-[10px] font-semibold leading-tight" style={{ color: `${accentColor}cc` }}>
             {missingAsset ? "Chybí soubor" : editorLabel}
           </span>
+          {showTemplateHint && !missingAsset ? (
+            <span className="text-[9px] text-zinc-500">Místo ve šabloně</span>
+          ) : null}
           {interactive && !missingAsset ? (
-            <span className="text-[9px] text-zinc-500">Klikněte pro nahrání</span>
+            <span className="text-[9px] text-zinc-500">Klikněte nebo vyberte z Média</span>
           ) : null}
         </>
       ) : (
@@ -88,4 +95,16 @@ export function SlotPlaceholder({
       )}
     </Wrapper>
   );
+}
+
+function friendlySlotLabel(raw: string | undefined, fallback: string): string {
+  if (!raw) return fallback;
+  const lower = raw.toLowerCase();
+  if (lower.includes("slot")) {
+    if (lower.includes("logo")) return "Nahrát logo";
+    if (lower.includes("produkt") || lower.includes("product")) return "Nahrát produkt";
+    if (lower.includes("pozad")) return "Nahrát pozadí";
+    return fallback;
+  }
+  return raw;
 }

@@ -19,6 +19,8 @@ import { BannerPreview } from "./BannerPreview";
 import { CanvasQuickAdd } from "./CanvasQuickAdd";
 import { PreviewPlaybackControls } from "./PreviewPlaybackControls";
 
+const CANVAS_ZOOM_STEPS = [0.75, 1, 1.25, 1.5, 2] as const;
+
 interface BannerPreviewStageProps {
   state: BannerEditorState;
   onUpdate?: BannerEditorStateUpdater;
@@ -47,19 +49,21 @@ export function BannerPreviewStage({
   gateLayersByPreviewTime = false,
 }: BannerPreviewStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
+  const [fitScale, setFitScale] = useState(1);
+  const [viewZoom, setViewZoom] = useState(1);
   const [showSafeArea, setShowSafeArea] = useState(false);
   const loopPreview = state.timeline?.loop ?? false;
   const activeScene = getActiveScene(state);
+  const scale = fitScale * viewZoom;
 
   useEffect(() => {
     function updateScale() {
       const container = containerRef.current;
       if (!container || container.clientWidth <= 0) return;
-      const padding = 48;
+      const padding = 24;
       const sx = (container.clientWidth - padding) / state.width;
       const sy = (container.clientHeight - padding) / state.height;
-      setScale(Math.min(sx, sy, 1) || 1);
+      setFitScale(Math.min(sx, sy, 1) || 1);
     }
     updateScale();
     const ro = new ResizeObserver(updateScale);
@@ -70,6 +74,37 @@ export function BannerPreviewStage({
       window.removeEventListener("resize", updateScale);
     };
   }, [state.width, state.height]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    function onWheel(e: WheelEvent) {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      setViewZoom((z) => {
+        const idx = CANVAS_ZOOM_STEPS.findIndex((s) => s >= z - 0.001);
+        const nextIdx =
+          e.deltaY > 0
+            ? Math.max(0, (idx >= 0 ? idx : CANVAS_ZOOM_STEPS.length - 1) - 1)
+            : Math.min(CANVAS_ZOOM_STEPS.length - 1, (idx >= 0 ? idx : 0) + 1);
+        return CANVAS_ZOOM_STEPS[nextIdx] ?? z;
+      });
+    }
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
+  function stepCanvasZoom(direction: "in" | "out") {
+    setViewZoom((z) => {
+      const idx = CANVAS_ZOOM_STEPS.findIndex((s) => Math.abs(s - z) < 0.001);
+      const base = idx >= 0 ? idx : CANVAS_ZOOM_STEPS.indexOf(1);
+      const nextIdx =
+        direction === "in"
+          ? Math.min(CANVAS_ZOOM_STEPS.length - 1, base + 1)
+          : Math.max(0, base - 1);
+      return CANVAS_ZOOM_STEPS[nextIdx] ?? z;
+    });
+  }
 
   function updateTextPlacement(
     layerId: TextLayerPlacement["layerId"],
@@ -134,20 +169,53 @@ export function BannerPreviewStage({
         ? playbackScene?.name ?? activeScene?.name
         : undefined;
 
+  const atMinCanvasZoom = viewZoom <= CANVAS_ZOOM_STEPS[0]!;
+  const atMaxCanvasZoom = viewZoom >= CANVAS_ZOOM_STEPS[CANVAS_ZOOM_STEPS.length - 1]!;
+
   return (
     <section
       aria-labelledby="preview-heading"
       className="flex flex-col rounded-xl border border-zinc-700/50 bg-zinc-950/70 shadow-lg shadow-black/20"
     >
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/60 px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/60 px-4 py-2.5">
         <div>
           <h2 id="preview-heading" className="text-sm font-medium text-zinc-200">
             Náhled
           </h2>
           <p className="text-[10px] text-zinc-500">Klikněte na vrstvu — vlastnosti vpravo</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           {onQuickAdd ? <CanvasQuickAdd onAdd={onQuickAdd} /> : null}
+          <div className="flex items-center rounded border border-zinc-800/80 bg-zinc-900/60">
+            <button
+              type="button"
+              disabled={atMinCanvasZoom}
+              onClick={() => stepCanvasZoom("out")}
+              className="min-w-[1.75rem] px-2 py-1 text-sm text-zinc-300 hover:bg-zinc-800/60 disabled:opacity-30"
+              aria-label="Oddálit náhled"
+            >
+              −
+            </button>
+            <span className="min-w-[2.75rem] border-x border-zinc-800/80 px-2 py-1 text-center text-[10px] font-medium text-violet-300">
+              {Math.round(viewZoom * 100)} %
+            </span>
+            <button
+              type="button"
+              disabled={atMaxCanvasZoom}
+              onClick={() => stepCanvasZoom("in")}
+              className="min-w-[1.75rem] px-2 py-1 text-sm text-zinc-300 hover:bg-zinc-800/60 disabled:opacity-30"
+              aria-label="Přiblížit náhled"
+            >
+              +
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => setViewZoom(1)}
+            className="rounded border border-zinc-800/80 px-2 py-1 text-[10px] text-zinc-400 hover:bg-zinc-800/60"
+          >
+            Přizpůsobit
+          </button>
           <label className="flex items-center gap-1.5 text-xs text-zinc-500">
             <input
               type="checkbox"
@@ -163,7 +231,7 @@ export function BannerPreviewStage({
 
       <div
         ref={containerRef}
-        className="relative flex h-[min(480px,52vh)] min-h-[300px] items-center justify-center overflow-hidden p-4 sm:p-6"
+        className="relative flex h-[min(340px,38vh)] min-h-[200px] items-center justify-center overflow-hidden p-2 sm:p-3"
         style={{
           backgroundImage:
             "radial-gradient(circle at 1px 1px, rgb(63 63 70 / 0.35) 1px, transparent 0)",
@@ -214,8 +282,8 @@ export function BannerPreviewStage({
         sceneLabel={sceneLabel}
       />
 
-      <p className="border-t border-zinc-800/60 px-4 py-2 text-center text-xs text-zinc-600">
-        Přetáhněte vrstvy · rohy mění velikost
+      <p className="border-t border-zinc-800/60 px-4 py-1.5 text-center text-xs text-zinc-600">
+        Přetáhněte vrstvy · rohy mění velikost · Ctrl + kolečko = zoom
       </p>
     </section>
   );

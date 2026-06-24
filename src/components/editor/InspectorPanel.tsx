@@ -19,6 +19,7 @@ import {
   getLayerById,
   getSceneById,
   getSceneTransitionDurationMs,
+  resolveBannerLayerForSelection,
   updateBannerLayer,
   updateLayerEffect,
   updateScene,
@@ -204,19 +205,12 @@ export function InspectorPanel({
     );
   }
 
-  const layerId =
+  const layer =
     selection.type === "layer"
-      ? selection.layerId
-      : selection.type === "text"
-        ? selection.id
-        : selection.type === "asset"
-          ? selection.id
-          : null;
-
-  let layer = layerId ? getLayerById(state, layerId) : undefined;
-  if (!layer && selection.type === "asset") {
-    layer = (state.bannerLayers ?? []).find((l) => l.assetId === selection.id);
-  }
+      ? getLayerById(state, selection.layerId)
+      : selection.type === "text" || selection.type === "asset"
+        ? resolveBannerLayerForSelection(state, selection)
+        : undefined;
 
   if (!layer) {
     const active = getActiveScene(state);

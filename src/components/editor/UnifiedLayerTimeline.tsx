@@ -18,6 +18,7 @@ import {
   TIMELINE_LABEL_WIDTH_PX,
   TIMELINE_ROW_HEIGHT_PX,
   TIMELINE_RULER_HEIGHT_PX,
+  TIMELINE_ZOOM_LEVELS,
   timelineTrackWidthPx,
   type TimelineZoomLevel,
 } from "@/lib/animation/layer-timeline-utils";
@@ -92,6 +93,7 @@ export function UnifiedLayerTimeline({
 }: UnifiedLayerTimelineProps) {
   const scene = getActiveScene(state);
   const trackRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLElement>(null);
   const rowsRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -133,12 +135,41 @@ export function UnifiedLayerTimeline({
   }, []);
 
   const sceneDurationMs = scene?.durationMs ?? 3000;
-  const trackWidthPx = timelineTrackWidthPx(zoom);
+  const trackWidthPx = timelineTrackWidthPx(zoom, sceneDurationMs);
+  const maxZoom = TIMELINE_ZOOM_LEVELS[TIMELINE_ZOOM_LEVELS.length - 1]!;
+  const minZoom = TIMELINE_ZOOM_LEVELS[0]!;
   const layers = scene ? getTimelineLayersForScene(state, scene.id) : [];
   const ticks = buildRulerTicks(sceneDurationMs, zoom);
   const displayPlayheadMs = livePlayheadMs ?? playheadMs;
   const playheadPct =
     sceneDurationMs > 0 ? (displayPlayheadMs / sceneDurationMs) * 100 : 0;
+  const zoomRef = useRef(zoom);
+  const playheadRef = useRef(displayPlayheadMs);
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
+
+  useEffect(() => {
+    playheadRef.current = displayPlayheadMs;
+  }, [displayPlayheadMs]);
+
+  function scrollToPlayhead(zoomLevel: TimelineZoomLevel, timeMs: number) {
+    const scrollEl = scrollRef.current;
+    if (!scrollEl || sceneDurationMs <= 0) return;
+    const playheadX =
+      TIMELINE_LABEL_WIDTH_PX +
+      (timeMs / sceneDurationMs) * timelineTrackWidthPx(zoomLevel, sceneDurationMs);
+    requestAnimationFrame(() => {
+      scrollEl.scrollLeft = Math.max(0, playheadX - scrollEl.clientWidth * 0.35);
+    });
+  }
+
+  function applyZoom(next: TimelineZoomLevel) {
+    setZoom(next);
+    scrollToPlayhead(next, displayPlayheadMs);
+  }
+
   const selectedBannerLayer = resolveBannerLayerForSelection(state, selectedLayer);
 
   useEffect(() => {
@@ -344,11 +375,20 @@ export function UnifiedLayerTimeline({
     function onWheel(e: WheelEvent) {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
-      setZoom((z) => cycleTimelineZoom(z, e.deltaY > 0 ? "out" : "in"));
+      const next = cycleTimelineZoom(zoomRef.current, e.deltaY > 0 ? "out" : "in");
+      setZoom(next);
+      const scrollEl = scrollRef.current;
+      if (!scrollEl || sceneDurationMs <= 0) return;
+      const playheadX =
+        TIMELINE_LABEL_WIDTH_PX +
+        (playheadRef.current / sceneDurationMs) * timelineTrackWidthPx(next, sceneDurationMs);
+      requestAnimationFrame(() => {
+        scrollEl.scrollLeft = Math.max(0, playheadX - scrollEl.clientWidth * 0.35);
+      });
     }
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, []);
+  }, [sceneDurationMs]);
 
   function focusTimeline() {
     rootRef.current?.focus({ preventScroll: true });
@@ -481,8 +521,8 @@ export function UnifiedLayerTimeline({
     );
   }
 
-  const atMaxZoom = zoom >= 3;
-  const atMinZoom = zoom <= 1;
+  const atMaxZoom = zoom >= maxZoom;
+  const atMinZoom = zoom <= minZoom;
 
   return (
     <section
@@ -517,7 +557,7 @@ export function UnifiedLayerTimeline({
               <button
                 type="button"
                 disabled={atMinZoom}
-                onClick={() => setZoom((z) => cycleTimelineZoom(z, "out"))}
+                onClick={() => applyZoom(cycleTimelineZoom(zoom, "out"))}
                 className="min-w-[2rem] px-2.5 py-1 text-base font-medium text-zinc-300 hover:bg-zinc-800/60 disabled:opacity-30"
                 title="Oddálit (Ctrl + kolečko)"
                 aria-label="Oddálit časovou osu"
@@ -533,7 +573,7 @@ export function UnifiedLayerTimeline({
               <button
                 type="button"
                 disabled={atMaxZoom}
-                onClick={() => setZoom((z) => cycleTimelineZoom(z, "in"))}
+                onClick={() => applyZoom(cycleTimelineZoom(zoom, "in"))}
                 className="min-w-[2rem] px-2.5 py-1 text-base font-medium text-zinc-300 hover:bg-zinc-800/60 disabled:opacity-30"
                 title="Přiblížit (Ctrl + kolečko)"
                 aria-label="Přiblížit časovou osu"
@@ -543,7 +583,9 @@ export function UnifiedLayerTimeline({
             </div>
             <button
               type="button"
-              onClick={() => setZoom(1)}
+              onClick={() => {
+                applyZoom(1);
+              }}
               className="rounded border border-zinc-800/80 px-2 py-1 text-[10px] text-zinc-400 hover:bg-zinc-800/60"
             >
               Přizpůsobit
@@ -555,15 +597,14 @@ export function UnifiedLayerTimeline({
         </p>
       </div>
 
-      <div className="overflow-x-auto">
+      <div ref={scrollRef} className="max-w-full overflow-x-auto">
         <div
-          className="min-w-0"
-          style={{ width: TIMELINE_LABEL_WIDTH_PX + trackWidthPx }}
+          style={{ width: TIMELINE_LABEL_WIDTH_PX + trackWidthPx, minWidth: TIMELINE_LABEL_WIDTH_PX + trackWidthPx }}
         >
           {/* Ruler */}
           <div className="flex border-b border-zinc-800/50" style={{ height: TIMELINE_RULER_HEIGHT_PX }}>
             <div
-              className="shrink-0 border-r border-zinc-800/50 bg-zinc-900/50 px-2 py-1"
+              className="sticky left-0 z-20 shrink-0 border-r border-zinc-800/50 bg-zinc-900/50 px-2 py-1"
               style={{ width: TIMELINE_LABEL_WIDTH_PX }}
             >
               <span className="text-[9px] uppercase tracking-wide text-zinc-600">Čas</span>
@@ -644,7 +685,7 @@ export function UnifiedLayerTimeline({
                   style={{ height: TIMELINE_ROW_HEIGHT_PX }}
                 >
                   <div
-                    className={`flex shrink-0 items-stretch border-r border-zinc-800/50 ${
+                    className={`sticky left-0 z-20 flex shrink-0 items-stretch border-r border-zinc-800/50 ${
                       selected ? "bg-violet-950/40" : "bg-zinc-900/40"
                     }`}
                     style={{ width: TIMELINE_LABEL_WIDTH_PX }}
@@ -822,9 +863,9 @@ export function UnifiedLayerTimeline({
                       ) : null}
                       {segments.in.active && onPhaseDurationChange && !layer.locked ? (
                         <div
-                          className="absolute top-0 z-10 h-full w-1.5 cursor-ew-resize bg-emerald-300/80 hover:bg-emerald-200"
-                          style={{ left: `calc(${inPct}% - 3px)` }}
-                          title="Upravit délku animace dopředu"
+                          className="absolute top-0 z-10 h-full w-2 cursor-ew-resize bg-emerald-300/90 hover:bg-emerald-200 shadow-sm"
+                          style={{ left: `calc(${inPct}% - 4px)` }}
+                          title="Konec animace dopředu"
                           onPointerDown={(e) => {
                             e.stopPropagation();
                             startBlockDrag(e, layer.id, "phase-in");
@@ -833,9 +874,9 @@ export function UnifiedLayerTimeline({
                       ) : null}
                       {segments.out.active && onPhaseDurationChange && !layer.locked ? (
                         <div
-                          className="absolute top-0 z-10 h-full w-1.5 cursor-ew-resize bg-rose-300/80 hover:bg-rose-200"
-                          style={{ left: `calc(${100 - outPct}% - 3px)` }}
-                          title="Upravit délku animace dozadu"
+                          className="absolute top-0 z-10 h-full w-2 cursor-ew-resize bg-rose-300/90 hover:bg-rose-200 shadow-sm"
+                          style={{ left: `calc(${100 - outPct}% - 4px)` }}
+                          title="Začátek animace dozadu"
                           onPointerDown={(e) => {
                             e.stopPropagation();
                             startBlockDrag(e, layer.id, "phase-out");

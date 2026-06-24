@@ -56,6 +56,14 @@ export function getLayerTimelineRange(
     return { startMs: 0, durationMs: scene?.durationMs ?? 3000, fromEffects: false };
   }
 
+  if (layer.timelineStartMs !== undefined && layer.timelineDurationMs !== undefined) {
+    return clampTimelineRange(
+      layer.timelineStartMs,
+      layer.timelineDurationMs,
+      scene.durationMs,
+    );
+  }
+
   const effects = getEffectsForScene(state, sceneId).filter((e) => e.layerId === layerId);
   if (effects.length > 0) {
     const startMs = Math.min(...effects.map((e) => e.startMs));
@@ -65,14 +73,6 @@ export function getLayerTimelineRange(
       durationMs: Math.max(MIN_LAYER_DURATION_MS, endMs - startMs),
       fromEffects: true,
     };
-  }
-
-  if (layer.timelineStartMs !== undefined && layer.timelineDurationMs !== undefined) {
-    return clampTimelineRange(
-      layer.timelineStartMs,
-      layer.timelineDurationMs,
-      scene.durationMs,
-    );
   }
 
   return { startMs: 0, durationMs: scene.durationMs, fromEffects: false };
@@ -88,7 +88,7 @@ export function isLayerVisibleAtTimelineTime(
   return timeMs >= range.startMs && timeMs < range.startMs + range.durationMs;
 }
 
-/** Update layer timing — shifts/scales layerEffects or stores on BannerLayer. */
+/** Update layer timing — persists range on layer and reclamps phase effects inside it. */
 export function updateLayerTimelineRange(
   state: BannerEditorState,
   sceneId: string,
@@ -100,19 +100,37 @@ export function updateLayerTimelineRange(
   if (!scene) return state;
 
   const clamped = clampTimelineRange(startMs, durationMs, scene.durationMs);
+  const layer = getLayerById(state, layerId);
   const layerEffects = (state.layerEffects ?? []).filter(
     (e) => e.sceneId === sceneId && e.layerId === layerId,
   );
 
-  if (layerEffects.length > 0) {
-    const current = getLayerTimelineRange(state, sceneId, layerId);
-    const oldStart = current.startMs;
-    const oldDuration = Math.max(MIN_LAYER_DURATION_MS, current.durationMs);
+  let oldStart = 0;
+  let oldDuration = scene.durationMs;
+  if (layer?.timelineStartMs !== undefined && layer?.timelineDurationMs !== undefined) {
+    oldStart = layer.timelineStartMs;
+    oldDuration = layer.timelineDurationMs;
+  } else if (layerEffects.length > 0) {
+    oldStart = Math.min(...layerEffects.map((e) => e.startMs));
+    oldDuration = Math.max(
+      MIN_LAYER_DURATION_MS,
+      Math.max(...layerEffects.map((e) => e.startMs + e.durationMs)) - oldStart,
+    );
+  }
 
+  let next = syncFlatFromActiveScene(
+    updateBannerLayer(state, layerId, {
+      timelineStartMs: clamped.startMs,
+      timelineDurationMs: clamped.durationMs,
+    }),
+  );
+
+  if (layerEffects.length > 0) {
+    const oldDur = Math.max(MIN_LAYER_DURATION_MS, oldDuration);
     const nextEffects = (state.layerEffects ?? []).map((e) => {
       if (e.sceneId !== sceneId || e.layerId !== layerId) return e;
-      const relStart = (e.startMs - oldStart) / oldDuration;
-      const relDur = e.durationMs / oldDuration;
+      const relStart = (e.startMs - oldStart) / oldDur;
+      const relDur = e.durationMs / oldDur;
       const nextStart = Math.round(clamped.startMs + relStart * clamped.durationMs);
       const nextDur = Math.max(
         MIN_LAYER_DURATION_MS,
@@ -122,26 +140,11 @@ export function updateLayerTimelineRange(
       return { ...e, startMs: bounded.startMs, durationMs: bounded.durationMs };
     });
 
-    return syncFlatFromActiveScene(
-      layoutPhaseEffectsOnLayer(
-        repairEditorInvariants(
-          syncFlatFromActiveScene({ ...state, layerEffects: nextEffects }),
-        ),
-        sceneId,
-        layerId,
-      ),
-    );
+    next = syncFlatFromActiveScene({ ...next, layerEffects: nextEffects });
+    next = layoutPhaseEffectsOnLayer(repairEditorInvariants(next), sceneId, layerId);
   }
 
-  const withLayer = repairEditorInvariants(
-    syncFlatFromActiveScene(
-      updateBannerLayer(state, layerId, {
-        timelineStartMs: clamped.startMs,
-        timelineDurationMs: clamped.durationMs,
-      }),
-    ),
-  );
-  return syncFlatFromActiveScene(layoutPhaseEffectsOnLayer(withLayer, sceneId, layerId));
+  return syncFlatFromActiveScene(repairEditorInvariants(next));
 }
 
 export function defaultInsertDurationMs(
@@ -263,10 +266,10 @@ export function formatTimelineSeconds(ms: number): string {
   return s >= 10 ? `${s.toFixed(1)} s` : `${s.toFixed(2)} s`;
 }
 
-export const TIMELINE_ZOOM_LEVELS = [1, 1.5, 2, 3] as const;
+export const TIMELINE_ZOOM_LEVELS = [1, 1.5, 2, 3, 4, 6] as const;
 export type TimelineZoomLevel = (typeof TIMELINE_ZOOM_LEVELS)[number];
 
-export const TIMELINE_TRACK_BASE_WIDTH_PX = 360;
+export const TIMELINE_TRACK_BASE_WIDTH_PX = 420;
 export const TIMELINE_LABEL_WIDTH_PX = 192;
 export const TIMELINE_ROW_HEIGHT_PX = 42;
 export const TIMELINE_RULER_HEIGHT_PX = 32;
@@ -283,8 +286,12 @@ export function cycleTimelineZoom(
   return TIMELINE_ZOOM_LEVELS[Math.max(0, i - 1)] ?? current;
 }
 
-export function timelineTrackWidthPx(zoom: TimelineZoomLevel): number {
-  return Math.round(TIMELINE_TRACK_BASE_WIDTH_PX * zoom);
+export function timelineTrackWidthPx(
+  zoom: TimelineZoomLevel,
+  sceneDurationMs = 3000,
+): number {
+  const durationFactor = Math.max(1, sceneDurationMs / 3000);
+  return Math.round(TIMELINE_TRACK_BASE_WIDTH_PX * zoom * durationFactor);
 }
 
 /** Ruler tick positions (ms) scaled for scene duration and zoom level. */
@@ -302,6 +309,8 @@ export function buildRulerTicks(sceneDurationMs: number, zoom = 1): number[] {
   if (zoom >= 1.5) step = Math.max(100, Math.round(step / 1.5));
   if (zoom >= 2) step = Math.max(100, Math.round(step / 2));
   if (zoom >= 3) step = Math.max(50, Math.round(step / 2));
+  if (zoom >= 4) step = Math.max(50, Math.round(step / 1.5));
+  if (zoom >= 6) step = Math.max(25, Math.round(step / 2));
 
   const ticks: number[] = [];
   for (let t = 0; t <= sceneDurationMs; t += step) {

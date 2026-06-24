@@ -437,7 +437,15 @@ function CanvasContent({
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={url}
-                  alt={asset?.kind ?? "asset"}
+                  alt={
+                    asset?.kind === "logo"
+                      ? "Logo"
+                      : asset?.kind === "product"
+                        ? "Produkt"
+                        : asset?.kind === "background"
+                          ? "Pozadí"
+                          : "Obrázek"
+                  }
                   className="pointer-events-none h-full w-full"
                   style={{ objectFit: placement.fit }}
                   draggable={false}
@@ -880,9 +888,9 @@ export function BannerPreview({
         ...pauseStyle,
       }}
       role="img"
-      aria-label={`Banner preview: ${state.headline}`}
+      aria-label={`Banner preview: ${state.name}`}
       onPointerDown={() => {
-        if (interactive) onSelectLayer?.({ type: "text", id: "headline" });
+        if (interactive) onSelectLayer?.({ type: "asset", id: "__none__" });
       }}
     >
       <CanvasContent state={state} sceneId={effectiveSceneId} {...canvasProps} />

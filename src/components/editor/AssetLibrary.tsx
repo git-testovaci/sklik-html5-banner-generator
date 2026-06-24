@@ -94,7 +94,7 @@ export function AssetLibrary({
     onUpdate(next);
     onPlaced?.(
       { type: "asset", id: selectedSlot.id },
-      `${selectedSlot.slotLabel ?? selectedSlot.name} — vloženo do místa`,
+      `${selectedSlot.name} — vloženo do vybraného místa`,
     );
   }
 
@@ -165,7 +165,7 @@ export function AssetLibrary({
                     <button
                       type="button"
                       onClick={() => insertIntoSelectedSlot(asset.id)}
-                      className="w-full rounded-md border border-zinc-700/80 bg-transparent px-2 py-1.5 text-[10px] text-zinc-500 hover:bg-zinc-800/40 hover:text-zinc-400"
+                      className="w-full rounded-md border border-violet-700/60 bg-violet-950/30 px-2 py-1.5 text-[10px] font-medium text-violet-200 hover:bg-violet-900/40"
                     >
                       Vložit do vybraného místa
                     </button>

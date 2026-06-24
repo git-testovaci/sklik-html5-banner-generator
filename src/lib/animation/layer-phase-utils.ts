@@ -24,6 +24,7 @@ import {
   getSceneById,
   newId,
   syncFlatFromActiveScene,
+  updateBannerLayer,
 } from "@/lib/animation/storyboard-utils";
 import { repairEditorInvariants } from "@/lib/editor/editor-invariants";
 import { effectToLayerAnimation } from "@/lib/animation/effect-presets";
@@ -236,7 +237,17 @@ export function layoutPhaseEffectsOnLayer(
     return e;
   });
 
-  return syncFlatFromActiveScene({ ...state, layerEffects: nextEffects });
+  let next = syncFlatFromActiveScene({ ...state, layerEffects: nextEffects });
+  const layer = getLayerById(next, layerId);
+  if (layer && (layer.timelineStartMs === undefined || layer.timelineDurationMs === undefined)) {
+    next = syncFlatFromActiveScene(
+      updateBannerLayer(next, layerId, {
+        timelineStartMs: range.startMs,
+        timelineDurationMs: range.durationMs,
+      }),
+    );
+  }
+  return next;
 }
 
 function createPhaseEffect(

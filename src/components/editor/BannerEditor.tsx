@@ -358,7 +358,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   function handleSlotActivate(layerId: string) {
     const layer = getLayerById(state, layerId);
     if (!layer) return;
-    setSelectedLayer({ type: "asset", id: layer.id });
+    setSelectedLayer(selectionForBannerLayer(layer));
     setSelectedEffectId(null);
     setLeftTab("assets");
     window.setTimeout(() => {
