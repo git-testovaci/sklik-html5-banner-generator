@@ -37,7 +37,7 @@ export function SceneControls({ state, onUpdate, onPreviewTransition }: SceneCon
         onClick={() => onUpdate(addScene(state))}
         className="rounded border border-zinc-700 px-2 py-1 text-[10px] text-zinc-300 hover:bg-zinc-800"
       >
-        + Scéna
+        Přidat scénu
       </button>
       <button
         type="button"
@@ -56,6 +56,7 @@ export function SceneControls({ state, onUpdate, onPreviewTransition }: SceneCon
       </button>
       <button
         type="button"
+        aria-label="Posunout scénu doleva"
         onClick={() => onUpdate(moveScene(state, active.id, "left"))}
         className="rounded border border-zinc-700 px-2 py-1 text-[10px] text-zinc-400 hover:bg-zinc-800"
       >
@@ -63,6 +64,7 @@ export function SceneControls({ state, onUpdate, onPreviewTransition }: SceneCon
       </button>
       <button
         type="button"
+        aria-label="Posunout scénu doprava"
         onClick={() => onUpdate(moveScene(state, active.id, "right"))}
         className="rounded border border-zinc-700 px-2 py-1 text-[10px] text-zinc-400 hover:bg-zinc-800"
       >
@@ -105,7 +107,7 @@ export function SceneControls({ state, onUpdate, onPreviewTransition }: SceneCon
         </select>
       </label>
       <label className="flex items-center gap-1 text-[10px] text-zinc-500">
-        Přechod ms
+        Délka přechodu
         <input
           type="number"
           min={400}

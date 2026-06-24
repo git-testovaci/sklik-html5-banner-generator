@@ -57,7 +57,7 @@ export function SceneTransitionChip({
   return (
     <div className="flex shrink-0 flex-col items-center px-0.5">
       {isLast && loopEnabled ? (
-        <span className="mb-0.5 text-[8px] text-zinc-600">Loop zpět</span>
+        <span className="mb-0.5 text-[8px] text-zinc-600">Smyčka zpět</span>
       ) : null}
       <button
         type="button"

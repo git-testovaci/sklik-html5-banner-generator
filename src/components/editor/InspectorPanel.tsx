@@ -73,7 +73,7 @@ export function InspectorPanel({
               ))}
             </select>
           </Field>
-          <Field label="Délka přechodu (ms)">
+          <Field label="Délka přechodu">
             <input
               type="number"
               min={400}
@@ -98,7 +98,7 @@ export function InspectorPanel({
             Použít přechod na všechny scény
           </ActionButton>
           <details className="border-t border-zinc-800/60 pt-3">
-            <summary className="cursor-pointer text-[10px] text-zinc-500">Detailní nastavení scény</summary>
+            <summary className="cursor-pointer text-[10px] text-zinc-500">Více nastavení scény</summary>
             <div className="mt-3 space-y-3">
               <Field label="Název">
                 <input
@@ -110,7 +110,7 @@ export function InspectorPanel({
                   className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs"
                 />
               </Field>
-              <Field label="Délka scény (ms)">
+              <Field label="Délka scény">
                 <input
                   type="number"
                   min={500}
@@ -170,7 +170,7 @@ export function InspectorPanel({
                 />
               </Field>
               <div className="grid grid-cols-2 gap-2">
-                <Field label="Začátek (ms)">
+                <Field label="Začátek">
                   <input
                     type="number"
                     value={effect.startMs}
@@ -182,7 +182,7 @@ export function InspectorPanel({
                     className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
                   />
                 </Field>
-                <Field label="Délka (ms)">
+                <Field label="Délka">
                   <input
                     type="number"
                     value={effect.durationMs}

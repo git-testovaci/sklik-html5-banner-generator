@@ -63,7 +63,7 @@ export function TemplatePresetsPanel({
     const selection = firstEditableSelection(next);
     onAfterApply?.(next, selection, {
       message:
-        "Šablona je připravená. Přidejte média na časovou osu nebo vyplňte sloty.",
+        "Šablona je připravená. Přidejte média na časovou osu nebo vyplňte místa ve šabloně.",
       switchToAssets: true,
     });
   }
@@ -72,7 +72,7 @@ export function TemplatePresetsPanel({
     const next = applyTemplateToState(state, templateId);
     onUpdate(next);
     onAfterApply?.(next, firstEditableSelection(next), {
-      message: "Layout aplikován. Upravte vrstvy na plátně a časové ose.",
+      message: "Šablona použita. Upravte vrstvy na plátně a časové ose.",
     });
   }
 

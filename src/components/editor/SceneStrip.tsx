@@ -52,10 +52,9 @@ export function SceneStrip({
   return (
     <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40">
       <div className="border-b border-zinc-800/60 px-4 py-2">
-        <h2 className="text-sm font-medium text-zinc-300">Storyboard</h2>
+        <h2 className="text-sm font-medium text-zinc-300">Scény</h2>
         <p className="text-[10px] text-zinc-500">
-          {scenes.length} scén · {(scenes.reduce((s, sc) => s + sc.durationMs, 0) / 1000).toFixed(1)} s
-          celkem · klikněte na přechod mezi kartami
+          {scenes.length} scén · {(scenes.reduce((s, sc) => s + sc.durationMs, 0) / 1000).toFixed(1)} s celkem
         </p>
       </div>
       <div className="flex items-center gap-0 overflow-x-auto p-3">
