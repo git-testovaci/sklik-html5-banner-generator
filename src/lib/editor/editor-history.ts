@@ -1,7 +1,11 @@
 import { normalizeEditorState } from "@/lib/animation/timeline-utils";
 import { repairEditorInvariants } from "@/lib/editor/editor-invariants";
-import type { BannerEditorState, EditorHistoryMode } from "@/types/editor";
-import { editorStatesEqual } from "@/types/editor";
+import type {
+  BannerEditorState,
+  BannerEditorStatePatch,
+  EditorHistoryMode,
+} from "@/types/editor";
+import { editorStatesEqual, isEditorStatePatchFn } from "@/types/editor";
 
 export const EDITOR_HISTORY_MAX = 50;
 
@@ -27,9 +31,16 @@ export function restoreEditorStateFromHistory(state: BannerEditorState): BannerE
 
 export function mergeEditorPatch(
   prev: BannerEditorState,
-  patch: Partial<BannerEditorState>,
+  patch: Partial<BannerEditorState> | BannerEditorState,
 ): BannerEditorState {
   return normalizeEditorState({ ...prev, ...patch });
+}
+
+export function resolveEditorStatePatch(
+  prev: BannerEditorState,
+  patch: BannerEditorStatePatch,
+): Partial<BannerEditorState> | BannerEditorState {
+  return isEditorStatePatchFn(patch) ? patch(prev) : patch;
 }
 
 export interface ApplyHistoryOptions {

@@ -65,8 +65,25 @@ export const BANNER_ANIMATIONS: readonly {
 
 export type EditorHistoryMode = "push" | "replace" | "skip";
 
+export type BannerEditorStatePatchFn = (
+  prev: BannerEditorState,
+) => Partial<BannerEditorState> | BannerEditorState;
+
+export type BannerEditorStatePatchObject =
+  Partial<BannerEditorState> | BannerEditorState;
+
+export type BannerEditorStatePatch =
+  | BannerEditorStatePatchObject
+  | BannerEditorStatePatchFn;
+
+export function isEditorStatePatchFn(
+  patch: BannerEditorStatePatch,
+): patch is BannerEditorStatePatchFn {
+  return typeof patch === "function";
+}
+
 export type BannerEditorStateUpdater = (
-  patch: Partial<BannerEditorState>,
+  patch: BannerEditorStatePatch,
   options?: { history?: EditorHistoryMode },
 ) => void;
 

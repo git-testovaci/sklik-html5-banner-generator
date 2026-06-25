@@ -38,6 +38,7 @@ import {
   createEmptyHistoryStacks,
   mergeEditorPatch,
   redoHistory,
+  resolveEditorStatePatch,
   undoHistory,
   type EditorHistoryStacks,
 } from "@/lib/editor/editor-history";
@@ -198,7 +199,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
 
   const onUpdate = useCallback<BannerEditorStateUpdater>((patch, options) => {
     setState((prev) => {
-      const partial = typeof patch === "function" ? patch(prev) : patch;
+      const partial = resolveEditorStatePatch(prev, patch);
       const next = mergeEditorPatch(prev, partial);
       if (editorStatesEqual(prev, next)) {
         return prev;
