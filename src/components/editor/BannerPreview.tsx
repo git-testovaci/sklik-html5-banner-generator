@@ -242,8 +242,7 @@ function CanvasContent({
   const sceneBg = scene?.backgroundColor ?? state.backgroundColor;
   const assets = state.assets ?? [];
   const storyboardLayers = getLayersForScene(state, sceneId);
-  const scrubMode =
-    gateLayersByPreviewTime && previewTimeMs != null && interactive;
+  const scrubMode = gateLayersByPreviewTime && previewTimeMs != null;
   const suppressCssAnimations = scrubMode;
 
   function layerInteraction(bannerLayerId: string | undefined) {
@@ -361,6 +360,9 @@ function CanvasContent({
 
   return (
     <>
+      {scrubMode ? (
+        <style>{`* { animation: none !important; animation-play-state: paused !important; }`}</style>
+      ) : null}
       <style>{animationCss}</style>
       {bgColorOnly ? (
         <div className="absolute inset-0" style={{ backgroundColor: sceneBg, zIndex: 0 }} />
@@ -823,9 +825,9 @@ export function BannerPreview({
   const scenes = state.scenes ?? [];
 
   const sequenceCss = useMemo(() => {
-    if (!playAll || scenes.length <= 1) return "";
+    if (!playAll || scenes.length <= 1 || playbackPaused) return "";
     return buildSceneSequenceCss(state, replayKey, loopPreview);
-  }, [playAll, scenes.length, state, replayKey, loopPreview]);
+  }, [playAll, scenes.length, state, replayKey, loopPreview, playbackPaused]);
 
   const canvasProps = {
     replayKey,
@@ -848,7 +850,7 @@ export function BannerPreview({
   };
 
   const pauseStyle = playbackPaused
-    ? ({ animationPlayState: "paused" } as const)
+    ? ({ animation: "none", animationPlayState: "paused" } as const)
     : undefined;
 
   if (playAll && scenes.length > 1) {

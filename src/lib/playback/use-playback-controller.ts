@@ -19,10 +19,11 @@ export interface UsePlaybackControllerOptions {
 export interface PlaybackController extends PlaybackControllerSnapshot {
   playAll: (startMs?: number) => void;
   replayScene: (startMs?: number) => void;
-  pause: () => void;
+  pause: (frozenAtMs?: number) => void;
   resume: (startMs?: number) => void;
   stop: () => void;
   previewSceneTransition: () => void;
+  getCurrentTimeMs: () => number;
 }
 
 export function usePlaybackController(
@@ -156,8 +157,13 @@ export function usePlaybackController(
     setMode("playing-scene");
   }, [options.activeSceneId, options.timelineDurationMs, scenesList]);
 
-  const pause = useCallback(() => {
+  const getCurrentTimeMs = useCallback(() => elapsedRef.current, []);
+
+  const pause = useCallback((frozenAtMs?: number) => {
     if (mode !== "playing-all" && mode !== "playing-scene") return;
+    const frozen = frozenAtMs ?? elapsedRef.current;
+    elapsedRef.current = frozen;
+    setPlaybackTimeMs(frozen);
     setPausedFrom(mode === "playing-all" ? "playing-all" : "playing-scene");
     cancelRaf();
     setMode("paused");
@@ -214,5 +220,6 @@ export function usePlaybackController(
     resume,
     stop,
     previewSceneTransition,
+    getCurrentTimeMs,
   };
 }

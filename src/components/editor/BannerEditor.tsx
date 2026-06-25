@@ -125,7 +125,6 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   const [scrubTimeMs, setScrubTimeMs] = useState(0);
   const [dismissedGuidanceId, setDismissedGuidanceId] = useState<string | null>(null);
   const copiedLayerIdRef = useRef<string | null>(null);
-  const wasPlayingRef = useRef(false);
   const historyRef = useRef<EditorHistoryStacks>(createEmptyHistoryStacks());
   const historyCoalesceRef = useRef(false);
   const historyCoalesceAtRef = useRef(0);
@@ -163,10 +162,14 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
         playback.playAllView,
       );
     }
+    if (playback.isPaused) {
+      return scrubTimeMs;
+    }
     return scrubTimeMs;
   }, [
     activeScene?.id,
     playback.isPlaying,
+    playback.isPaused,
     playback.playbackTimeMs,
     playback.playAllView,
     scrubTimeMs,
@@ -174,28 +177,6 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   ]);
 
   const gatePreviewByTime = !playback.isPlaying;
-
-  useEffect(() => {
-    const wasPlaying = wasPlayingRef.current;
-    wasPlayingRef.current = playback.isPlaying;
-    if (wasPlaying && playback.isPaused && activeScene?.id) {
-      setScrubTimeMs(
-        sceneLocalPlaybackTime(
-          playback.playbackTimeMs,
-          state.scenes ?? [],
-          activeScene.id,
-          playback.playAllView,
-        ),
-      );
-    }
-  }, [
-    activeScene?.id,
-    playback.isPaused,
-    playback.isPlaying,
-    playback.playbackTimeMs,
-    playback.playAllView,
-    state.scenes,
-  ]);
 
   const onUpdate = useCallback<BannerEditorStateUpdater>((patch, options) => {
     setState((prev) => {
@@ -409,6 +390,22 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
     setSavedState(nextState);
     setSaveStatus("saved");
     setSaveError(null);
+  }
+
+  function handlePausePlayback() {
+    const frozenMs = playback.getCurrentTimeMs();
+    const sceneId = activeScene?.id;
+    if (sceneId) {
+      setScrubTimeMs(
+        sceneLocalPlaybackTime(
+          frozenMs,
+          state.scenes ?? [],
+          sceneId,
+          playback.playAllView,
+        ),
+      );
+    }
+    playback.pause(frozenMs);
   }
 
   function handlePlayAll() {
@@ -698,7 +695,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             playback={playback}
             onPlayAll={handlePlayAll}
             onReplayScene={handleReplayScene}
-            onPause={playback.pause}
+            onPause={handlePausePlayback}
             onResume={handleResumePlayback}
             onStop={handleStopPlayback}
             onQuickAdd={handleQuickAdd}

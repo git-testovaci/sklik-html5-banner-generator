@@ -29,9 +29,9 @@ interface BannerPreviewStageProps {
   playback: PlaybackController;
   onPlayAll?: () => void;
   onReplayScene?: () => void;
-  onPause?: () => void;
-  onResume?: () => void;
-  onStop?: () => void;
+  onPause: () => void;
+  onResume: () => void;
+  onStop: () => void;
   onQuickAdd?: (kind: QuickAddLayerType) => void;
   onSlotActivate?: (layerId: string) => void;
   previewTimeMs?: number | null;
@@ -262,7 +262,7 @@ export function BannerPreviewStage({
             playbackSceneId={playback.playbackSceneId}
             playbackPaused={playback.isPaused}
             previewTimeMs={previewTimeMs}
-            gateLayersByPreviewTime={gateLayersByPreviewTime}
+            gateLayersByPreviewTime={gateLayersByPreviewTime || playback.isPaused}
             onSlotActivate={onSlotActivate}
           />
         </div>
@@ -274,9 +274,9 @@ export function BannerPreviewStage({
         playbackTimeMs={playback.playbackTimeMs}
         onPlayAll={onPlayAll}
         onReplayScene={onReplayScene}
-        onPause={onPause ?? playback.pause}
-        onResume={onResume ?? playback.resume}
-        onStop={onStop ?? playback.stop}
+        onPause={onPause}
+        onResume={onResume}
+        onStop={onStop}
         onToggleLoop={(loop) =>
           onUpdate?.({
             timeline: {
