@@ -165,7 +165,13 @@ export function buildGlobalTimelineLayerRows(
   const rows: GlobalTimelineLayerRow[] = [];
   for (const [index, scene] of (state.scenes ?? []).entries()) {
     const sceneStart = sceneStartGlobalMs(state, scene.id);
-    for (const layer of getTimelineLayersForScene(state, scene.id)) {
+    let layers = getTimelineLayersForScene(state, scene.id);
+    if (layers.length === 0) {
+      layers = (state.bannerLayers ?? []).filter(
+        (l) => !l.persistent && l.sceneId === scene.id,
+      );
+    }
+    for (const layer of layers) {
       const range = getLayerTimelineRange(state, scene.id, layer.id);
       rows.push({
         layer,

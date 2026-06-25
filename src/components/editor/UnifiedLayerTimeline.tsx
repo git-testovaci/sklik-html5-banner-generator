@@ -580,9 +580,11 @@ export function UnifiedLayerTimeline({
   return (
     <section
       ref={rootRef}
-      id="unified-layer-timeline"
+      id="global-banner-timeline"
+      data-testid="global-banner-timeline"
+      data-timeline-mode="global"
       tabIndex={0}
-      className="rounded-xl border border-zinc-800/80 bg-zinc-950/60 outline-none focus-visible:ring-1 focus-visible:ring-violet-700/50"
+      className="rounded-xl border border-violet-900/30 bg-zinc-950/60 shadow-sm shadow-violet-950/20 outline-none focus-visible:ring-1 focus-visible:ring-violet-700/50"
       onFocus={() => setTimelineFocused(true)}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node)) {
@@ -595,9 +597,10 @@ export function UnifiedLayerTimeline({
       <div className="border-b border-zinc-800/60 px-4 py-2.5">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
-            <h2 className="text-sm font-medium text-zinc-200">Časová osa banneru</h2>
+            <h2 className="text-sm font-semibold text-violet-100">Časová osa banneru</h2>
             <p className="text-[10px] text-zinc-500">
-              {timelineSegments.length} scén · {timelineRows.length} vrstev · celý banner
+              {timelineSegments.length} scén · {timelineRows.length} vrstev · celkem{" "}
+              {formatTimelineSeconds(totalDurationMs)}
               {isPlaying ? " · přehrávání" : ""}
             </p>
           </div>
@@ -695,7 +698,7 @@ export function UnifiedLayerTimeline({
 
           {/* Scene blocks + transitions */}
           {timelineSegments.length > 0 ? (
-            <div className="flex border-b border-zinc-800/50" style={{ height: 28 }}>
+            <div className="flex border-b border-zinc-800/50" style={{ height: 36 }}>
               <div
                 className="sticky left-0 z-20 shrink-0 border-r border-zinc-800/50 bg-zinc-900/50 px-2 py-1"
                 style={{ width: TIMELINE_LABEL_WIDTH_PX }}
@@ -1048,3 +1051,6 @@ export function UnifiedLayerTimeline({
     </section>
   );
 }
+
+/** Canonical global banner timeline — alias for editor wiring. */
+export { UnifiedLayerTimeline as GlobalBannerTimeline };

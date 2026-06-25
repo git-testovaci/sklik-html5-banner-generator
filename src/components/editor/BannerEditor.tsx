@@ -63,7 +63,7 @@ import { BannerChecklist, type ChecklistAction } from "./BannerChecklist";
 import { BannerPreviewStage } from "./BannerPreviewStage";
 import { InspectorPanel } from "./InspectorPanel";
 import { InspectorEmptyHelp } from "./InspectorEmptyHelp";
-import { UnifiedLayerTimeline } from "./UnifiedLayerTimeline";
+import { GlobalBannerTimeline } from "./UnifiedLayerTimeline";
 import { SceneStrip } from "./SceneStrip";
 import { TemplatePresetsPanel } from "./TemplatePresetsPanel";
 import { ValidationExportPanel } from "./ValidationExportPanel";
@@ -247,7 +247,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   }, [syncHistoryAvailability]);
 
   const scrollToTimeline = useCallback(() => {
-    document.getElementById("unified-layer-timeline")?.scrollIntoView({
+    document.getElementById("global-banner-timeline")?.scrollIntoView({
       behavior: "smooth",
       block: "nearest",
     });
@@ -698,7 +698,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             globalPreviewTimeMs={globalPlayheadMs}
             gateLayersByPreviewTime={gatePreviewByTime}
           />
-          <UnifiedLayerTimeline
+          <GlobalBannerTimeline
             state={state}
             selectedLayer={selectedLayer}
             onSelectLayer={(sel) => {

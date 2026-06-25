@@ -2,28 +2,26 @@
 
 import type { BannerEditorState, BannerEditorStateUpdater } from "@/types/editor";
 import {
+  addScene,
   getActiveScene,
   setActiveScene,
 } from "@/lib/animation/storyboard-utils";
 import { totalBannerDurationMs } from "@/lib/animation/global-timeline-utils";
-import { SceneControls } from "./SceneControls";
 
 interface SceneStripProps {
   state: BannerEditorState;
   onUpdate: BannerEditorStateUpdater;
   onSceneSelect?: (sceneId: string) => void;
   playbackSceneId?: string | null;
-  selectedTransitionSceneId?: string | null;
-  onSelectTransition?: (sceneId: string) => void;
   onPreviewTransition?: (sceneId: string) => void;
 }
 
+/** Compact scene navigator — not a timeline. Main editing timeline is GlobalBannerTimeline. */
 export function SceneStrip({
   state,
   onUpdate,
   onSceneSelect,
   playbackSceneId,
-  onPreviewTransition,
 }: SceneStripProps) {
   const scenes = state.scenes ?? [];
   const active = getActiveScene(state);
@@ -41,46 +39,40 @@ export function SceneStrip({
   }
 
   return (
-    <section className="rounded-lg border border-zinc-800/50 bg-zinc-950/40">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/40 px-3 py-1.5">
-        <div>
-          <h2 className="text-[11px] font-medium text-zinc-500">Scény · navigace</h2>
-          <p className="text-[9px] text-zinc-600">
-            {scenes.length} scén · {totalSec} s · přechody upravte v hlavní časové ose
-          </p>
-        </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto px-2 py-2">
+    <nav
+      aria-label="Scény — navigace"
+      className="flex flex-wrap items-center gap-2 rounded-md border border-zinc-800/40 bg-zinc-950/30 px-2 py-1.5"
+    >
+      <span className="shrink-0 text-[10px] font-medium text-zinc-600">Scény / navigace</span>
+      <span className="hidden text-[9px] text-zinc-700 sm:inline">· {totalSec} s celkem</span>
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
         {scenes.map((scene, i) => {
           const isActive = scene.id === highlightId;
-          const durSec = (scene.durationMs / 1000).toFixed(1);
           return (
             <button
               key={scene.id}
               type="button"
               onClick={() => selectScene(scene.id)}
-              className={`shrink-0 rounded-md border px-2.5 py-1 text-left transition-colors ${
+              className={`shrink-0 rounded border px-2 py-0.5 text-[10px] transition-colors ${
                 isActive
-                  ? "border-violet-600/60 bg-violet-950/30 text-violet-200"
-                  : "border-zinc-800/80 bg-zinc-900/40 text-zinc-400 hover:border-zinc-700 hover:text-zinc-300"
+                  ? "border-violet-600/50 bg-violet-950/40 text-violet-200"
+                  : "border-zinc-800/60 bg-zinc-900/30 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300"
               }`}
-              title={`Přejít na začátek scény · ${durSec} s`}
+              title={`Přejít na ${scene.name}`}
             >
-              <span className="text-[10px] font-medium">
-                {i + 1}. {scene.name}
-              </span>
-              <span className="ml-1.5 text-[9px] text-zinc-600">{durSec} s</span>
+              {i + 1}. {scene.name}
             </button>
           );
         })}
       </div>
-      <SceneControls
-        state={state}
-        onUpdate={onUpdate}
-        onPreviewTransition={
-          active ? () => onPreviewTransition?.(active.id) : undefined
-        }
-      />
-    </section>
+      <button
+        type="button"
+        onClick={() => onUpdate(addScene(state))}
+        className="shrink-0 rounded border border-zinc-800/60 px-2 py-0.5 text-[10px] text-zinc-500 hover:border-zinc-700 hover:text-zinc-300"
+        title="Přidat scénu"
+      >
+        + Scéna
+      </button>
+    </nav>
   );
 }
