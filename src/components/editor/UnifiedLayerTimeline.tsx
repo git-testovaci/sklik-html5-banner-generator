@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  buildGlobalTimelineLayerRows,
   buildGlobalTimelineSegments,
-  sceneStartGlobalMs,
+  globalTimelineLayerRowLabel,
   totalBannerDurationMs,
   transitionLabelForScene,
 } from "@/lib/animation/global-timeline-utils";
@@ -12,7 +13,6 @@ import {
   cycleTimelineZoom,
   formatTimelineSeconds,
   getLayerTimelineRange,
-  getTimelineLayersForScene,
   isEditableKeyboardTarget,
   isTimelineLayerSelected,
   isTimelineRowReorderable,
@@ -28,10 +28,10 @@ import {
   timelineTrackWidthPx,
   type TimelineZoomLevel,
 } from "@/lib/animation/layer-timeline-utils";
-import { layerDisplayStackLabel } from "@/lib/animation/layer-instance-utils";
 import {
   getLayerById,
   getActiveScene,
+  getSceneById,
   patchBannerLayerSlice,
   resolveBannerLayerForSelection,
 } from "@/lib/animation/storyboard-utils";
@@ -65,6 +65,7 @@ type DragMode = "move" | "resize-left" | "resize-right" | "phase-in" | "phase-ou
 
 interface DragState {
   layerId: string;
+  sceneId: string;
   mode: DragMode;
   startX: number;
   initialStartMs: number;
@@ -97,7 +98,6 @@ export function UnifiedLayerTimeline({
   onDeleteLayer,
   onUpdate,
 }: UnifiedLayerTimelineProps) {
-  const scene = getActiveScene(state);
   const trackRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLElement>(null);
@@ -123,37 +123,41 @@ export function UnifiedLayerTimeline({
   const [timelineFocused, setTimelineFocused] = useState(false);
   const scrubDragRef = useRef(false);
   const [dragStackLayerId, setDragStackLayerId] = useState<string | null>(null);
+  const [dragStackSceneId, setDragStackSceneId] = useState<string | null>(null);
   const [dropStackIndex, setDropStackIndex] = useState<number | null>(null);
   const dropStackIndexRef = useRef<number | null>(null);
+  const zoomRef = useRef(zoom);
+  const playheadRef = useRef(0);
+
+  const activeScene = getActiveScene(state);
+  const totalDurationMs = totalBannerDurationMs(state);
+  const timelineSegments = buildGlobalTimelineSegments(state);
+  const timelineRows = buildGlobalTimelineLayerRows(state);
+  const trackWidthPx = timelineTrackWidthPx(zoom, totalDurationMs);
+  const maxZoom = TIMELINE_ZOOM_LEVELS[TIMELINE_ZOOM_LEVELS.length - 1]!;
+  const minZoom = TIMELINE_ZOOM_LEVELS[0]!;
+  const ticks = buildRulerTicks(totalDurationMs, zoom);
+  const displayPlayheadMs = isPlaying ? playheadMs : (livePlayheadMs ?? playheadMs);
+  const playheadPct =
+    totalDurationMs > 0 ? (displayPlayheadMs / totalDurationMs) * 100 : 0;
 
   function patchLayer(layerId: string, patch: Partial<BannerLayer>) {
     onUpdate?.((prev) => patchBannerLayerSlice(prev, layerId, patch));
   }
 
-  const resolveStackDropIndex = useCallback((clientY: number): number => {
+  const resolveStackDropIndex = useCallback((clientY: number, sceneId: string): number => {
     const rows = rowsRef.current?.querySelectorAll("[data-timeline-row]");
     if (!rows || rows.length === 0) return 0;
+    let sceneIndex = 0;
     for (let i = 0; i < rows.length; i++) {
-      const rect = rows[i]!.getBoundingClientRect();
-      if (clientY < rect.top + rect.height / 2) return i;
+      const row = rows[i] as HTMLElement;
+      if (row.dataset.sceneId !== sceneId) continue;
+      const rect = row.getBoundingClientRect();
+      if (clientY < rect.top + rect.height / 2) return sceneIndex;
+      sceneIndex++;
     }
-    return rows.length;
+    return sceneIndex;
   }, []);
-
-  const sceneDurationMs = scene?.durationMs ?? 3000;
-  const totalDurationMs = totalBannerDurationMs(state);
-  const sceneStartMs = scene ? sceneStartGlobalMs(state, scene.id) : 0;
-  const timelineSegments = buildGlobalTimelineSegments(state);
-  const trackWidthPx = timelineTrackWidthPx(zoom, totalDurationMs);
-  const maxZoom = TIMELINE_ZOOM_LEVELS[TIMELINE_ZOOM_LEVELS.length - 1]!;
-  const minZoom = TIMELINE_ZOOM_LEVELS[0]!;
-  const layers = scene ? getTimelineLayersForScene(state, scene.id) : [];
-  const ticks = buildRulerTicks(totalDurationMs, zoom);
-  const displayPlayheadMs = isPlaying ? playheadMs : (livePlayheadMs ?? playheadMs);
-  const playheadPct =
-    totalDurationMs > 0 ? (displayPlayheadMs / totalDurationMs) * 100 : 0;
-  const zoomRef = useRef(zoom);
-  const playheadRef = useRef(displayPlayheadMs);
 
   useEffect(() => {
     zoomRef.current = zoom;
@@ -182,20 +186,23 @@ export function UnifiedLayerTimeline({
   const selectedBannerLayer = resolveBannerLayerForSelection(state, selectedLayer);
 
   useEffect(() => {
-    if (!dragStackLayerId || !scene) return;
+    if (!dragStackLayerId || !dragStackSceneId) return;
+    const stackSceneId = dragStackSceneId;
+    const stackLayerId = dragStackLayerId;
 
     function onMove(e: PointerEvent) {
-      const idx = resolveStackDropIndex(e.clientY);
+      const idx = resolveStackDropIndex(e.clientY, stackSceneId);
       dropStackIndexRef.current = idx;
       setDropStackIndex(idx);
     }
 
     function onUp() {
       const targetIdx = dropStackIndexRef.current;
-      if (dragStackLayerId != null && targetIdx != null) {
-        onUpdate?.((prev) => moveLayerInSceneStack(prev, scene!.id, dragStackLayerId, targetIdx));
+      if (targetIdx != null) {
+        onUpdate?.((prev) => moveLayerInSceneStack(prev, stackSceneId, stackLayerId, targetIdx));
       }
       setDragStackLayerId(null);
+      setDragStackSceneId(null);
       setDropStackIndex(null);
       dropStackIndexRef.current = null;
     }
@@ -208,14 +215,15 @@ export function UnifiedLayerTimeline({
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
     };
-  }, [dragStackLayerId, scene, state, onUpdate, resolveStackDropIndex]);
+  }, [dragStackLayerId, dragStackSceneId, onUpdate, resolveStackDropIndex]);
 
-  const getRange = (layerId: string) => {
+  const getRange = (layerId: string, sceneId: string) => {
     if (liveRange?.layerId === layerId) {
       return { startMs: liveRange.startMs, durationMs: liveRange.durationMs };
     }
-    if (!scene) return { startMs: 0, durationMs: sceneDurationMs };
-    return getLayerTimelineRange(state, scene.id, layerId);
+    const scene = getSceneById(state, sceneId);
+    if (!scene) return { startMs: 0, durationMs: 3000 };
+    return getLayerTimelineRange(state, sceneId, layerId);
   };
 
   const finishDrag = useCallback(
@@ -248,8 +256,8 @@ export function UnifiedLayerTimeline({
   useEffect(() => {
     function onMove(e: PointerEvent) {
       const drag = dragRef.current;
-      const sceneDur = scene?.durationMs ?? 3000;
-      if (!drag || !scene) return;
+      if (!drag) return;
+      const sceneDur = getSceneById(state, drag.sceneId)?.durationMs ?? 3000;
 
       const dx = e.clientX - drag.startX;
       const dMs = (dx / drag.trackWidth) * totalDurationMs;
@@ -322,7 +330,7 @@ export function UnifiedLayerTimeline({
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
     };
-  }, [finishDrag, finishPhaseDrag, scene, totalDurationMs]);
+  }, [finishDrag, finishPhaseDrag, state, totalDurationMs]);
 
   useEffect(() => {
     function scrubFromX(clientX: number) {
@@ -428,6 +436,7 @@ export function UnifiedLayerTimeline({
   function startBlockDrag(
     e: React.PointerEvent,
     layerId: string,
+    sceneId: string,
     mode: DragMode,
   ) {
     e.preventDefault();
@@ -439,11 +448,12 @@ export function UnifiedLayerTimeline({
       return;
     }
     const track = trackRef.current;
-    if (!track || !scene) return;
-    const range = getLayerTimelineRange(state, scene.id, layerId);
-    const segments = getLayerPhaseSegments(state, scene.id, layerId);
+    if (!track) return;
+    const range = getLayerTimelineRange(state, sceneId, layerId);
+    const segments = getLayerPhaseSegments(state, sceneId, layerId);
     dragRef.current = {
       layerId,
+      sceneId,
       mode,
       startX: e.clientX,
       initialStartMs: range.startMs,
@@ -459,9 +469,8 @@ export function UnifiedLayerTimeline({
     }
   }
 
-  function getPhaseSegments(layerId: string) {
-    if (!scene) return getLayerPhaseSegments(state, "", layerId);
-    const base = getLayerPhaseSegments(state, scene.id, layerId);
+  function getPhaseSegments(layerId: string, sceneId: string) {
+    const base = getLayerPhaseSegments(state, sceneId, layerId);
     if (livePhase?.layerId === layerId) {
       return {
         ...base,
@@ -498,22 +507,30 @@ export function UnifiedLayerTimeline({
     );
   }
 
-  function renderPlayhead() {
+  function renderPlayheadLine(showHandle = false) {
     return (
       <div
-        data-playhead-handle
-        className="absolute top-0 z-30 h-full cursor-ew-resize touch-none"
+        data-playhead-handle={showHandle ? true : undefined}
+        className={`absolute top-0 z-30 h-full ${showHandle ? "cursor-ew-resize touch-none" : "pointer-events-none"}`}
         style={{ left: `${Math.min(100, playheadPct)}%`, transform: "translateX(-50%)" }}
-        title={`Posun přehrávání · táhněte pro posun`}
-        onPointerDown={startScrubDrag}
-        aria-label="Posun přehrávání"
+        title={showHandle ? "Posun přehrávání · táhněte pro posun" : undefined}
+        onPointerDown={showHandle ? startScrubDrag : undefined}
+        aria-hidden={!showHandle}
       >
-        <div className="absolute -left-5 top-0 h-full w-10" aria-hidden />
-        <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2">
-          <div className="h-0 w-0 border-x-[5px] border-t-[7px] border-x-transparent border-t-violet-400 drop-shadow-[0_0_4px_rgba(167,139,250,0.9)]" />
-        </div>
-        <div className="pointer-events-none absolute top-[7px] bottom-0 left-1/2 w-0.5 -translate-x-1/2 bg-violet-400 shadow-[0_0_6px_rgba(167,139,250,0.85)]" />
-        {livePlayheadMs != null ? (
+        {showHandle ? (
+          <>
+            <div className="absolute -left-5 top-0 h-full w-10" aria-hidden />
+            <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2">
+              <div className="h-0 w-0 border-x-[5px] border-t-[7px] border-x-transparent border-t-violet-400 drop-shadow-[0_0_4px_rgba(167,139,250,0.9)]" />
+            </div>
+          </>
+        ) : null}
+        <div
+          className={`absolute left-1/2 -translate-x-1/2 bg-violet-400 shadow-[0_0_6px_rgba(167,139,250,0.85)] ${
+            showHandle ? "top-[7px] bottom-0 w-0.5" : "top-0 bottom-0 w-px opacity-70"
+          }`}
+        />
+        {showHandle && livePlayheadMs != null ? (
           <span className="pointer-events-none absolute -top-5 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded bg-violet-600 px-1.5 py-0.5 text-[9px] font-semibold text-white shadow">
             {formatTimelineSeconds(displayPlayheadMs)}
           </span>
@@ -522,7 +539,34 @@ export function UnifiedLayerTimeline({
     );
   }
 
-  if (!scene) {
+  function renderSceneBoundaryGuides() {
+    return timelineSegments.flatMap((seg) => {
+      const startPct =
+        totalDurationMs > 0 ? (seg.startGlobalMs / totalDurationMs) * 100 : 0;
+      const endPct =
+        totalDurationMs > 0 ? (seg.endGlobalMs / totalDurationMs) * 100 : 0;
+      return [
+        <div
+          key={`scene-start-${seg.sceneId}`}
+          className="pointer-events-none absolute top-0 bottom-0 border-l border-dashed border-zinc-600/35"
+          style={{ left: `${startPct}%` }}
+        />,
+        seg.index === timelineSegments.length - 1 ? (
+          <div
+            key={`scene-end-${seg.sceneId}`}
+            className="pointer-events-none absolute top-0 bottom-0 border-l border-dashed border-zinc-600/35"
+            style={{ left: `${endPct}%` }}
+          />
+        ) : null,
+      ];
+    });
+  }
+
+  function renderPlayhead() {
+    return renderPlayheadLine(true);
+  }
+
+  if ((state.scenes ?? []).length === 0) {
     return (
       <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 px-4 py-6 text-center">
         <p className="text-xs text-zinc-500">Scéna není k dispozici.</p>
@@ -553,7 +597,7 @@ export function UnifiedLayerTimeline({
           <div className="min-w-0">
             <h2 className="text-sm font-medium text-zinc-200">Časová osa banneru</h2>
             <p className="text-[10px] text-zinc-500">
-              {scene.name} · vrstvy scény na globální ose
+              {timelineSegments.length} scén · {timelineRows.length} vrstev · celý banner
               {isPlaying ? " · přehrávání" : ""}
             </p>
           </div>
@@ -602,7 +646,7 @@ export function UnifiedLayerTimeline({
           </div>
         </div>
         <p className="mt-1.5 text-[10px] text-zinc-600">
-          Nahoře = vpředu na plátně · Ctrl + kolečko = zoom · Táhněte blok pro změnu času
+          Všechny scény a vrstvy na jedné ose · Ctrl + kolečko = zoom · Táhněte blok pro změnu času
         </p>
       </div>
 
@@ -665,7 +709,7 @@ export function UnifiedLayerTimeline({
                       totalDurationMs > 0 ? (seg.startGlobalMs / totalDurationMs) * 100 : 0;
                     const widthPct =
                       totalDurationMs > 0 ? (seg.durationMs / totalDurationMs) * 100 : 0;
-                    const isActiveScene = scene.id === seg.sceneId;
+                    const isActiveScene = activeScene?.id === seg.sceneId;
                     const sceneObj = state.scenes?.find((s) => s.id === seg.sceneId);
                     return (
                       <div key={seg.sceneId}>
@@ -711,13 +755,14 @@ export function UnifiedLayerTimeline({
                       </div>
                     );
                   })}
+                  {renderPlayheadLine(false)}
                 </>,
                 "bg-zinc-900/15",
               )}
             </div>
           ) : null}
 
-          {layers.length === 0 ? (
+          {timelineRows.length === 0 ? (
             <div className="px-4 py-10 text-center">
               <p className="text-xs font-medium text-zinc-400">Časová osa je prázdná</p>
               <p className="mt-2 text-xs leading-relaxed text-zinc-500">
@@ -728,38 +773,47 @@ export function UnifiedLayerTimeline({
             </div>
           ) : (
             <div ref={rowsRef}>
-            {layers.map((layer, index) => {
-              const range = getRange(layer.id);
-              const globalStartMs = sceneStartMs + range.startMs;
+            {timelineRows.map((row, index) => {
+              const { layer, sceneId, sceneName } = row;
+              const range = getRange(layer.id, sceneId);
+              const globalStartMs = row.sceneStartGlobalMs + range.startMs;
               const leftPct =
                 totalDurationMs > 0 ? (globalStartMs / totalDurationMs) * 100 : 0;
               const widthPct =
                 totalDurationMs > 0 ? (range.durationMs / totalDurationMs) * 100 : 100;
               const selected = isTimelineLayerSelected(selectedLayer, layer);
               const blockColor = layerTimelineBlockColor(layer);
-              const segments = getPhaseSegments(layer.id);
+              const segments = getPhaseSegments(layer.id, sceneId);
               const blockDur = range.durationMs;
               const inPct = blockDur > 0 ? (segments.inDurationMs / blockDur) * 100 : 0;
               const outPct = blockDur > 0 ? (segments.outDurationMs / blockDur) * 100 : 0;
               const midPct = Math.max(0, 100 - inPct - outPct);
               const blockTitle = layerBlockTooltip(layer, range);
-              const rowLabel = layerDisplayStackLabel(layer, state);
+              const rowLabel = globalTimelineLayerRowLabel(sceneName, layer);
               const canReorder = isTimelineRowReorderable(layer);
               const isStackDragging = dragStackLayerId === layer.id;
+              const sceneRowIndex = timelineRows
+                .slice(0, index)
+                .filter((r) => r.sceneId === sceneId).length;
               const isDropTarget =
-                dropStackIndex === index &&
+                dropStackIndex === sceneRowIndex &&
+                dragStackSceneId === sceneId &&
                 dragStackLayerId != null &&
                 dragStackLayerId !== layer.id;
+              const isActiveSceneRow = activeScene?.id === sceneId;
 
               return (
                 <div
                   key={layer.id}
                   data-timeline-row
+                  data-scene-id={sceneId}
                   className={`flex border-b border-zinc-800/30 ${
                     selected ? "bg-violet-950/30 ring-1 ring-inset ring-violet-700/40" : ""
                   } ${!layer.visible ? "opacity-45" : ""} ${
                     isDropTarget ? "ring-1 ring-inset ring-violet-500/70" : ""
-                  } ${isStackDragging ? "opacity-50" : ""}`}
+                  } ${isStackDragging ? "opacity-50" : ""} ${
+                    !isActiveSceneRow ? "opacity-90" : ""
+                  }`}
                   style={{ height: TIMELINE_ROW_HEIGHT_PX }}
                 >
                   <div
@@ -778,8 +832,9 @@ export function UnifiedLayerTimeline({
                           e.preventDefault();
                           e.stopPropagation();
                           setDragStackLayerId(layer.id);
-                          setDropStackIndex(index);
-                          dropStackIndexRef.current = index;
+                          setDragStackSceneId(sceneId);
+                          setDropStackIndex(sceneRowIndex);
+                          dropStackIndexRef.current = sceneRowIndex;
                           onSelectLayer(selectionForBannerLayer(layer));
                         }}
                       >
@@ -870,6 +925,9 @@ export function UnifiedLayerTimeline({
                   </div>
 
                   {renderTrackArea(
+                    <>
+                      {renderSceneBoundaryGuides()}
+                      {renderPlayheadLine(false)}
                     <div
                       data-layer-block
                       className={`absolute top-1.5 flex h-[calc(100%-12px)] items-center rounded-md border border-white/10 ${
@@ -891,7 +949,7 @@ export function UnifiedLayerTimeline({
                           onSelectLayer(selectionForBannerLayer(layer));
                           return;
                         }
-                        startBlockDrag(e, layer.id, "move");
+                        startBlockDrag(e, layer.id, sceneId, "move");
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -904,7 +962,7 @@ export function UnifiedLayerTimeline({
                           title="Upravit začátek bloku"
                           onPointerDown={(e) => {
                             e.stopPropagation();
-                            startBlockDrag(e, layer.id, "resize-left");
+                            startBlockDrag(e, layer.id, sceneId, "resize-left");
                           }}
                         />
                       ) : null}
@@ -946,7 +1004,7 @@ export function UnifiedLayerTimeline({
                           title="Konec animace dopředu"
                           onPointerDown={(e) => {
                             e.stopPropagation();
-                            startBlockDrag(e, layer.id, "phase-in");
+                            startBlockDrag(e, layer.id, sceneId, "phase-in");
                           }}
                         />
                       ) : null}
@@ -957,7 +1015,7 @@ export function UnifiedLayerTimeline({
                           title="Začátek animace dozadu"
                           onPointerDown={(e) => {
                             e.stopPropagation();
-                            startBlockDrag(e, layer.id, "phase-out");
+                            startBlockDrag(e, layer.id, sceneId, "phase-out");
                           }}
                         />
                       ) : null}
@@ -972,11 +1030,12 @@ export function UnifiedLayerTimeline({
                           title="Upravit konec bloku"
                           onPointerDown={(e) => {
                             e.stopPropagation();
-                            startBlockDrag(e, layer.id, "resize-right");
+                            startBlockDrag(e, layer.id, sceneId, "resize-right");
                           }}
                         />
                       ) : null}
-                    </div>,
+                    </div>
+                    </>,
                   )}
                 </div>
               );

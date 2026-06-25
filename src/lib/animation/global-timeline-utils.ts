@@ -1,4 +1,4 @@
-import type { BannerScene, BannerSceneTransition } from "@/types/animation";
+import type { BannerLayer, BannerScene, BannerSceneTransition } from "@/types/animation";
 import type { BannerEditorState } from "@/types/editor";
 import {
   getSceneTransitionDurationMs,
@@ -6,6 +6,11 @@ import {
   totalStoryboardDurationMs,
 } from "@/lib/animation/storyboard-utils";
 import { transitionFriendlyLabel } from "@/lib/animation/effect-labels";
+import {
+  getLayerTimelineRange,
+  getTimelineLayersForScene,
+  layerTimelineLabel,
+} from "@/lib/animation/layer-timeline-utils";
 
 export interface GlobalTimelineSceneSegment {
   sceneId: string;
@@ -138,4 +143,58 @@ export function isInTransitionRange(
     }
   }
   return false;
+}
+
+export interface GlobalTimelineLayerRow {
+  layer: BannerLayer;
+  sceneId: string;
+  sceneName: string;
+  sceneIndex: number;
+  sceneStartGlobalMs: number;
+  sceneDurationMs: number;
+  localStartMs: number;
+  localDurationMs: number;
+  globalStartMs: number;
+  globalDurationMs: number;
+}
+
+/** All editable layer rows across every scene, with global timeline positions. */
+export function buildGlobalTimelineLayerRows(
+  state: BannerEditorState,
+): GlobalTimelineLayerRow[] {
+  const rows: GlobalTimelineLayerRow[] = [];
+  for (const [index, scene] of (state.scenes ?? []).entries()) {
+    const sceneStart = sceneStartGlobalMs(state, scene.id);
+    for (const layer of getTimelineLayersForScene(state, scene.id)) {
+      const range = getLayerTimelineRange(state, scene.id, layer.id);
+      rows.push({
+        layer,
+        sceneId: scene.id,
+        sceneName: scene.name,
+        sceneIndex: index,
+        sceneStartGlobalMs: sceneStart,
+        sceneDurationMs: scene.durationMs,
+        localStartMs: range.startMs,
+        localDurationMs: range.durationMs,
+        globalStartMs: sceneStart + range.startMs,
+        globalDurationMs: range.durationMs,
+      });
+    }
+  }
+  return rows;
+}
+
+export function globalTimelineLayerRowLabel(
+  sceneName: string,
+  layer: BannerLayer,
+): string {
+  return `${sceneName} · ${layerTimelineLabel(layer)}`;
+}
+
+export function resolveLayerSceneId(
+  state: BannerEditorState,
+  layerId: string,
+): string | null {
+  const layer = (state.bannerLayers ?? []).find((l) => l.id === layerId);
+  return layer?.sceneId ?? null;
 }

@@ -22,6 +22,7 @@ import {
 } from "@/lib/animation/storyboard-utils";
 import {
   playbackSceneIdAtGlobalMs,
+  resolveLayerSceneId,
   sceneAtGlobalMs,
   sceneStartGlobalMs,
   totalBannerDurationMs,
@@ -703,6 +704,10 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             onSelectLayer={(sel) => {
               setSelectedLayer(sel);
               setSelectedEffectId(null);
+              const layer = resolveBannerLayerForSelection(state, sel);
+              if (layer?.sceneId && layer.sceneId !== state.activeSceneId) {
+                onUpdate(setActiveScene(state, layer.sceneId), { history: "skip" });
+              }
             }}
             playheadMs={globalPlayheadMs}
             isPlaying={playback.isPlaying}
@@ -710,7 +715,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
               if (!playback.isPlaying) setScrubTimeMs(ms);
             }}
             onRangeChange={(layerId, startMs, durationMs) => {
-              const sceneId = activeScene?.id;
+              const sceneId = resolveLayerSceneId(state, layerId);
               if (!sceneId) return;
               onUpdate(
                 (prev) => updateLayerTimelineRange(prev, sceneId, layerId, startMs, durationMs),
@@ -718,7 +723,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
               );
             }}
             onPhaseDurationChange={(layerId, phase, durationMs) => {
-              const sceneId = activeScene?.id;
+              const sceneId = resolveLayerSceneId(state, layerId);
               if (!sceneId) return;
               onUpdate(
                 (prev) => updateLayerPhaseDuration(prev, sceneId, layerId, phase, durationMs),
@@ -726,7 +731,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
               );
             }}
             onNudgeLayer={(layerId, deltaMs) => {
-              const sceneId = activeScene?.id;
+              const sceneId = resolveLayerSceneId(state, layerId);
               if (!sceneId) return;
               onUpdate((prev) => nudgeLayerTimelineStart(prev, sceneId, layerId, deltaMs));
             }}
@@ -741,11 +746,6 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             playbackSceneId={
               playback.mode !== "idle" ? playback.playbackSceneId : null
             }
-            selectedTransitionSceneId={selectedTransitionSceneId}
-            onSelectTransition={(sceneId) => {
-              setSelectedTransitionSceneId(sceneId);
-              setSelectedEffectId(null);
-            }}
             onPreviewTransition={handlePreviewTransition}
           />
         </div>
