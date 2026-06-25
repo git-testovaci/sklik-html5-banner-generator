@@ -4,6 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BannerScene } from "@/types/animation";
 import type { PlaybackControllerSnapshot, PlaybackMode } from "@/types/playback";
 import { getSceneTransitionDurationMs } from "@/lib/animation/storyboard-utils";
+import {
+  clampGlobalPlaybackTime,
+  playbackSceneIdAtGlobalTime,
+} from "@/lib/animation/editor-playback-time";
 
 export interface UsePlaybackControllerOptions {
   scenes: BannerScene[] | undefined;
@@ -13,10 +17,10 @@ export interface UsePlaybackControllerOptions {
 }
 
 export interface PlaybackController extends PlaybackControllerSnapshot {
-  playAll: () => void;
-  replayScene: () => void;
+  playAll: (startMs?: number) => void;
+  replayScene: (startMs?: number) => void;
   pause: () => void;
-  resume: () => void;
+  resume: (startMs?: number) => void;
   stop: () => void;
   previewSceneTransition: () => void;
 }
@@ -131,22 +135,26 @@ export function usePlaybackController(
     scenesList,
   ]);
 
-  const playAll = useCallback(() => {
-    elapsedRef.current = 0;
-    setPlaybackTimeMs(0);
-    setPlaybackSceneId(scenesList[0]?.id ?? null);
+  const playAll = useCallback((startMs = 0) => {
+    const clamped = clampGlobalPlaybackTime(scenesList, startMs);
+    elapsedRef.current = clamped;
+    setPlaybackTimeMs(clamped);
+    setPlaybackSceneId(playbackSceneIdAtGlobalTime(scenesList, clamped));
     setReplayKey((k) => k + 1);
     setMode("playing-all");
   }, [scenesList]);
 
-  const replayScene = useCallback(() => {
-    elapsedRef.current = 0;
+  const replayScene = useCallback((startMs = 0) => {
     const sceneId = options.activeSceneId ?? scenesList[0]?.id ?? null;
-    setPlaybackTimeMs(0);
+    const scene = scenesList.find((s) => s.id === sceneId);
+    const duration = scene?.durationMs ?? options.timelineDurationMs;
+    const clamped = Math.max(0, Math.min(duration, startMs));
+    elapsedRef.current = clamped;
+    setPlaybackTimeMs(clamped);
     setPlaybackSceneId(sceneId);
     setReplayKey((k) => k + 1);
     setMode("playing-scene");
-  }, [options.activeSceneId, scenesList]);
+  }, [options.activeSceneId, options.timelineDurationMs, scenesList]);
 
   const pause = useCallback(() => {
     if (mode !== "playing-all" && mode !== "playing-scene") return;
@@ -155,10 +163,17 @@ export function usePlaybackController(
     setMode("paused");
   }, [mode, cancelRaf]);
 
-  const resume = useCallback(() => {
+  const resume = useCallback((startMs?: number) => {
     if (mode !== "paused") return;
+    if (startMs !== undefined) {
+      elapsedRef.current = startMs;
+      setPlaybackTimeMs(startMs);
+      if (pausedFrom === "playing-all") {
+        setPlaybackSceneId(playbackSceneIdAtGlobalTime(scenesList, startMs));
+      }
+    }
     setMode(pausedFrom);
-  }, [mode, pausedFrom]);
+  }, [mode, pausedFrom, scenesList]);
 
   const stop = useCallback(() => {
     cancelRaf();

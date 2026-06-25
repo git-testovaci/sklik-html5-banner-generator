@@ -138,8 +138,10 @@ function isAssetPlacementSelected(
   bannerLayerId?: string,
 ): boolean {
   if (!selected || selected.type !== "asset") return false;
-  if (bannerLayerId && selected.id === bannerLayerId) return true;
-  if (selected.id === assetId) return true;
+  if (bannerLayerId) return selected.id === bannerLayerId;
+  if (selected.id === assetId) {
+    return storyboardLayers.filter((l) => l.assetId === assetId).length === 1;
+  }
   return storyboardLayers.some(
     (l) => l.id === selected.id && l.assetId === assetId,
   );
@@ -242,6 +244,7 @@ function CanvasContent({
   const storyboardLayers = getLayersForScene(state, sceneId);
   const scrubMode =
     gateLayersByPreviewTime && previewTimeMs != null && interactive;
+  const suppressCssAnimations = scrubMode;
 
   function layerInteraction(bannerLayerId: string | undefined) {
     const layer = bannerLayerId ? getLayerById(state, bannerLayerId) : undefined;
@@ -300,6 +303,7 @@ function CanvasContent({
   }
 
   const animationCss = useMemo(() => {
+    if (suppressCssAnimations) return "";
     const slice = buildFlatSliceForScene(state, sceneId);
     const anims = slice.layerAnimations ?? [];
     const keyframes = collectLayerKeyframes(anims, false, replayKey);
@@ -352,6 +356,7 @@ function CanvasContent({
     sceneId,
     loopPreview,
     replayKey,
+    suppressCssAnimations,
   ]);
 
   return (
@@ -535,14 +540,15 @@ function CanvasContent({
         if (!layer.visible) return null;
         if (!layerVisibleAtPreview(layer.id)) return null;
         if (layer.type === "particle") {
+          if (scrubMode) return null;
           return <ParticleRender key={`${sceneId}-${layer.id}`} layer={layer} replayKey={replayKey} />;
         }
         if (layer.type === "underline") {
-          const cls = `underline-${layer.id}-${replayKey}`;
+          const cls = scrubMode ? undefined : `underline-${layer.id}-${replayKey}`;
           const dur = layer.drawDurationMs ?? 600;
           return (
             <div key={`${sceneId}-${layer.id}`}>
-              <style>{underlineDrawKeyframes(cls, dur)}</style>
+              {cls ? <style>{underlineDrawKeyframes(cls, dur)}</style> : null}
               <InteractiveCanvasLayer
                 selected={selectedLayer?.type === "asset" && selectedLayer.id === layer.id}
                 interactive={interactive}
@@ -556,7 +562,7 @@ function CanvasContent({
                 bannerHeight={state.height}
                 canvasScale={canvasScale}
                 replayKey={replayKey}
-                animClassName={interactive ? "" : cls}
+                animClassName={interactive || !cls ? "" : cls}
                 onSelect={() => onSelectLayer?.({ type: "asset", id: layer.id })}
                 onPlacementChange={(patch) => onUpdateStoryboardLayer?.(layer.id, patch)}
               >

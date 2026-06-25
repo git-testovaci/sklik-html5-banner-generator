@@ -20,6 +20,7 @@ import {
   setActiveScene,
 } from "@/lib/animation/storyboard-utils";
 import { nudgeLayerTimelineStart, updateLayerTimelineRange } from "@/lib/animation/layer-timeline-utils";
+import { globalPlaybackTimeFromSceneLocal } from "@/lib/animation/editor-playback-time";
 import { updateLayerPhaseDuration } from "@/lib/animation/layer-phase-utils";
 import { createQuickLayer, type QuickAddLayerType } from "@/lib/animation/layer-factory";
 import { selectionForBannerLayer } from "@/lib/animation/layer-timeline-utils";
@@ -123,6 +124,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   const [scrubTimeMs, setScrubTimeMs] = useState(0);
   const [dismissedGuidanceId, setDismissedGuidanceId] = useState<string | null>(null);
   const copiedLayerIdRef = useRef<string | null>(null);
+  const wasPlayingRef = useRef(false);
   const historyRef = useRef<EditorHistoryStacks>(createEmptyHistoryStacks());
   const historyCoalesceRef = useRef(false);
   const historyCoalesceAtRef = useRef(0);
@@ -152,10 +154,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   const localPreviewTimeMs = useMemo(() => {
     const sceneId = activeScene?.id;
     if (!sceneId) return scrubTimeMs;
-    if (
-      playback.isPlaying &&
-      playback.playbackSceneId === sceneId
-    ) {
+    if (playback.isPlaying) {
       return sceneLocalPlaybackTime(
         playback.playbackTimeMs,
         state.scenes ?? [],
@@ -168,7 +167,6 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
     activeScene?.id,
     playback.isPlaying,
     playback.playbackTimeMs,
-    playback.playbackSceneId,
     playback.playAllView,
     scrubTimeMs,
     state.scenes,
@@ -176,9 +174,32 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
 
   const gatePreviewByTime = !playback.isPlaying;
 
+  useEffect(() => {
+    const wasPlaying = wasPlayingRef.current;
+    wasPlayingRef.current = playback.isPlaying;
+    if (wasPlaying && playback.isPaused && activeScene?.id) {
+      setScrubTimeMs(
+        sceneLocalPlaybackTime(
+          playback.playbackTimeMs,
+          state.scenes ?? [],
+          activeScene.id,
+          playback.playAllView,
+        ),
+      );
+    }
+  }, [
+    activeScene?.id,
+    playback.isPaused,
+    playback.isPlaying,
+    playback.playbackTimeMs,
+    playback.playAllView,
+    state.scenes,
+  ]);
+
   const onUpdate = useCallback<BannerEditorStateUpdater>((patch, options) => {
     setState((prev) => {
-      const next = mergeEditorPatch(prev, patch);
+      const partial = typeof patch === "function" ? patch(prev) : patch;
+      const next = mergeEditorPatch(prev, partial);
       if (editorStatesEqual(prev, next)) {
         return prev;
       }
@@ -390,16 +411,37 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   }
 
   function handlePlayAll() {
-    playback.playAll();
+    const sceneId = activeScene?.id ?? state.scenes?.[0]?.id;
+    const startMs =
+      sceneId != null
+        ? globalPlaybackTimeFromSceneLocal(state.scenes ?? [], sceneId, scrubTimeMs)
+        : 0;
+    playback.playAll(startMs);
   }
 
   function handleReplayScene() {
-    playback.replayScene();
+    playback.replayScene(scrubTimeMs);
+  }
+
+  function handleStopPlayback() {
+    playback.stop();
+    setScrubTimeMs(0);
+  }
+
+  function handleResumePlayback() {
+    const sceneId = activeScene?.id;
+    if (!sceneId) {
+      playback.resume();
+      return;
+    }
+    const resumeMs = playback.playAllView
+      ? globalPlaybackTimeFromSceneLocal(state.scenes ?? [], sceneId, scrubTimeMs)
+      : scrubTimeMs;
+    playback.resume(resumeMs);
   }
 
   function handleSceneSelect(sceneId: string) {
-    playback.stop();
-    setScrubTimeMs(0);
+    handleStopPlayback();
     onUpdate(setActiveScene(state, sceneId), { history: "skip" });
     setSelectedEffectId(null);
     setSelectedTransitionSceneId(null);
@@ -515,7 +557,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
         const sceneId = findFirstTransitionSceneNeedingAttention(state);
         if (sceneId) {
           setSelectedTransitionSceneId(sceneId);
-          onUpdate(setActiveScene(state, sceneId));
+          onUpdate(setActiveScene(state, sceneId), { history: "skip" });
         }
         setSelectedEffectId(null);
         break;
@@ -631,7 +673,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
                 setSelectedEffectId(null);
                 setSelectedTransitionSceneId(null);
                 setScrubTimeMs(0);
-                playback.stop();
+                handleStopPlayback();
                 if (meta?.switchToAssets) setLeftTab("assets");
                 if (meta?.message) {
                   setPlacementMessage(meta.message);
@@ -655,6 +697,9 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             playback={playback}
             onPlayAll={handlePlayAll}
             onReplayScene={handleReplayScene}
+            onPause={playback.pause}
+            onResume={handleResumePlayback}
+            onStop={handleStopPlayback}
             onQuickAdd={handleQuickAdd}
             onSlotActivate={handleSlotActivate}
             previewTimeMs={localPreviewTimeMs}
@@ -675,21 +720,23 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             onRangeChange={(layerId, startMs, durationMs) => {
               const sceneId = activeScene?.id;
               if (!sceneId) return;
-              onUpdate(updateLayerTimelineRange(state, sceneId, layerId, startMs, durationMs), {
-                history: "replace",
-              });
+              onUpdate(
+                (prev) => updateLayerTimelineRange(prev, sceneId, layerId, startMs, durationMs),
+                { history: "replace" },
+              );
             }}
             onPhaseDurationChange={(layerId, phase, durationMs) => {
               const sceneId = activeScene?.id;
               if (!sceneId) return;
-              onUpdate(updateLayerPhaseDuration(state, sceneId, layerId, phase, durationMs), {
-                history: "replace",
-              });
+              onUpdate(
+                (prev) => updateLayerPhaseDuration(prev, sceneId, layerId, phase, durationMs),
+                { history: "replace" },
+              );
             }}
             onNudgeLayer={(layerId, deltaMs) => {
               const sceneId = activeScene?.id;
               if (!sceneId) return;
-              onUpdate(nudgeLayerTimelineStart(state, sceneId, layerId, deltaMs));
+              onUpdate((prev) => nudgeLayerTimelineStart(prev, sceneId, layerId, deltaMs));
             }}
             onDuplicateLayer={handleDuplicateLayer}
             onDeleteLayer={handleDeleteLayer}
