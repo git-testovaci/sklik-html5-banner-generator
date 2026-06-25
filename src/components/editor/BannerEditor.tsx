@@ -15,13 +15,18 @@ import {
   getActiveScene,
   getLayerById,
   getSceneById,
+  getSceneTransitionDurationMs,
   removeLayerFromEditor,
   resolveBannerLayerForSelection,
-  sceneLocalPlaybackTime,
   setActiveScene,
 } from "@/lib/animation/storyboard-utils";
+import {
+  playbackSceneIdAtGlobalMs,
+  sceneAtGlobalMs,
+  sceneStartGlobalMs,
+  totalBannerDurationMs,
+} from "@/lib/animation/global-timeline-utils";
 import { nudgeLayerTimelineStart, updateLayerTimelineRange } from "@/lib/animation/layer-timeline-utils";
-import { globalPlaybackTimeFromSceneLocal } from "@/lib/animation/editor-playback-time";
 import { updateLayerPhaseDuration } from "@/lib/animation/layer-phase-utils";
 import { createQuickLayer, type QuickAddLayerType } from "@/lib/animation/layer-factory";
 import { selectionForBannerLayer } from "@/lib/animation/layer-timeline-utils";
@@ -143,35 +148,31 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
       ? workflowGuidance
       : null;
 
+  const totalDurationMs = totalBannerDurationMs(state);
+
+  const resolveSceneAtGlobal = useCallback(
+    (globalMs: number) => playbackSceneIdAtGlobalMs(state, globalMs),
+    [state],
+  );
+
   const playback = usePlaybackController({
-    scenes: state.scenes,
+    totalDurationMs,
     loop: state.timeline?.loop ?? false,
-    timelineDurationMs: state.timeline?.durationMs ?? 3000,
-    activeSceneId: state.activeSceneId,
+    resolveSceneIdAtGlobalMs: resolveSceneAtGlobal,
   });
 
   const activeScene = getActiveScene(state);
 
-  const localPreviewTimeMs = useMemo(() => {
-    const sceneId = activeScene?.id;
-    if (!sceneId) return scrubTimeMs;
-    if (playback.isPlaying) {
-      return sceneLocalPlaybackTime(
-        playback.playbackTimeMs,
-        state.scenes ?? [],
-        sceneId,
-        playback.playAllView,
-      );
-    }
-    return scrubTimeMs;
-  }, [
-    activeScene?.id,
-    playback.isPlaying,
-    playback.playbackTimeMs,
-    playback.playAllView,
-    scrubTimeMs,
-    state.scenes,
-  ]);
+  /** Global banner playhead — single source of truth for timeline + preview. */
+  const globalPlayheadMs = playback.isPlaying ? playback.playbackTimeMs : scrubTimeMs;
+
+  const previewAtGlobal = useMemo(
+    () => sceneAtGlobalMs(state, globalPlayheadMs),
+    [state, globalPlayheadMs],
+  );
+
+  const previewSceneId = previewAtGlobal?.scene.id ?? activeScene?.id;
+  const previewSceneLocalMs = previewAtGlobal?.localMs ?? 0;
 
   const gatePreviewByTime = !playback.isPlaying;
 
@@ -205,6 +206,12 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
     setSaveStatus("idle");
     setSaveError(null);
   }, [syncHistoryAvailability]);
+
+  useEffect(() => {
+    const located = sceneAtGlobalMs(state, globalPlayheadMs);
+    if (!located || located.scene.id === state.activeSceneId) return;
+    onUpdate(setActiveScene(state, located.scene.id), { history: "skip" });
+  }, [globalPlayheadMs, state, state.activeSceneId, onUpdate]);
 
   const handleUndo = useCallback(() => {
     setState((present) => {
@@ -390,35 +397,23 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   }
 
   function handlePausePlayback() {
-    const frozenControllerMs = playback.getLiveTimeMs();
-    const sceneId = activeScene?.id;
-    const sceneLocalMs =
-      sceneId != null
-        ? sceneLocalPlaybackTime(
-            frozenControllerMs,
-            state.scenes ?? [],
-            sceneId,
-            playback.playAllView,
-          )
-        : frozenControllerMs;
-
+    const frozenGlobalMs = playback.getLiveTimeMs();
     flushSync(() => {
-      setScrubTimeMs(sceneLocalMs);
+      setScrubTimeMs(frozenGlobalMs);
     });
-    playback.pause(frozenControllerMs);
+    playback.pause(frozenGlobalMs);
   }
 
   function handlePlayAll() {
-    const sceneId = activeScene?.id ?? state.scenes?.[0]?.id;
-    const startMs =
-      sceneId != null
-        ? globalPlaybackTimeFromSceneLocal(state.scenes ?? [], sceneId, scrubTimeMs)
-        : 0;
-    playback.playAll(startMs);
+    playback.play(scrubTimeMs);
   }
 
   function handleReplayScene() {
-    playback.replayScene(scrubTimeMs);
+    const sceneId = activeScene?.id ?? state.scenes?.[0]?.id;
+    if (!sceneId) return;
+    const startGlobal = sceneStartGlobalMs(state, sceneId);
+    setScrubTimeMs(startGlobal);
+    playback.play(startGlobal);
   }
 
   function handleStopPlayback() {
@@ -427,19 +422,13 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   }
 
   function handleResumePlayback() {
-    const sceneId = activeScene?.id;
-    if (!sceneId) {
-      playback.resume();
-      return;
-    }
-    const resumeMs = playback.playAllView
-      ? globalPlaybackTimeFromSceneLocal(state.scenes ?? [], sceneId, scrubTimeMs)
-      : scrubTimeMs;
-    playback.resume(resumeMs);
+    playback.resume(scrubTimeMs);
   }
 
   function handleSceneSelect(sceneId: string) {
-    handleStopPlayback();
+    playback.stop();
+    const startGlobal = sceneStartGlobalMs(state, sceneId);
+    setScrubTimeMs(startGlobal);
     onUpdate(setActiveScene(state, sceneId), { history: "skip" });
     setSelectedEffectId(null);
     setSelectedTransitionSceneId(null);
@@ -457,7 +446,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
       selectedLayer.type === "asset" ? selectedLayer.id : undefined;
     const { state: next, layer, reused } = createQuickLayer(state, kind, {
       selectedLayerId: selectedId,
-      startMs: localPreviewTimeMs,
+      startMs: previewSceneLocalMs,
     });
     if (!reused) {
       onUpdate(next);
@@ -517,7 +506,10 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
       window.setTimeout(() => setPlacementMessage(null), 4000);
       return;
     }
-    playback.previewSceneTransition();
+    const transMs = getSceneTransitionDurationMs(scene);
+    const startGlobal = sceneStartGlobalMs(state, scene.id) + scene.durationMs - transMs - 200;
+    setScrubTimeMs(Math.max(sceneStartGlobalMs(state, scene.id), startGlobal));
+    playback.previewSceneTransition(startGlobal, scene.id);
   }
 
   function handleChecklistAction(action: ChecklistAction) {
@@ -650,14 +642,14 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
                 onUpdate={onUpdate}
                 onPlaced={handleAssetPlaced}
                 selectedLayer={selectedLayer}
-                scrubTimeMs={localPreviewTimeMs}
+                scrubTimeMs={previewSceneLocalMs}
               />
               <AssetLibrary
                 state={state}
                 onUpdate={onUpdate}
                 selectedLayer={selectedLayer}
                 onPlaced={handleAssetPlaced}
-                scrubTimeMs={localPreviewTimeMs}
+                scrubTimeMs={previewSceneLocalMs}
               />
             </>
           )}
@@ -700,7 +692,9 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             onStop={handleStopPlayback}
             onQuickAdd={handleQuickAdd}
             onSlotActivate={handleSlotActivate}
-            previewTimeMs={localPreviewTimeMs}
+            previewSceneId={previewSceneId}
+            previewTimeMs={previewSceneLocalMs}
+            globalPreviewTimeMs={globalPlayheadMs}
             gateLayersByPreviewTime={gatePreviewByTime}
           />
           <UnifiedLayerTimeline
@@ -710,7 +704,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
               setSelectedLayer(sel);
               setSelectedEffectId(null);
             }}
-            playheadMs={localPreviewTimeMs}
+            playheadMs={globalPlayheadMs}
             isPlaying={playback.isPlaying}
             onScrub={(ms) => {
               if (!playback.isPlaying) setScrubTimeMs(ms);

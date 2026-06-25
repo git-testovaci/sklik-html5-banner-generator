@@ -26,7 +26,8 @@ export function PreviewPlaybackControls({
   onToggleLoop,
   sceneLabel,
 }: PreviewPlaybackControlsProps) {
-  const isPlaying = mode === "playing-all" || mode === "playing-scene";
+  const isPlaying =
+    mode === "playing" || mode === "playing-all" || mode === "playing-scene";
   const isPaused = mode === "paused";
   const isIdle = mode === "idle";
 

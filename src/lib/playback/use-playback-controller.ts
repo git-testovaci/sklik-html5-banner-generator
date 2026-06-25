@@ -1,49 +1,100 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { BannerScene } from "@/types/animation";
 import type { PlaybackControllerSnapshot, PlaybackMode } from "@/types/playback";
-import { getSceneTransitionDurationMs } from "@/lib/animation/storyboard-utils";
-import {
-  clampGlobalPlaybackTime,
-  playbackSceneIdAtGlobalTime,
-} from "@/lib/animation/editor-playback-time";
+import { playbackSceneIdAtGlobalMs, totalBannerDurationMs } from "@/lib/animation/global-timeline-utils";
+import type { BannerEditorState } from "@/types/editor";
 import { anchorPlaybackClock, computeLiveTimeMs } from "@/lib/playback/playback-clock";
 
 export interface UsePlaybackControllerOptions {
-  scenes: BannerScene[] | undefined;
   loop: boolean;
-  timelineDurationMs: number;
-  activeSceneId: string | undefined;
+  /** Global banner duration in ms (preferred). */
+  totalDurationMs?: number;
+  resolveSceneIdAtGlobalMs?: (globalMs: number) => string | null;
+  /** Legacy public-preview options — mapped to global timeline when totalDurationMs is omitted. */
+  scenes?: BannerScene[];
+  timelineDurationMs?: number;
+  activeSceneId?: string;
+  state?: BannerEditorState;
 }
 
 export interface PlaybackController extends PlaybackControllerSnapshot {
-  playAll: (startMs?: number) => void;
-  replayScene: (startMs?: number) => void;
-  pause: (frozenAtMs?: number) => void;
-  resume: (startMs?: number) => void;
+  play: (startGlobalMs?: number) => void;
+  playAll: (startGlobalMs?: number) => void;
+  replayScene: (startGlobalMs?: number) => void;
+  pause: (frozenGlobalMs?: number) => void;
+  resume: (startGlobalMs?: number) => void;
   stop: () => void;
-  previewSceneTransition: () => void;
+  previewSceneTransition: (startGlobalMs: number, sceneId: string | null) => void;
   getCurrentTimeMs: () => number;
   getLiveTimeMs: () => number;
+}
+
+function resolveTotalDurationMs(options: UsePlaybackControllerOptions): number {
+  if (options.totalDurationMs != null) return Math.max(0, options.totalDurationMs);
+  if (options.state) return totalBannerDurationMs(options.state);
+  const scenes = options.scenes ?? [];
+  if (scenes.length > 0) {
+    return scenes.reduce((sum, s) => sum + s.durationMs, 0);
+  }
+  return Math.max(0, options.timelineDurationMs ?? 3000);
+}
+
+function resolveSceneResolver(
+  options: UsePlaybackControllerOptions,
+): (globalMs: number) => string | null {
+  if (options.resolveSceneIdAtGlobalMs) return options.resolveSceneIdAtGlobalMs;
+  if (options.state) {
+    return (globalMs: number) => playbackSceneIdAtGlobalMs(options.state!, globalMs);
+  }
+  const scenes = options.scenes ?? [];
+  return (globalMs: number) => {
+    if (scenes.length === 0) return options.activeSceneId ?? null;
+    let offset = 0;
+    for (const scene of scenes) {
+      const end = offset + scene.durationMs;
+      if (globalMs >= offset && globalMs < end) return scene.id;
+      offset = end;
+    }
+    return scenes[scenes.length - 1]?.id ?? null;
+  };
+}
+
+function outwardPlaybackMode(
+  mode: "idle" | "playing" | "paused",
+  multiScene: boolean,
+): PlaybackMode {
+  if (mode === "playing") return multiScene ? "playing-all" : "playing-scene";
+  return mode;
 }
 
 export function usePlaybackController(
   options: UsePlaybackControllerOptions,
 ): PlaybackController {
-  const [mode, setMode] = useState<PlaybackMode>("idle");
+  const [mode, setMode] = useState<"idle" | "playing" | "paused">("idle");
   const [playbackTimeMs, setPlaybackTimeMs] = useState(0);
   const [playbackSceneId, setPlaybackSceneId] = useState<string | null>(null);
   const [replayKey, setReplayKey] = useState(0);
-  const [pausedFrom, setPausedFrom] = useState<"playing-all" | "playing-scene">("playing-all");
 
   const rafRef = useRef<number | null>(null);
   const clockOffsetMsRef = useRef(0);
   const clockStartedAtPerfRef = useRef(0);
   const clockMaxMsRef = useRef(0);
   const mountedRef = useRef(true);
+  const configuredTotalDurationMs = resolveTotalDurationMs(options);
+  const multiScene =
+    (options.scenes ?? options.state?.scenes ?? []).length > 1;
 
-  const scenesList = useMemo(() => options.scenes ?? [], [options.scenes]);
+  const resolveSceneRef = useRef(resolveSceneResolver(options));
+  const totalDurationRef = useRef(configuredTotalDurationMs);
+  const loopRef = useRef(options.loop);
+
+  useEffect(() => {
+    resolveSceneRef.current = resolveSceneResolver(options);
+    totalDurationRef.current = configuredTotalDurationMs;
+    loopRef.current = options.loop;
+  }, [options, configuredTotalDurationMs]);
 
   const cancelRaf = useCallback(() => {
     if (rafRef.current !== null) {
@@ -67,13 +118,11 @@ export function usePlaybackController(
     clockMaxMsRef.current = anchored.maxMs;
   }, []);
 
-  const syncVisibleTime = useCallback(
-    (ms: number) => {
-      clockOffsetMsRef.current = ms;
-      setPlaybackTimeMs(ms);
-    },
-    [],
-  );
+  const syncVisibleTime = useCallback((ms: number) => {
+    clockOffsetMsRef.current = ms;
+    setPlaybackTimeMs(ms);
+    setPlaybackSceneId(resolveSceneRef.current(ms));
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -84,49 +133,25 @@ export function usePlaybackController(
   }, [cancelRaf]);
 
   useEffect(() => {
-    if (mode !== "playing-all" && mode !== "playing-scene") {
+    if (mode !== "playing") {
       cancelRaf();
       return;
     }
 
-    const isAll = mode === "playing-all";
-    const scene =
-      scenesList.find((s) => s.id === (options.activeSceneId ?? scenesList[0]?.id)) ??
-      scenesList[0];
-    const totalDurationMs = scenesList.reduce((sum, s) => sum + s.durationMs, 0);
-    const duration = isAll
-      ? totalDurationMs
-      : scene?.durationMs ?? options.timelineDurationMs;
-    const loop = options.loop;
+    const duration = totalDurationRef.current;
+    const loop = loopRef.current;
 
     cancelRaf();
     let cancelled = false;
 
-    // Re-anchor wall clock at the current live position (handles effect restarts).
     const liveMs = getLiveTimeMs();
     anchorClock(liveMs, duration);
-
-    function resolveSceneAt(elapsed: number) {
-      if (!isAll || scenesList.length <= 1) {
-        setPlaybackSceneId(scene?.id ?? null);
-        return;
-      }
-      let offset = 0;
-      for (const s of scenesList) {
-        if (elapsed >= offset && elapsed < offset + s.durationMs) {
-          setPlaybackSceneId(s.id);
-          return;
-        }
-        offset += s.durationMs;
-      }
-      setPlaybackSceneId(scenesList[scenesList.length - 1]?.id ?? null);
-    }
 
     function tick() {
       if (cancelled || !mountedRef.current) return;
       let elapsed = getLiveTimeMs();
 
-      if (isAll && loop && duration > 0 && elapsed >= duration) {
+      if (loop && duration > 0 && elapsed >= duration) {
         anchorClock(0, duration);
         setReplayKey((k) => k + 1);
         elapsed = 0;
@@ -138,12 +163,11 @@ export function usePlaybackController(
         setMode("idle");
         syncVisibleTime(0);
         anchorClock(0, duration);
-        if (isAll) setPlaybackSceneId(null);
+        setPlaybackSceneId(null);
         return;
       }
 
       syncVisibleTime(elapsed);
-      resolveSceneAt(elapsed);
       rafRef.current = requestAnimationFrame(tick);
     }
 
@@ -153,52 +177,24 @@ export function usePlaybackController(
       cancelled = true;
       cancelRaf();
     };
-  }, [
-    mode,
-    replayKey,
-    cancelRaf,
-    anchorClock,
-    getLiveTimeMs,
-    syncVisibleTime,
-    options.loop,
-    options.timelineDurationMs,
-    options.activeSceneId,
-    scenesList,
-  ]);
+  }, [mode, replayKey, cancelRaf, anchorClock, getLiveTimeMs, syncVisibleTime]);
 
-  const playAll = useCallback(
-    (startMs = 0) => {
-      const totalDurationMs = scenesList.reduce((sum, s) => sum + s.durationMs, 0);
-      const clamped = clampGlobalPlaybackTime(scenesList, startMs);
-      anchorClock(clamped, totalDurationMs);
-      syncVisibleTime(clamped);
-      setPlaybackSceneId(playbackSceneIdAtGlobalTime(scenesList, clamped));
-      setReplayKey((k) => k + 1);
-      setMode("playing-all");
-    },
-    [anchorClock, scenesList, syncVisibleTime],
-  );
-
-  const replayScene = useCallback(
-    (startMs = 0) => {
-      const sceneId = options.activeSceneId ?? scenesList[0]?.id ?? null;
-      const scene = scenesList.find((s) => s.id === sceneId);
-      const duration = scene?.durationMs ?? options.timelineDurationMs;
-      const clamped = Math.max(0, Math.min(duration, startMs));
+  const play = useCallback(
+    (startGlobalMs = 0) => {
+      const duration = totalDurationRef.current;
+      const clamped = Math.max(0, Math.min(duration, startGlobalMs));
       anchorClock(clamped, duration);
       syncVisibleTime(clamped);
-      setPlaybackSceneId(sceneId);
       setReplayKey((k) => k + 1);
-      setMode("playing-scene");
+      setMode("playing");
     },
-    [anchorClock, options.activeSceneId, options.timelineDurationMs, scenesList, syncVisibleTime],
+    [anchorClock, syncVisibleTime],
   );
 
   const pause = useCallback(
-    (frozenAtMs?: number) => {
-      if (mode !== "playing-all" && mode !== "playing-scene") return;
-      const frozen = frozenAtMs ?? getLiveTimeMs();
-      setPausedFrom(mode === "playing-all" ? "playing-all" : "playing-scene");
+    (frozenGlobalMs?: number) => {
+      if (mode !== "playing") return;
+      const frozen = frozenGlobalMs ?? getLiveTimeMs();
       cancelRaf();
       syncVisibleTime(frozen);
       setMode("paused");
@@ -207,68 +203,48 @@ export function usePlaybackController(
   );
 
   const resume = useCallback(
-    (startMs?: number) => {
+    (startGlobalMs?: number) => {
       if (mode !== "paused") return;
-      const resumeMs = startMs ?? clockOffsetMsRef.current;
-      const isAll = pausedFrom === "playing-all";
-      const scene =
-        scenesList.find((s) => s.id === (options.activeSceneId ?? scenesList[0]?.id)) ??
-        scenesList[0];
-      const totalDurationMs = scenesList.reduce((sum, s) => sum + s.durationMs, 0);
-      const duration = isAll ? totalDurationMs : scene?.durationMs ?? options.timelineDurationMs;
+      const duration = totalDurationRef.current;
+      const resumeMs = startGlobalMs ?? clockOffsetMsRef.current;
       anchorClock(resumeMs, duration);
       syncVisibleTime(resumeMs);
-      if (isAll) {
-        setPlaybackSceneId(playbackSceneIdAtGlobalTime(scenesList, resumeMs));
-      }
-      setMode(pausedFrom);
+      setMode("playing");
     },
-    [
-      mode,
-      pausedFrom,
-      anchorClock,
-      options.activeSceneId,
-      options.timelineDurationMs,
-      scenesList,
-      syncVisibleTime,
-    ],
+    [mode, anchorClock, syncVisibleTime],
   );
 
   const stop = useCallback(() => {
     cancelRaf();
-    anchorClock(0, clockMaxMsRef.current);
+    anchorClock(0, totalDurationRef.current);
     syncVisibleTime(0);
     setMode("idle");
     setPlaybackSceneId(null);
   }, [anchorClock, cancelRaf, syncVisibleTime]);
 
-  const previewSceneTransition = useCallback(() => {
-    const sceneId = options.activeSceneId ?? scenesList[0]?.id;
-    const scene = scenesList.find((s) => s.id === sceneId);
-    if (!scene) return;
-    const transitionMs = getSceneTransitionDurationMs(scene);
-    const startAt = Math.max(0, scene.durationMs - transitionMs - 200);
-    cancelRaf();
-    anchorClock(startAt, scene.durationMs);
-    syncVisibleTime(startAt);
-    setPlaybackSceneId(sceneId ?? null);
-    setReplayKey((k) => k + 1);
-    setMode("playing-scene");
-  }, [anchorClock, cancelRaf, options.activeSceneId, scenesList, syncVisibleTime]);
-
-  const playAllView =
-    mode === "playing-all" || (mode === "paused" && pausedFrom === "playing-all");
+  const previewSceneTransition = useCallback(
+    (startGlobalMs: number, sceneId: string | null) => {
+      cancelRaf();
+      anchorClock(startGlobalMs, totalDurationRef.current);
+      syncVisibleTime(startGlobalMs);
+      if (sceneId) setPlaybackSceneId(sceneId);
+      setReplayKey((k) => k + 1);
+      setMode("playing");
+    },
+    [anchorClock, cancelRaf, syncVisibleTime],
+  );
 
   return {
-    mode,
+    mode: outwardPlaybackMode(mode, multiScene),
     playbackTimeMs,
     playbackSceneId,
     replayKey,
-    playAllView,
-    isPlaying: mode === "playing-all" || mode === "playing-scene",
+    isPlaying: mode === "playing",
     isPaused: mode === "paused",
-    playAll,
-    replayScene,
+    playAllView: mode === "playing" && multiScene,
+    play,
+    playAll: play,
+    replayScene: play,
     pause,
     resume,
     stop,

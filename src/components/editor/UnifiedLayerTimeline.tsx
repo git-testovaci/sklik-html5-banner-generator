@@ -2,6 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  buildGlobalTimelineSegments,
+  sceneStartGlobalMs,
+  totalBannerDurationMs,
+  transitionLabelForScene,
+} from "@/lib/animation/global-timeline-utils";
+import {
   buildRulerTicks,
   cycleTimelineZoom,
   formatTimelineSeconds,
@@ -71,10 +77,10 @@ interface DragState {
 function msFromClientX(
   clientX: number,
   rect: DOMRect,
-  sceneDurationMs: number,
+  durationMs: number,
 ): number {
   const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-  return pct * sceneDurationMs;
+  return pct * durationMs;
 }
 
 export function UnifiedLayerTimeline({
@@ -135,14 +141,17 @@ export function UnifiedLayerTimeline({
   }, []);
 
   const sceneDurationMs = scene?.durationMs ?? 3000;
-  const trackWidthPx = timelineTrackWidthPx(zoom, sceneDurationMs);
+  const totalDurationMs = totalBannerDurationMs(state);
+  const sceneStartMs = scene ? sceneStartGlobalMs(state, scene.id) : 0;
+  const timelineSegments = buildGlobalTimelineSegments(state);
+  const trackWidthPx = timelineTrackWidthPx(zoom, totalDurationMs);
   const maxZoom = TIMELINE_ZOOM_LEVELS[TIMELINE_ZOOM_LEVELS.length - 1]!;
   const minZoom = TIMELINE_ZOOM_LEVELS[0]!;
   const layers = scene ? getTimelineLayersForScene(state, scene.id) : [];
-  const ticks = buildRulerTicks(sceneDurationMs, zoom);
+  const ticks = buildRulerTicks(totalDurationMs, zoom);
   const displayPlayheadMs = isPlaying ? playheadMs : (livePlayheadMs ?? playheadMs);
   const playheadPct =
-    sceneDurationMs > 0 ? (displayPlayheadMs / sceneDurationMs) * 100 : 0;
+    totalDurationMs > 0 ? (displayPlayheadMs / totalDurationMs) * 100 : 0;
   const zoomRef = useRef(zoom);
   const playheadRef = useRef(displayPlayheadMs);
 
@@ -156,10 +165,10 @@ export function UnifiedLayerTimeline({
 
   function scrollToPlayhead(zoomLevel: TimelineZoomLevel, timeMs: number) {
     const scrollEl = scrollRef.current;
-    if (!scrollEl || sceneDurationMs <= 0) return;
+    if (!scrollEl || totalDurationMs <= 0) return;
     const playheadX =
       TIMELINE_LABEL_WIDTH_PX +
-      (timeMs / sceneDurationMs) * timelineTrackWidthPx(zoomLevel, sceneDurationMs);
+      (timeMs / totalDurationMs) * timelineTrackWidthPx(zoomLevel, totalDurationMs);
     requestAnimationFrame(() => {
       scrollEl.scrollLeft = Math.max(0, playheadX - scrollEl.clientWidth * 0.35);
     });
@@ -243,11 +252,11 @@ export function UnifiedLayerTimeline({
       if (!drag || !scene) return;
 
       const dx = e.clientX - drag.startX;
-      const dMs = (dx / drag.trackWidth) * sceneDur;
+      const dMs = (dx / drag.trackWidth) * totalDurationMs;
 
       if (drag.mode === "phase-in" || drag.mode === "phase-out") {
         const blockDur = drag.initialDurationMs;
-        const dBlockMs = (dx / drag.trackWidth) * sceneDur;
+        const dBlockMs = (dx / drag.trackWidth) * totalDurationMs;
         let inMs = drag.initialPhaseInMs;
         let outMs = drag.initialPhaseOutMs;
         if (drag.mode === "phase-in") {
@@ -313,7 +322,7 @@ export function UnifiedLayerTimeline({
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
     };
-  }, [finishDrag, finishPhaseDrag, scene]);
+  }, [finishDrag, finishPhaseDrag, scene, totalDurationMs]);
 
   useEffect(() => {
     function scrubFromX(clientX: number) {
@@ -322,7 +331,7 @@ export function UnifiedLayerTimeline({
       const rect = track.getBoundingClientRect();
       const ms = Math.max(
         0,
-        Math.min(sceneDurationMs, msFromClientX(clientX, rect, sceneDurationMs)),
+        Math.min(totalDurationMs, msFromClientX(clientX, rect, totalDurationMs)),
       );
       setLivePlayheadMs(ms);
       onScrub(ms);
@@ -347,7 +356,7 @@ export function UnifiedLayerTimeline({
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
     };
-  }, [onScrub, sceneDurationMs]);
+  }, [onScrub, totalDurationMs]);
 
   useEffect(() => {
     if (!timelineFocused) return;
@@ -378,17 +387,17 @@ export function UnifiedLayerTimeline({
       const next = cycleTimelineZoom(zoomRef.current, e.deltaY > 0 ? "out" : "in");
       setZoom(next);
       const scrollEl = scrollRef.current;
-      if (!scrollEl || sceneDurationMs <= 0) return;
+      if (!scrollEl || totalDurationMs <= 0) return;
       const playheadX =
         TIMELINE_LABEL_WIDTH_PX +
-        (playheadRef.current / sceneDurationMs) * timelineTrackWidthPx(next, sceneDurationMs);
+        (playheadRef.current / totalDurationMs) * timelineTrackWidthPx(next, totalDurationMs);
       requestAnimationFrame(() => {
         scrollEl.scrollLeft = Math.max(0, playheadX - scrollEl.clientWidth * 0.35);
       });
     }
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [sceneDurationMs]);
+  }, [totalDurationMs]);
 
   function focusTimeline() {
     rootRef.current?.focus({ preventScroll: true });
@@ -405,7 +414,7 @@ export function UnifiedLayerTimeline({
     const rect = track.getBoundingClientRect();
     const ms = Math.max(
       0,
-      Math.min(sceneDurationMs, msFromClientX(e.clientX, rect, sceneDurationMs)),
+      Math.min(totalDurationMs, msFromClientX(e.clientX, rect, totalDurationMs)),
     );
     setLivePlayheadMs(ms);
     onScrub(ms);
@@ -542,15 +551,15 @@ export function UnifiedLayerTimeline({
       <div className="border-b border-zinc-800/60 px-4 py-2.5">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
-            <h2 className="text-sm font-medium text-zinc-200">Časová osa scény</h2>
+            <h2 className="text-sm font-medium text-zinc-200">Časová osa banneru</h2>
             <p className="text-[10px] text-zinc-500">
-              {scene.name}
+              {scene.name} · vrstvy scény na globální ose
               {isPlaying ? " · přehrávání" : ""}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded border border-zinc-800/80 bg-zinc-900/60 px-2 py-1 font-mono text-[11px] text-violet-200">
-              {formatTimelineSeconds(displayPlayheadMs)} / {formatTimelineSeconds(sceneDurationMs)}
+              {formatTimelineSeconds(displayPlayheadMs)} / {formatTimelineSeconds(totalDurationMs)}
             </span>
             <div className="flex items-center rounded border border-zinc-800/80 bg-zinc-900/60">
               <span className="hidden pl-2 text-[9px] text-zinc-600 sm:inline">Přibl.</span>
@@ -612,7 +621,7 @@ export function UnifiedLayerTimeline({
             {renderTrackArea(
               <>
                 {ticks.map((t) => {
-                  const left = sceneDurationMs > 0 ? (t / sceneDurationMs) * 100 : 0;
+                  const left = totalDurationMs > 0 ? (t / totalDurationMs) * 100 : 0;
                   const isPlayheadTick =
                     Math.abs(t - displayPlayheadMs) < (ticks[1] ?? 500) * 0.25;
                   return (
@@ -640,6 +649,74 @@ export function UnifiedLayerTimeline({
             )}
           </div>
 
+          {/* Scene blocks + transitions */}
+          {timelineSegments.length > 0 ? (
+            <div className="flex border-b border-zinc-800/50" style={{ height: 28 }}>
+              <div
+                className="sticky left-0 z-20 shrink-0 border-r border-zinc-800/50 bg-zinc-900/50 px-2 py-1"
+                style={{ width: TIMELINE_LABEL_WIDTH_PX }}
+              >
+                <span className="text-[9px] uppercase tracking-wide text-zinc-600">Scény</span>
+              </div>
+              {renderTrackArea(
+                <>
+                  {timelineSegments.map((seg, i) => {
+                    const leftPct =
+                      totalDurationMs > 0 ? (seg.startGlobalMs / totalDurationMs) * 100 : 0;
+                    const widthPct =
+                      totalDurationMs > 0 ? (seg.durationMs / totalDurationMs) * 100 : 0;
+                    const isActiveScene = scene.id === seg.sceneId;
+                    const sceneObj = state.scenes?.find((s) => s.id === seg.sceneId);
+                    return (
+                      <div key={seg.sceneId}>
+                        <div
+                          className={`pointer-events-none absolute top-0 flex h-full items-center overflow-hidden border-x px-1 ${
+                            isActiveScene
+                              ? "border-violet-600/50 bg-violet-950/35"
+                              : "border-zinc-700/40 bg-zinc-800/25"
+                          }`}
+                          style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+                          title={`${seg.index + 1}. ${seg.name}`}
+                        >
+                          <span
+                            className={`truncate text-[9px] font-medium ${
+                              isActiveScene ? "text-violet-200" : "text-zinc-500"
+                            }`}
+                          >
+                            {seg.index + 1}. {seg.name}
+                          </span>
+                        </div>
+                        {i < timelineSegments.length - 1 && sceneObj && seg.transitionDurationMs > 0 ? (
+                          <div
+                            className="pointer-events-none absolute top-0 flex h-full items-center justify-center overflow-hidden border-x border-amber-800/40 bg-amber-950/25 px-0.5"
+                            style={{
+                              left: `${
+                                totalDurationMs > 0
+                                  ? (seg.transitionStartGlobalMs / totalDurationMs) * 100
+                                  : 0
+                              }%`,
+                              width: `${
+                                totalDurationMs > 0
+                                  ? (seg.transitionDurationMs / totalDurationMs) * 100
+                                  : 0
+                              }%`,
+                            }}
+                            title={transitionLabelForScene(sceneObj)}
+                          >
+                            <span className="truncate text-[8px] text-amber-200/90">
+                              {transitionLabelForScene(sceneObj)}
+                            </span>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </>,
+                "bg-zinc-900/15",
+              )}
+            </div>
+          ) : null}
+
           {layers.length === 0 ? (
             <div className="px-4 py-10 text-center">
               <p className="text-xs font-medium text-zinc-400">Časová osa je prázdná</p>
@@ -653,10 +730,11 @@ export function UnifiedLayerTimeline({
             <div ref={rowsRef}>
             {layers.map((layer, index) => {
               const range = getRange(layer.id);
+              const globalStartMs = sceneStartMs + range.startMs;
               const leftPct =
-                sceneDurationMs > 0 ? (range.startMs / sceneDurationMs) * 100 : 0;
+                totalDurationMs > 0 ? (globalStartMs / totalDurationMs) * 100 : 0;
               const widthPct =
-                sceneDurationMs > 0 ? (range.durationMs / sceneDurationMs) * 100 : 100;
+                totalDurationMs > 0 ? (range.durationMs / totalDurationMs) * 100 : 100;
               const selected = isTimelineLayerSelected(selectedLayer, layer);
               const blockColor = layerTimelineBlockColor(layer);
               const segments = getPhaseSegments(layer.id);

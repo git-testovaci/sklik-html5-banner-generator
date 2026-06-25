@@ -64,6 +64,8 @@ interface BannerPreviewProps {
     patch: Partial<BannerAssetPlacement>,
   ) => void;
   playAll?: boolean;
+  /** Scene to render in editor preview (derived from global playhead). */
+  previewSceneId?: string | null;
   playbackSceneId?: string | null;
   /** Freezes CSS preview animations while playback RAF is paused. */
   playbackPaused?: boolean;
@@ -809,6 +811,7 @@ export function BannerPreview({
   onUpdateAssetPlacement,
   onUpdateStoryboardLayer,
   playAll = false,
+  previewSceneId = null,
   playbackSceneId,
   playbackPaused = false,
   previewTimeMs = null,
@@ -821,13 +824,15 @@ export function BannerPreview({
   const { urls, missing, metaKey: urlsMetaKey } = useAssetUrls(assetsMetaKey);
   const urlsReady = assetsMetaKey === urlsMetaKey;
   const activeScene = getActiveScene(state);
-  const sceneId = playbackSceneId ?? activeScene?.id;
   const scenes = state.scenes ?? [];
+  const effectiveSceneId =
+    previewSceneId ?? playbackSceneId ?? activeScene?.id ?? scenes[0]?.id ?? "default";
+  const previewScene = scenes.find((s) => s.id === effectiveSceneId) ?? activeScene;
 
   const sequenceCss = useMemo(() => {
-    if (!playAll || scenes.length <= 1 || playbackPaused) return "";
+    if (!publicMode || !playAll || scenes.length <= 1 || playbackPaused) return "";
     return buildSceneSequenceCss(state, replayKey, loopPreview);
-  }, [playAll, scenes.length, state, replayKey, loopPreview, playbackPaused]);
+  }, [publicMode, playAll, scenes.length, state, replayKey, loopPreview, playbackPaused]);
 
   const canvasProps = {
     replayKey,
@@ -853,7 +858,7 @@ export function BannerPreview({
     ? ({ animation: "none", animationPlayState: "paused" } as const)
     : undefined;
 
-  if (playAll && scenes.length > 1) {
+  if (publicMode && playAll && scenes.length > 1) {
     return (
       <>
         <style>{sequenceCss}</style>
@@ -883,15 +888,13 @@ export function BannerPreview({
     );
   }
 
-  const effectiveSceneId = sceneId ?? scenes[0]?.id ?? "default";
-
   return (
     <div
       className={`relative overflow-hidden shadow-2xl ${interactive ? "select-none" : ""} ${className}`}
       style={{
         width: state.width,
         height: state.height,
-        backgroundColor: activeScene?.backgroundColor ?? state.backgroundColor,
+        backgroundColor: previewScene?.backgroundColor ?? state.backgroundColor,
         color: state.textColor,
         ...pauseStyle,
       }}

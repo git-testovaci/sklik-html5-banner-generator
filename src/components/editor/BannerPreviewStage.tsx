@@ -34,7 +34,9 @@ interface BannerPreviewStageProps {
   onStop: () => void;
   onQuickAdd?: (kind: QuickAddLayerType) => void;
   onSlotActivate?: (layerId: string) => void;
+  previewSceneId?: string | null;
   previewTimeMs?: number | null;
+  globalPreviewTimeMs?: number | null;
   gateLayersByPreviewTime?: boolean;
 }
 
@@ -51,6 +53,7 @@ export function BannerPreviewStage({
   onStop,
   onQuickAdd,
   onSlotActivate,
+  previewSceneId = null,
   previewTimeMs = null,
   gateLayersByPreviewTime = false,
 }: BannerPreviewStageProps) {
@@ -168,11 +171,13 @@ export function BannerPreviewStage({
   }
 
   const sizeLabel = formatBannerSize(state.width, state.height);
-  const playbackScene = state.scenes?.find((s) => s.id === playback.playbackSceneId);
+  const playbackScene = state.scenes?.find(
+    (s) => s.id === (previewSceneId ?? playback.playbackSceneId ?? activeScene?.id),
+  );
   const sceneLabel =
-    playback.mode === "playing-all"
-      ? "Přehrávání"
-      : playback.mode === "playing-scene" || playback.mode === "paused"
+    playback.isPlaying
+      ? playbackScene?.name ?? activeScene?.name
+      : playback.isPaused
         ? playbackScene?.name ?? activeScene?.name
         : undefined;
 
@@ -258,8 +263,7 @@ export function BannerPreviewStage({
             onUpdateTextPlacement={updateTextPlacement}
             onUpdateAssetPlacement={updateAssetPlacement}
             onUpdateStoryboardLayer={updateStoryboardLayer}
-            playAll={playback.playAllView}
-            playbackSceneId={playback.playbackSceneId}
+            previewSceneId={previewSceneId ?? playback.playbackSceneId ?? activeScene?.id}
             playbackPaused={playback.isPaused}
             previewTimeMs={previewTimeMs}
             gateLayersByPreviewTime={gateLayersByPreviewTime || playback.isPaused}
