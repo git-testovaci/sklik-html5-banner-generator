@@ -121,7 +121,7 @@ export function UnifiedLayerTimeline({
   const dropStackIndexRef = useRef<number | null>(null);
 
   function patchLayer(layerId: string, patch: Partial<BannerLayer>) {
-    onUpdate?.(patchBannerLayerSlice(state, layerId, patch));
+    onUpdate?.((prev) => patchBannerLayerSlice(prev, layerId, patch));
   }
 
   const resolveStackDropIndex = useCallback((clientY: number): number => {
@@ -131,7 +131,7 @@ export function UnifiedLayerTimeline({
       const rect = rows[i]!.getBoundingClientRect();
       if (clientY < rect.top + rect.height / 2) return i;
     }
-    return rows.length - 1;
+    return rows.length;
   }, []);
 
   const sceneDurationMs = scene?.durationMs ?? 3000;
@@ -140,7 +140,7 @@ export function UnifiedLayerTimeline({
   const minZoom = TIMELINE_ZOOM_LEVELS[0]!;
   const layers = scene ? getTimelineLayersForScene(state, scene.id) : [];
   const ticks = buildRulerTicks(sceneDurationMs, zoom);
-  const displayPlayheadMs = livePlayheadMs ?? playheadMs;
+  const displayPlayheadMs = isPlaying ? playheadMs : (livePlayheadMs ?? playheadMs);
   const playheadPct =
     sceneDurationMs > 0 ? (displayPlayheadMs / sceneDurationMs) * 100 : 0;
   const zoomRef = useRef(zoom);
@@ -184,7 +184,7 @@ export function UnifiedLayerTimeline({
     function onUp() {
       const targetIdx = dropStackIndexRef.current;
       if (dragStackLayerId != null && targetIdx != null) {
-        onUpdate?.(moveLayerInSceneStack(state, scene!.id, dragStackLayerId, targetIdx));
+        onUpdate?.((prev) => moveLayerInSceneStack(prev, scene!.id, dragStackLayerId, targetIdx));
       }
       setDragStackLayerId(null);
       setDropStackIndex(null);

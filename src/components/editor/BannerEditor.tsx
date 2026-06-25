@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { flushSync } from "react-dom";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, useCallback } from "react";
 import {
   normalizeEditorState,
@@ -162,14 +163,10 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
         playback.playAllView,
       );
     }
-    if (playback.isPaused) {
-      return scrubTimeMs;
-    }
     return scrubTimeMs;
   }, [
     activeScene?.id,
     playback.isPlaying,
-    playback.isPaused,
     playback.playbackTimeMs,
     playback.playAllView,
     scrubTimeMs,
@@ -393,19 +390,22 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   }
 
   function handlePausePlayback() {
-    const frozenMs = playback.getCurrentTimeMs();
+    const frozenControllerMs = playback.getLiveTimeMs();
     const sceneId = activeScene?.id;
-    if (sceneId) {
-      setScrubTimeMs(
-        sceneLocalPlaybackTime(
-          frozenMs,
-          state.scenes ?? [],
-          sceneId,
-          playback.playAllView,
-        ),
-      );
-    }
-    playback.pause(frozenMs);
+    const sceneLocalMs =
+      sceneId != null
+        ? sceneLocalPlaybackTime(
+            frozenControllerMs,
+            state.scenes ?? [],
+            sceneId,
+            playback.playAllView,
+          )
+        : frozenControllerMs;
+
+    flushSync(() => {
+      setScrubTimeMs(sceneLocalMs);
+    });
+    playback.pause(frozenControllerMs);
   }
 
   function handlePlayAll() {
