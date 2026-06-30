@@ -128,9 +128,36 @@ export function playbackSceneIdAtGlobalMs(
 }
 
 export function transitionLabelForScene(scene: BannerScene): string {
-  const label = transitionFriendlyLabel(scene.transitionOut);
+  const label =
+    scene.transitionOut === "none"
+      ? "Žádný"
+      : transitionFriendlyLabel(scene.transitionOut);
   const durSec = (getSceneTransitionDurationMs(scene) / 1000).toFixed(1);
   return `${label} · ${durSec} s`;
+}
+
+/** Scene that follows the outgoing transition from `sceneId`. */
+export function transitionTargetScene(
+  state: BannerEditorState,
+  sceneId: string,
+): BannerScene | undefined {
+  const scenes = state.scenes ?? [];
+  const idx = scenes.findIndex((s) => s.id === sceneId);
+  if (idx < 0 || idx >= scenes.length - 1) return undefined;
+  return scenes[idx + 1];
+}
+
+/** Percent layout for a clickable transition chip on the global timeline. */
+export function transitionChipPercentLayout(
+  seg: GlobalTimelineSceneSegment,
+  totalDurationMs: number,
+): { leftPct: number; widthPct: number } {
+  if (totalDurationMs <= 0) return { leftPct: 0, widthPct: 0 };
+  const boundaryPct = (seg.endGlobalMs / totalDurationMs) * 100;
+  const naturalWidth = (seg.transitionDurationMs / totalDurationMs) * 100;
+  const widthPct = Math.max(naturalWidth, 1.6);
+  const leftPct = Math.max(0, Math.min(100 - widthPct, boundaryPct - widthPct / 2));
+  return { leftPct, widthPct };
 }
 
 export interface GlobalTimelineLayerRow {

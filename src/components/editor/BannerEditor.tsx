@@ -10,6 +10,7 @@ import {
   selectionForBannerLayer,
 } from "@/lib/animation/selection-utils";
 import {
+  addScene,
   clearSelectedEffectIfMissing,
   duplicateBannerLayerInScene,
   getActiveScene,
@@ -407,6 +408,19 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
     playback.play(startGlobal);
   }
 
+  function handleAddScene() {
+    playback.stop();
+    const next = addScene(state);
+    onUpdate(next, { history: "push" });
+    setSelectedTransitionSceneId(null);
+    setSelectedLayer(emptyEditorSelection());
+    setSelectedEffectId(null);
+    const newSceneId = next.activeSceneId;
+    if (newSceneId) {
+      setScrubTimeMs(sceneStartGlobalMs(next, newSceneId));
+    }
+  }
+
   function handleStopPlayback() {
     playback.stop();
     setScrubTimeMs(0);
@@ -425,9 +439,27 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
     setSelectedTransitionSceneId(null);
   }
 
+  function handleSelectTransition(sceneId: string) {
+    setSelectedTransitionSceneId(sceneId);
+    setSelectedLayer(emptyEditorSelection());
+    setSelectedEffectId(null);
+    onUpdate(setActiveScene(state, sceneId), { history: "skip" });
+  }
+
+  function handleSelectLayer(sel: SelectedLayer) {
+    setSelectedLayer(sel);
+    setSelectedEffectId(null);
+    setSelectedTransitionSceneId(null);
+    const layer = resolveBannerLayerForSelection(state, sel);
+    if (layer?.sceneId && layer.sceneId !== state.activeSceneId) {
+      onUpdate(setActiveScene(state, layer.sceneId), { history: "skip" });
+    }
+  }
+
   function handleAssetPlaced(selection: SelectedLayer, message: string) {
     setSelectedLayer(selection);
     setSelectedEffectId(null);
+    setSelectedTransitionSceneId(null);
     setPlacementMessage(message);
     window.setTimeout(() => setPlacementMessage(null), 3500);
   }
@@ -589,7 +621,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
       <div className="flex flex-1 flex-col gap-3 p-3 lg:flex-row lg:items-start lg:p-4">
         {/* Left — media / templates only */}
         <aside className="order-2 flex w-full shrink-0 flex-col gap-2 lg:order-1 lg:w-[260px] xl:w-[280px]">
-          <p className="px-1 text-[10px] font-medium uppercase tracking-wide text-zinc-600">
+          <p className="px-1 text-xs font-medium uppercase tracking-wide text-zinc-600">
             Knihovna
           </p>
           <div className="flex gap-1 rounded-lg border border-zinc-800/80 bg-zinc-900/50 p-1">
@@ -598,7 +630,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
                 key={tab}
                 type="button"
                 onClick={() => setLeftTab(tab)}
-                className={`flex-1 rounded px-2 py-1.5 text-xs ${
+                className={`flex-1 rounded px-2 py-1.5 text-sm ${
                   leftTab === tab
                     ? "bg-violet-950/50 text-violet-200"
                     : "text-zinc-400 hover:bg-zinc-800/50"
@@ -611,7 +643,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
           {placementMessage ? (
             <p
               role="status"
-              className="rounded-lg border border-emerald-900/40 bg-emerald-950/30 px-3 py-2 text-[11px] font-medium text-emerald-300"
+              className="rounded-lg border border-emerald-900/40 bg-emerald-950/30 px-3 py-2 text-xs font-medium text-emerald-300"
             >
               ✓ {placementMessage}
             </p>
@@ -661,10 +693,8 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             state={state}
             onUpdate={onUpdate}
             selectedLayer={selectedLayer}
-            onSelectLayer={(sel) => {
-              setSelectedLayer(sel);
-              setSelectedEffectId(null);
-            }}
+            onSelectLayer={handleSelectLayer}
+            onAddScene={handleAddScene}
             playback={playback}
             onPlayAll={handlePlayAll}
             onReplayScene={handleReplayScene}
@@ -681,14 +711,9 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
           <GlobalBannerTimeline
             state={state}
             selectedLayer={selectedLayer}
-            onSelectLayer={(sel) => {
-              setSelectedLayer(sel);
-              setSelectedEffectId(null);
-              const layer = resolveBannerLayerForSelection(state, sel);
-              if (layer?.sceneId && layer.sceneId !== state.activeSceneId) {
-                onUpdate(setActiveScene(state, layer.sceneId), { history: "skip" });
-              }
-            }}
+            onSelectLayer={handleSelectLayer}
+            selectedTransitionSceneId={selectedTransitionSceneId}
+            onSelectTransition={handleSelectTransition}
             playheadMs={globalPlayheadMs}
             isPlaying={playback.isPlaying}
             onScrub={(ms) => {
@@ -732,7 +757,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
 
         {/* Right — layer properties; export on demand */}
         <aside className="order-3 flex w-full shrink-0 flex-col gap-3 lg:w-[280px] xl:w-[300px]">
-          <p className="px-1 text-[10px] font-medium uppercase tracking-wide text-zinc-600">
+          <p className="px-1 text-xs font-medium uppercase tracking-wide text-zinc-600">
             Vlastnosti
           </p>
           <div className="min-h-[280px] shrink-0">

@@ -114,17 +114,17 @@ export function LayerInspectorControls({
             className={inputClass}
           />
         </Field>
-        <p className="mt-1.5 text-[11px] font-medium text-zinc-300">{layerDisplayName(layer)}</p>
-        <p className="text-[10px] text-zinc-500">{layerTypeLabelCs(layer)}</p>
+        <p className="mt-1.5 text-sm font-medium text-zinc-300">{layerDisplayName(layer)}</p>
+        <p className="text-xs text-zinc-500">{layerTypeLabelCs(layer)}</p>
         {(layer.locked || !layer.visible) && (
           <p className="mt-1.5 flex flex-wrap gap-1">
             {layer.locked ? (
-              <span className="rounded bg-amber-950/50 px-1.5 py-0.5 text-[9px] font-medium text-amber-300">
+              <span className="rounded bg-amber-950/50 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
                 Zamknuto
               </span>
             ) : null}
             {!layer.visible ? (
-              <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] font-medium text-zinc-400">
+              <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400">
                 Skryté
               </span>
             ) : null}
@@ -186,10 +186,10 @@ export function LayerInspectorControls({
               onChange={(e) => patch({ opacity: Number(e.target.value) })}
               className="mt-1 w-full accent-violet-500"
             />
-            <span className="text-[10px] text-zinc-500">{Math.round(layer.opacity * 100)} %</span>
+            <span className="text-xs text-zinc-500">{Math.round(layer.opacity * 100)} %</span>
           </Field>
         </div>
-        <label className="flex items-center justify-between rounded border border-zinc-800/60 px-2 py-1.5 text-[11px] text-zinc-300">
+        <label className="flex items-center justify-between rounded border border-zinc-800/60 px-2 py-1.5 text-sm text-zinc-300">
           <span>{layer.visible ? "Viditelné" : "Skryté"}</span>
           <input
             type="checkbox"
@@ -197,7 +197,7 @@ export function LayerInspectorControls({
             onChange={(e) => patch({ visible: e.target.checked }, "push")}
           />
         </label>
-        <label className="flex items-center justify-between rounded border border-zinc-800/60 px-2 py-1.5 text-[11px] text-zinc-300">
+        <label className="flex items-center justify-between rounded border border-zinc-800/60 px-2 py-1.5 text-sm text-zinc-300">
           <span>{layer.locked ? "Zamknout" : "Odemknout"}</span>
           <input
             type="checkbox"
@@ -265,7 +265,7 @@ export function LayerInspectorControls({
                   key={align}
                   type="button"
                   onClick={() => patch({ textAlign: align }, "push")}
-                  className={`flex-1 rounded border px-2 py-1 text-[10px] ${
+                  className={`flex-1 rounded border px-2 py-1 text-xs ${
                     (layer.textAlign ?? "left") === align
                       ? "border-violet-600/60 bg-violet-950/40 text-violet-200"
                       : "border-zinc-700 text-zinc-400 hover:bg-zinc-800/40"
@@ -310,7 +310,7 @@ export function LayerInspectorControls({
               </p>
             </Field>
           ) : emptySlot ? (
-            <p className="text-[10px] text-zinc-500">Místo je prázdné</p>
+            <p className="text-xs text-zinc-500">Místo je prázdné</p>
           ) : null}
           {emptySlot && onOpenAssets ? (
             <div className="flex flex-wrap gap-1">
@@ -394,13 +394,13 @@ export function LayerInspectorControls({
       <LayerPhaseAnimationControls layer={layer} state={state} onUpdate={onUpdate} />
 
       <div className="border-t border-zinc-800/60 pt-3">
-        <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-zinc-600">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-600">
           Nebezpečná akce
         </p>
         <button
           type="button"
           onClick={handleDelete}
-          className="w-full rounded border border-red-900/50 px-2.5 py-1.5 text-[10px] font-medium text-red-400 hover:bg-red-950/30"
+          className="w-full rounded border border-red-900/50 px-2.5 py-1.5 text-xs font-medium text-red-400 hover:bg-red-950/30"
         >
           {deleteLabel}
         </button>
@@ -415,7 +415,7 @@ const inputClass =
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="border-t border-zinc-800/60 pt-3 first:border-t-0 first:pt-0">
-      <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-zinc-500">{title}</p>
+      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">{title}</p>
       <div className="space-y-2">{children}</div>
     </div>
   );
@@ -423,7 +423,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block text-[10px] text-zinc-500">
+    <label className="block text-xs text-zinc-500">
       {label}
       <div className="mt-0.5">{children}</div>
     </label>
@@ -441,7 +441,7 @@ function SmallButton({
     <button
       type="button"
       onClick={onClick}
-      className="rounded border border-zinc-700 px-2 py-1 text-[10px] text-zinc-400 hover:bg-zinc-800/50"
+      className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800/50"
     >
       {children}
     </button>

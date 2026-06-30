@@ -33,6 +33,7 @@ interface BannerPreviewStageProps {
   onResume: () => void;
   onStop: () => void;
   onQuickAdd?: (kind: QuickAddLayerType) => void;
+  onAddScene?: () => void;
   onSlotActivate?: (layerId: string) => void;
   previewSceneId?: string | null;
   previewTimeMs?: number | null;
@@ -52,6 +53,7 @@ export function BannerPreviewStage({
   onResume,
   onStop,
   onQuickAdd,
+  onAddScene,
   onSlotActivate,
   previewSceneId = null,
   previewTimeMs = null,
@@ -191,12 +193,21 @@ export function BannerPreviewStage({
     >
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/60 px-4 py-2.5">
         <div>
-          <h2 id="preview-heading" className="text-sm font-medium text-zinc-200">
+          <h2 id="preview-heading" className="text-base font-medium text-zinc-200">
             Náhled
           </h2>
-          <p className="text-[10px] text-zinc-500">Klikněte na vrstvu — vlastnosti vpravo</p>
+          <p className="text-xs text-zinc-500">Klikněte na vrstvu — vlastnosti vpravo</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {onAddScene ? (
+            <button
+              type="button"
+              onClick={onAddScene}
+              className="rounded-lg border border-zinc-700/60 bg-zinc-900/50 px-3 py-1.5 text-sm font-medium text-zinc-300 hover:bg-zinc-800/60"
+            >
+              + Přidat scénu
+            </button>
+          ) : null}
           {onQuickAdd ? <CanvasQuickAdd onAdd={onQuickAdd} /> : null}
           <div className="flex items-center rounded border border-zinc-800/80 bg-zinc-900/60">
             <button
@@ -208,7 +219,7 @@ export function BannerPreviewStage({
             >
               −
             </button>
-            <span className="min-w-[2.75rem] border-x border-zinc-800/80 px-2 py-1 text-center text-[10px] font-medium text-violet-300">
+            <span className="min-w-[2.75rem] border-x border-zinc-800/80 px-2 py-1 text-center text-xs font-medium text-violet-300">
               {Math.round(viewZoom * 100)} %
             </span>
             <button
@@ -224,11 +235,11 @@ export function BannerPreviewStage({
           <button
             type="button"
             onClick={() => setViewZoom(1)}
-            className="rounded border border-zinc-800/80 px-2 py-1 text-[10px] text-zinc-400 hover:bg-zinc-800/60"
+            className="rounded border border-zinc-800/80 px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800/60"
           >
             Přizpůsobit
           </button>
-          <label className="flex items-center gap-1.5 text-xs text-zinc-500">
+          <label className="flex items-center gap-1.5 text-sm text-zinc-500">
             <input
               type="checkbox"
               checked={showSafeArea}
@@ -237,7 +248,7 @@ export function BannerPreviewStage({
             />
             Bezpečná zóna
           </label>
-          <span className="font-mono text-xs text-zinc-500">{sizeLabel}</span>
+          <span className="font-mono text-sm text-zinc-500">{sizeLabel}</span>
         </div>
       </div>
 
@@ -294,7 +305,7 @@ export function BannerPreviewStage({
         sceneLabel={sceneLabel}
       />
 
-      <p className="border-t border-zinc-800/60 px-4 py-1.5 text-center text-xs text-zinc-600">
+      <p className="border-t border-zinc-800/60 px-4 py-1.5 text-center text-sm text-zinc-600">
         Přetáhněte vrstvy · rohy mění velikost · Ctrl + kolečko = zoom
       </p>
     </section>

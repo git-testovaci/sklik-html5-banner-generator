@@ -29,7 +29,7 @@ export function CanvasQuickAdd({ onAdd }: CanvasQuickAddProps) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="rounded-lg border border-violet-700/50 bg-violet-950/40 px-3 py-1.5 text-xs font-medium text-violet-200 hover:bg-violet-900/40"
+        className="rounded-lg border border-violet-700/50 bg-violet-950/40 px-3 py-1.5 text-sm font-medium text-violet-200 hover:bg-violet-900/40"
       >
         + Přidat vrstvu
       </button>
@@ -50,7 +50,7 @@ export function CanvasQuickAdd({ onAdd }: CanvasQuickAddProps) {
                   onAdd(kind);
                   setOpen(false);
                 }}
-                className="block w-full px-3 py-1.5 text-left text-xs text-zinc-200 hover:bg-zinc-800"
+                className="block w-full px-3 py-1.5 text-left text-sm text-zinc-200 hover:bg-zinc-800"
               >
                 {label}
               </button>
@@ -64,7 +64,7 @@ export function CanvasQuickAdd({ onAdd }: CanvasQuickAddProps) {
                   onAdd(kind);
                   setOpen(false);
                 }}
-                className="block w-full px-3 py-1.5 text-left text-xs text-zinc-400 hover:bg-zinc-800"
+                className="block w-full px-3 py-1.5 text-left text-sm text-zinc-400 hover:bg-zinc-800"
               >
                 {label}
               </button>

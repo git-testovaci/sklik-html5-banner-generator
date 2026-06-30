@@ -43,10 +43,17 @@ export function defaultScene(name = "Scene 1", durationMs = 3000): BannerScene {
 export const DEFAULT_SCENE_TRANSITION_MS = 700;
 export const MIN_SCENE_TRANSITION_MS = 250;
 export const MAX_SCENE_TRANSITION_MS = 1200;
+/** Upper bound for transition duration in the editor inspector (ms). */
+export const EDITOR_MAX_SCENE_TRANSITION_MS = 2000;
 
 export function clampSceneTransitionDurationMs(scene: BannerScene): number {
+  if (scene.transitionOut === "none") return 0;
   const raw = scene.transitionDurationMs ?? DEFAULT_SCENE_TRANSITION_MS;
-  const maxForScene = Math.min(MAX_SCENE_TRANSITION_MS, Math.floor(scene.durationMs / 2));
+  const maxForScene = Math.min(
+    EDITOR_MAX_SCENE_TRANSITION_MS,
+    MAX_SCENE_TRANSITION_MS,
+    Math.floor(scene.durationMs / 2),
+  );
   return Math.max(MIN_SCENE_TRANSITION_MS, Math.min(raw, maxForScene));
 }
 
@@ -580,14 +587,69 @@ export function removeLayerFromEditor(
 
 export function addScene(state: BannerEditorState, name?: string): BannerEditorState {
   const scenes = [...(state.scenes ?? [])];
-  const scene = defaultScene(name ?? `Scene ${scenes.length + 1}`, 3000);
+  const scene = createEditorScene(name ?? `Scéna ${scenes.length + 1}`, 3000);
   const persistentIds = (state.bannerLayers ?? []).filter((l) => l.persistent).map((l) => l.id);
   scene.layerIds = [...persistentIds];
-  scenes.push(scene);
+
+  const activeId = state.activeSceneId ?? scenes[scenes.length - 1]?.id;
+  const insertIdx =
+    activeId != null
+      ? Math.min(
+          scenes.length,
+          Math.max(0, scenes.findIndex((s) => s.id === activeId) + 1),
+        )
+      : scenes.length;
+  scenes.splice(insertIdx, 0, scene);
+
   return syncFlatFromActiveScene({
     ...state,
     scenes,
     activeSceneId: scene.id,
+  });
+}
+
+/** Blank scene for user-added storyboard rows — no outgoing transition by default. */
+export function createEditorScene(name: string, durationMs = 3000): BannerScene {
+  const scene = defaultScene(name, durationMs);
+  return {
+    ...scene,
+    transitionOut: "none",
+    transitionDurationMs: 0,
+  };
+}
+
+export function patchSceneTransition(
+  state: BannerEditorState,
+  sceneId: string,
+  patch: Partial<Pick<BannerScene, "transitionOut" | "transitionDurationMs">>,
+): BannerEditorState {
+  const scene = getSceneById(state, sceneId);
+  if (!scene) return state;
+
+  const transitionOut = patch.transitionOut ?? scene.transitionOut;
+  let transitionDurationMs =
+    patch.transitionDurationMs ?? scene.transitionDurationMs ?? DEFAULT_SCENE_TRANSITION_MS;
+
+  if (transitionOut === "none") {
+    transitionDurationMs = 0;
+  } else if (
+    patch.transitionOut !== undefined &&
+    scene.transitionOut === "none" &&
+    (scene.transitionDurationMs ?? 0) === 0 &&
+    patch.transitionDurationMs === undefined
+  ) {
+    transitionDurationMs = DEFAULT_SCENE_TRANSITION_MS;
+  }
+
+  const clamped = clampSceneTransitionDurationMs({
+    ...scene,
+    transitionOut,
+    transitionDurationMs,
+  });
+
+  return updateScene(state, sceneId, {
+    transitionOut,
+    transitionDurationMs: clamped,
   });
 }
 
@@ -749,6 +811,7 @@ export function applyTransitionToAllScenes(
         transitionOut,
         transitionDurationMs: clampSceneTransitionDurationMs({
           ...s,
+          transitionOut,
           transitionDurationMs: dur,
         }),
         updatedAt: now,

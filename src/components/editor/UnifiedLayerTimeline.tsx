@@ -6,6 +6,7 @@ import {
   buildGlobalTimelineSegments,
   globalTimelineLayerRowLabel,
   totalBannerDurationMs,
+  transitionChipPercentLayout,
   transitionLabelForScene,
 } from "@/lib/animation/global-timeline-utils";
 import {
@@ -48,6 +49,8 @@ interface UnifiedLayerTimelineProps {
   state: BannerEditorState;
   selectedLayer: SelectedLayer;
   onSelectLayer: (layer: SelectedLayer) => void;
+  selectedTransitionSceneId?: string | null;
+  onSelectTransition?: (sceneId: string) => void;
   playheadMs: number;
   isPlaying: boolean;
   onScrub: (timeMs: number) => void;
@@ -90,6 +93,8 @@ export function UnifiedLayerTimeline({
   state,
   selectedLayer,
   onSelectLayer,
+  selectedTransitionSceneId = null,
+  onSelectTransition,
   playheadMs,
   isPlaying,
   onScrub,
@@ -599,19 +604,19 @@ export function UnifiedLayerTimeline({
       <div className="border-b border-zinc-800/60 px-4 py-2.5">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-violet-100">Časová osa banneru</h2>
-            <p className="text-[10px] text-zinc-500">
+            <h2 className="text-base font-semibold text-violet-100">Časová osa banneru</h2>
+            <p className="text-xs text-zinc-500">
               {timelineSegments.length} scén · {timelineRows.length} vrstev · celkem{" "}
               {formatTimelineSeconds(totalDurationMs)}
               {isPlaying ? " · přehrávání" : ""}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded border border-zinc-800/80 bg-zinc-900/60 px-2 py-1 font-mono text-[11px] text-violet-200">
+            <span className="rounded border border-zinc-800/80 bg-zinc-900/60 px-2 py-1 font-mono text-xs text-violet-200">
               {formatTimelineSeconds(displayPlayheadMs)} / {formatTimelineSeconds(totalDurationMs)}
             </span>
             <div className="flex items-center rounded border border-zinc-800/80 bg-zinc-900/60">
-              <span className="hidden pl-2 text-[9px] text-zinc-600 sm:inline">Přibl.</span>
+              <span className="hidden pl-2 text-[10px] text-zinc-600 sm:inline">Přibl.</span>
               <button
                 type="button"
                 disabled={atMinZoom}
@@ -623,7 +628,7 @@ export function UnifiedLayerTimeline({
                 −
               </button>
               <span
-                className="min-w-[2.5rem] border-x border-zinc-800/80 px-2 py-1 text-center text-[10px] font-medium text-violet-300"
+                className="min-w-[2.5rem] border-x border-zinc-800/80 px-2 py-1 text-center text-xs font-medium text-violet-300"
                 title="Měřítko časové osy · Ctrl + kolečko myši"
               >
                 {zoom}×
@@ -705,7 +710,7 @@ export function UnifiedLayerTimeline({
                 className="sticky left-0 z-20 shrink-0 border-r border-zinc-800/50 bg-zinc-900/50 px-2 py-1"
                 style={{ width: TIMELINE_LABEL_WIDTH_PX }}
               >
-                <span className="text-[9px] uppercase tracking-wide text-zinc-600">Scény</span>
+                <span className="text-[10px] uppercase tracking-wide text-zinc-600">Scény</span>
               </div>
               {renderTrackArea(
                 <>
@@ -728,34 +733,43 @@ export function UnifiedLayerTimeline({
                           title={`${seg.index + 1}. ${seg.name}`}
                         >
                           <span
-                            className={`truncate text-[9px] font-medium ${
+                            className={`truncate text-[10px] font-medium ${
                               isActiveScene ? "text-violet-200" : "text-zinc-500"
                             }`}
                           >
                             {seg.index + 1}. {seg.name}
                           </span>
                         </div>
-                        {i < timelineSegments.length - 1 && sceneObj && seg.transitionDurationMs > 0 ? (
-                          <div
-                            className="pointer-events-none absolute top-0 flex h-full items-center justify-center overflow-hidden border-x border-amber-800/40 bg-amber-950/25 px-0.5"
-                            style={{
-                              left: `${
-                                totalDurationMs > 0
-                                  ? (seg.transitionStartGlobalMs / totalDurationMs) * 100
-                                  : 0
-                              }%`,
-                              width: `${
-                                totalDurationMs > 0
-                                  ? (seg.transitionDurationMs / totalDurationMs) * 100
-                                  : 0
-                              }%`,
-                            }}
-                            title={transitionLabelForScene(sceneObj)}
-                          >
-                            <span className="truncate text-[8px] text-amber-200/90">
-                              {transitionLabelForScene(sceneObj)}
-                            </span>
-                          </div>
+                        {i < timelineSegments.length - 1 && sceneObj ? (
+                          (() => {
+                            const chip = transitionChipPercentLayout(seg, totalDurationMs);
+                            const isSelected = selectedTransitionSceneId === seg.sceneId;
+                            return (
+                              <button
+                                type="button"
+                                className={`absolute top-0 z-[5] flex h-full cursor-pointer items-center justify-center overflow-hidden border-x px-0.5 transition-colors ${
+                                  isSelected
+                                    ? "border-amber-400/80 bg-amber-900/45 ring-1 ring-amber-400/70"
+                                    : "border-amber-800/40 bg-amber-950/25 hover:bg-amber-950/40"
+                                }`}
+                                style={{
+                                  left: `${chip.leftPct}%`,
+                                  width: `${chip.widthPct}%`,
+                                }}
+                                title={transitionLabelForScene(sceneObj)}
+                                aria-label="Upravit přechod"
+                                aria-pressed={isSelected}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onSelectTransition?.(seg.sceneId);
+                                }}
+                              >
+                                <span className="truncate text-[9px] text-amber-200/90">
+                                  {transitionLabelForScene(sceneObj)}
+                                </span>
+                              </button>
+                            );
+                          })()
                         ) : null}
                       </div>
                     );

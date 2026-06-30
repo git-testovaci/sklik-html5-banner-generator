@@ -43,8 +43,8 @@ export function SceneStrip({
       aria-label="Scény — navigace"
       className="flex flex-wrap items-center gap-2 rounded-md border border-zinc-800/40 bg-zinc-950/30 px-2 py-1.5"
     >
-      <span className="shrink-0 text-[10px] font-medium text-zinc-600">Scény / navigace</span>
-      <span className="hidden text-[9px] text-zinc-700 sm:inline">· {totalSec} s celkem</span>
+      <span className="shrink-0 text-xs font-medium text-zinc-600">Scény / navigace</span>
+      <span className="hidden text-[10px] text-zinc-700 sm:inline">· {totalSec} s celkem</span>
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
         {scenes.map((scene, i) => {
           const isActive = scene.id === highlightId;
@@ -53,7 +53,7 @@ export function SceneStrip({
               key={scene.id}
               type="button"
               onClick={() => selectScene(scene.id)}
-              className={`shrink-0 rounded border px-2 py-0.5 text-[10px] transition-colors ${
+              className={`shrink-0 rounded border px-2 py-0.5 text-xs transition-colors ${
                 isActive
                   ? "border-violet-600/50 bg-violet-950/40 text-violet-200"
                   : "border-zinc-800/60 bg-zinc-900/30 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300"
@@ -68,7 +68,7 @@ export function SceneStrip({
       <button
         type="button"
         onClick={() => onUpdate(addScene(state))}
-        className="shrink-0 rounded border border-zinc-800/60 px-2 py-0.5 text-[10px] text-zinc-500 hover:border-zinc-700 hover:text-zinc-300"
+        className="shrink-0 rounded border border-zinc-800/60 px-2 py-0.5 text-xs text-zinc-500 hover:border-zinc-700 hover:text-zinc-300"
         title="Přidat scénu"
       >
         + Scéna

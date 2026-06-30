@@ -57,7 +57,7 @@ export function EditorTopBar({
               </h1>
               <ProjectStatusBadge status={state.status} />
             </div>
-            <p className="text-[10px] font-medium uppercase tracking-wide text-violet-400/90">
+            <p className="text-xs font-medium uppercase tracking-wide text-violet-400/90">
               Sklik HTML5 banner · {sizeLabel}
             </p>
           </div>
@@ -65,14 +65,14 @@ export function EditorTopBar({
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {hasUnsavedChanges ? (
-            <span className="text-xs font-medium text-amber-400">Neuložené změny</span>
+            <span className="text-sm font-medium text-amber-400">Neuložené změny</span>
           ) : saveStatus === "saved" ? (
-            <span className="text-xs font-medium text-emerald-400">Uloženo lokálně</span>
+            <span className="text-sm font-medium text-emerald-400">Uloženo lokálně</span>
           ) : (
-            <span className="text-xs text-zinc-600">Uloženo v prohlížeči</span>
+            <span className="text-sm text-zinc-600">Uloženo v prohlížeči</span>
           )}
           {saveError ? (
-            <span className="text-xs font-medium text-red-400" role="alert">{saveError}</span>
+            <span className="text-sm font-medium text-red-400" role="alert">{saveError}</span>
           ) : null}
           {onUndo && onRedo ? (
             <div className="flex items-center rounded-lg border border-zinc-800/80 bg-zinc-900/50">
@@ -82,7 +82,7 @@ export function EditorTopBar({
                 disabled={!canUndo}
                 title="Vrátit zpět (Ctrl+Z)"
                 aria-label="Vrátit zpět"
-                className="rounded-l-lg px-2.5 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800/60 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-l-lg px-2.5 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800/60 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Zpět
               </button>
@@ -92,7 +92,7 @@ export function EditorTopBar({
                 disabled={!canRedo}
                 title="Provést znovu (Ctrl+Shift+Z)"
                 aria-label="Provést znovu"
-                className="rounded-r-lg border-l border-zinc-800/80 px-2.5 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800/60 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-r-lg border-l border-zinc-800/80 px-2.5 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800/60 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Znovu
               </button>
@@ -102,7 +102,7 @@ export function EditorTopBar({
             href={previewPath}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800/50"
+            className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800/50"
             title={getPreviewUrl(state.shareId)}
           >
             Náhled
@@ -112,7 +112,7 @@ export function EditorTopBar({
               type="button"
               onClick={onExport}
               aria-label="Export ZIP"
-              className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${
+              className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${
                 exportReady
                   ? "border-emerald-800/60 bg-emerald-950/30 text-emerald-300 hover:bg-emerald-950/50"
                   : "border-zinc-700 text-zinc-300 hover:bg-zinc-800/50"
