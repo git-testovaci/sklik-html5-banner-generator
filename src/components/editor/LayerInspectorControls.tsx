@@ -77,7 +77,7 @@ export function LayerInspectorControls({
     : undefined;
 
   function patch(p: Partial<BannerLayer>, history: EditorHistoryMode = "replace") {
-    onUpdate(patchBannerLayerSlice(state, layer.id, p), { history });
+    onUpdate((prev) => patchBannerLayerSlice(prev, layer.id, p), { history });
   }
 
   function reorder(action: "forward" | "backward" | "front" | "back") {

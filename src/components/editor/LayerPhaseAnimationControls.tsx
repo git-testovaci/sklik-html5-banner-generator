@@ -56,16 +56,19 @@ export function LayerPhaseAnimationControls({
         : LOOP_UI_PRESETS;
 
   function applyPreset(uiPresetId: string) {
-    onUpdate(setLayerPhaseAnimation(state, scene!.id, layer.id, tab, uiPresetId));
+    onUpdate((prev) => setLayerPhaseAnimation(prev, scene!.id, layer.id, tab, uiPresetId));
   }
 
   function applyDuration(ms: number) {
     if (phaseState.uiPresetId === "none" || !phaseState.active) return;
-    onUpdate(updateLayerPhaseDuration(state, scene!.id, layer.id, tab, ms), { history: "replace" });
+    onUpdate(
+      (prev) => updateLayerPhaseDuration(prev, scene!.id, layer.id, tab, ms),
+      { history: "replace" },
+    );
   }
 
   function resetPhase() {
-    onUpdate(clearLayerPhaseAnimation(state, scene!.id, layer.id, tab));
+    onUpdate((prev) => clearLayerPhaseAnimation(prev, scene!.id, layer.id, tab));
   }
 
   return (

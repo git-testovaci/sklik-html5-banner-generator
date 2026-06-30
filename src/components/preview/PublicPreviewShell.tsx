@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { formatBannerSize } from "@/lib/banner-sizes";
 import { projectToEditorState } from "@/lib/animation/timeline-utils";
-import { totalStoryboardDurationMs } from "@/lib/animation/storyboard-utils";
+import { totalBannerDurationMs } from "@/lib/animation/global-timeline-utils";
 import { collectAssetWarnings } from "@/lib/assets/asset-validation";
 import { usePlaybackController } from "@/lib/playback/use-playback-controller";
 import {
@@ -51,10 +51,8 @@ function PreviewContent({ state }: PreviewContentProps) {
   const [assetNoteCache, setAssetNoteCache] = useState<Record<string, string>>({});
 
   const playback = usePlaybackController({
-    scenes: state.scenes,
+    state,
     loop: loopPreview,
-    timelineDurationMs: state.timeline?.durationMs ?? 3000,
-    activeSceneId: state.activeSceneId,
   });
 
   useEffect(() => {
@@ -166,7 +164,7 @@ function PreviewContent({ state }: PreviewContentProps) {
               onToggleLoop={setLoopPreview}
               sceneLabel={
                 playback.mode === "playing-all"
-                  ? `Přehrávání vše · ${(totalStoryboardDurationMs(state) / 1000).toFixed(1)} s`
+                  ? `Přehrávání vše · ${(totalBannerDurationMs(state) / 1000).toFixed(1)} s`
                   : sceneLabel
               }
             />

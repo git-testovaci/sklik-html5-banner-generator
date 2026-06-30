@@ -104,6 +104,7 @@ export function getKeyframesForScene(state: BannerEditorState, sceneId: string):
   return (state.layerKeyframes ?? []).filter((k) => k.sceneId === sceneId);
 }
 
+/** Export / storyboard total duration. Editor playback prefers totalBannerDurationMs. */
 export function totalStoryboardDurationMs(state: BannerEditorState): number {
   return (state.scenes ?? []).reduce((sum, s) => sum + s.durationMs, 0);
 }
@@ -720,8 +721,12 @@ export function updateScene(
         : s,
     ),
   };
-  if (patch.durationMs !== undefined && getActiveScene(state)?.id === sceneId) {
-    return syncFlatFromActiveScene(next);
+  if (patch.durationMs !== undefined) {
+    const repaired = repairEditorInvariants(next);
+    if (getActiveScene(state)?.id === sceneId) {
+      return syncFlatFromActiveScene(repaired);
+    }
+    return repaired;
   }
   return next;
 }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BannerScene } from "@/types/animation";
 import type { PlaybackControllerSnapshot, PlaybackMode } from "@/types/playback";
+import { isPlaybackModePlaying } from "@/types/playback";
 import { playbackSceneIdAtGlobalMs, totalBannerDurationMs } from "@/lib/animation/global-timeline-utils";
 import type { BannerEditorState } from "@/types/editor";
 import { anchorPlaybackClock, computeLiveTimeMs } from "@/lib/playback/playback-clock";
@@ -33,10 +34,17 @@ export interface PlaybackController extends PlaybackControllerSnapshot {
 
 function resolveTotalDurationMs(options: UsePlaybackControllerOptions): number {
   if (options.totalDurationMs != null) return Math.max(0, options.totalDurationMs);
-  if (options.state) return totalBannerDurationMs(options.state);
+  if (options.state) {
+    const scenes = options.state.scenes ?? [];
+    if (scenes.length > 0) return totalBannerDurationMs(options.state);
+    return Math.max(
+      0,
+      options.state.timeline?.durationMs ?? options.timelineDurationMs ?? 3000,
+    );
+  }
   const scenes = options.scenes ?? [];
   if (scenes.length > 0) {
-    return scenes.reduce((sum, s) => sum + s.durationMs, 0);
+    return totalBannerDurationMs({ scenes } as BannerEditorState);
   }
   return Math.max(0, options.timelineDurationMs ?? 3000);
 }
@@ -49,16 +57,11 @@ function resolveSceneResolver(
     return (globalMs: number) => playbackSceneIdAtGlobalMs(options.state!, globalMs);
   }
   const scenes = options.scenes ?? [];
-  return (globalMs: number) => {
-    if (scenes.length === 0) return options.activeSceneId ?? null;
-    let offset = 0;
-    for (const scene of scenes) {
-      const end = offset + scene.durationMs;
-      if (globalMs >= offset && globalMs < end) return scene.id;
-      offset = end;
-    }
-    return scenes[scenes.length - 1]?.id ?? null;
-  };
+  if (scenes.length > 0) {
+    const stub = { scenes } as BannerEditorState;
+    return (globalMs: number) => playbackSceneIdAtGlobalMs(stub, globalMs);
+  }
+  return () => options.activeSceneId ?? null;
 }
 
 function outwardPlaybackMode(
@@ -234,14 +237,16 @@ export function usePlaybackController(
     [anchorClock, cancelRaf, syncVisibleTime],
   );
 
+  const outwardMode = outwardPlaybackMode(mode, multiScene);
+
   return {
-    mode: outwardPlaybackMode(mode, multiScene),
+    mode: outwardMode,
     playbackTimeMs,
     playbackSceneId,
     replayKey,
-    isPlaying: mode === "playing",
+    isPlaying: isPlaybackModePlaying(outwardMode),
     isPaused: mode === "paused",
-    playAllView: mode === "playing" && multiScene,
+    playAllView: outwardMode === "playing-all",
     play,
     playAll: play,
     replayScene: play,

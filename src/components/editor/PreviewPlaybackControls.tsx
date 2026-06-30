@@ -1,6 +1,6 @@
 "use client";
 
-import type { PlaybackMode } from "@/types/playback";
+import { isPlaybackModePlaying, type PlaybackMode } from "@/types/playback";
 
 interface PreviewPlaybackControlsProps {
   mode: PlaybackMode;
@@ -26,8 +26,7 @@ export function PreviewPlaybackControls({
   onToggleLoop,
   sceneLabel,
 }: PreviewPlaybackControlsProps) {
-  const isPlaying =
-    mode === "playing" || mode === "playing-all" || mode === "playing-scene";
+  const isPlaying = isPlaybackModePlaying(mode);
   const isPaused = mode === "paused";
   const isIdle = mode === "idle";
 

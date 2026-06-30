@@ -281,9 +281,11 @@ export function resolveLayerFromSelection(
   selection: { type: string; id: string } | null | undefined,
 ): BannerLayer | undefined {
   if (!selection || selection.type !== "asset") return undefined;
-  return (state.bannerLayers ?? []).find(
-    (l) => l.id === selection.id || l.assetId === selection.id,
-  );
+  const byId = (state.bannerLayers ?? []).find((l) => l.id === selection.id);
+  if (byId) return byId;
+  const byAsset = (state.bannerLayers ?? []).filter((l) => l.assetId === selection.id);
+  if (byAsset.length === 1) return byAsset[0];
+  return undefined;
 }
 
 export function isSelectedSlotLayer(

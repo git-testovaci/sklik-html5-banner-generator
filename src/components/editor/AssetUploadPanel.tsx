@@ -21,6 +21,8 @@ import {
   validateImageFile,
 } from "@/lib/assets/image-utils";
 import { createDefaultAssetPlacement } from "@/lib/animation/timeline-utils";
+import { removeLayerFromEditor } from "@/lib/animation/storyboard-utils";
+import { repairEditorInvariants } from "@/lib/editor/editor-invariants";
 import type { BannerAssetKind } from "@/types/assets";
 import type { BannerEditorState, BannerEditorStateUpdater, SelectedLayer } from "@/types/editor";
 
@@ -125,7 +127,7 @@ export function AssetUploadPanel({
             nextState = applyLayerTimingAtPlayhead(nextState, slot.id, scrubTimeMs);
             onUpdate(nextState);
             setSuccess("Soubor nahrán a vložen do vybraného místa");
-            onPlaced?.({ type: "asset", id: slot.id }, "Soubor vložen do místa");
+            onPlaced?.({ type: "asset", id: slot.id }, "Soubor vložen do vybraného místa");
           } else {
             onUpdate(nextState);
             setSuccess("Soubor nahrán do Média — klikněte + Přidat na časovou osu.");
@@ -165,18 +167,19 @@ export function AssetUploadPanel({
   async function handleRemove(assetId: string) {
     invalidateAssetObjectUrl(assetId);
     await deleteAssetBlob(assetId);
-    onUpdate({
-      assets: (state.assets ?? []).filter((a) => a.id !== assetId),
-      assetPlacements: (state.assetPlacements ?? []).filter((p) => p.assetId !== assetId),
-      bannerLayers: (state.bannerLayers ?? []).map((l) =>
-        l.assetId === assetId
-          ? {
-              ...l,
-              assetId: undefined,
-              type: l.isTemplateSlot || l.slotKind ? "badge" : l.type,
-            }
-          : l,
-      ),
+    const layerIds = (state.bannerLayers ?? [])
+      .filter((l) => l.assetId === assetId)
+      .map((l) => l.id);
+    onUpdate((prev) => {
+      let next: BannerEditorState = {
+        ...prev,
+        assets: (prev.assets ?? []).filter((a) => a.id !== assetId),
+        assetPlacements: (prev.assetPlacements ?? []).filter((p) => p.assetId !== assetId),
+      };
+      for (const layerId of layerIds) {
+        next = removeLayerFromEditor(next, layerId);
+      }
+      return repairEditorInvariants(next);
     });
     setSuccess(null);
   }

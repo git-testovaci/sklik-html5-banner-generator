@@ -12,6 +12,11 @@ import {
   layerTimelineLabel,
 } from "@/lib/animation/layer-timeline-utils";
 
+/**
+ * Editor / playback global timeline API.
+ * Prefer these names in UI and playback code.
+ * Export pipeline may continue using totalStoryboardDurationMs / sceneStartOffsetMs.
+ */
 export interface GlobalTimelineSceneSegment {
   sceneId: string;
   index: number;
@@ -126,23 +131,6 @@ export function transitionLabelForScene(scene: BannerScene): string {
   const label = transitionFriendlyLabel(scene.transitionOut);
   const durSec = (getSceneTransitionDurationMs(scene) / 1000).toFixed(1);
   return `${label} · ${durSec} s`;
-}
-
-export function isInTransitionRange(
-  state: BannerEditorState,
-  globalMs: number,
-): boolean {
-  const segments = buildGlobalTimelineSegments(state);
-  for (let i = 0; i < segments.length - 1; i++) {
-    const seg = segments[i]!;
-    if (
-      globalMs >= seg.transitionStartGlobalMs &&
-      globalMs < seg.endGlobalMs
-    ) {
-      return true;
-    }
-  }
-  return false;
 }
 
 export interface GlobalTimelineLayerRow {

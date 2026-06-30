@@ -411,12 +411,13 @@ export function moveLayerInSceneStack(
   const fromIdx = uiOrdered.findIndex((l) => l.id === layerId);
   if (fromIdx === -1) return state;
 
-  const toIdx = Math.max(0, Math.min(uiOrdered.length - 1, targetFrontFirstIndex));
-  if (fromIdx === toIdx) return state;
+  const targetIdx = Math.max(0, Math.min(uiOrdered.length, targetFrontFirstIndex));
+  if (fromIdx === targetIdx) return state;
 
   const reordered = [...uiOrdered];
   const [moved] = reordered.splice(fromIdx, 1);
-  reordered.splice(toIdx, 0, moved!);
+  const insertIdx = Math.min(targetIdx, reordered.length);
+  reordered.splice(insertIdx, 0, moved!);
 
   const zById = new Map<string, number>();
   reordered.forEach((l, i) => {

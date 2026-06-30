@@ -1,10 +1,9 @@
-export type PlaybackMode =
-  | "idle"
-  | "playing"
-  | "paused"
-  /** Legacy public-preview / timeline labels (emitted while playing). */
-  | "playing-all"
-  | "playing-scene";
+export type PlaybackMode = "idle" | "paused" | "playing-all" | "playing-scene";
+
+/** True when outward playback mode indicates active playback (not idle/paused). */
+export function isPlaybackModePlaying(mode: PlaybackMode): boolean {
+  return mode === "playing-all" || mode === "playing-scene";
+}
 
 export interface PlaybackControllerSnapshot {
   mode: PlaybackMode;

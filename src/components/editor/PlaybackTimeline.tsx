@@ -6,8 +6,8 @@ import {
   getEffectsForScene,
   getSceneById,
   sceneLocalPlaybackTime,
-  totalStoryboardDurationMs,
 } from "@/lib/animation/storyboard-utils";
+import { totalBannerDurationMs } from "@/lib/animation/global-timeline-utils";
 import {
   describeLayerEffect,
   findActiveEffectAtTime,
@@ -38,7 +38,7 @@ export function PlaybackTimeline({
   playbackSceneId,
 }: PlaybackTimelineProps) {
   const scenes = useMemo(() => state.scenes ?? [], [state.scenes]);
-  const totalMs = totalStoryboardDurationMs(state);
+  const totalMs = totalBannerDurationMs(state);
   const activeScene = getActiveScene(state);
   const displaySceneId = playbackSceneId ?? activeScene?.id;
   const displayScene = displaySceneId ? getSceneById(state, displaySceneId) : activeScene;

@@ -335,7 +335,7 @@ export function ValidationExportPanel({
         <button
           type="button"
           onClick={handleGenerateZip}
-          disabled={exporting}
+          disabled={exporting || validation.overallStatus === "fail"}
           className="w-full rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {exporting ? "Generuji ZIP…" : "Exportovat ZIP"}
