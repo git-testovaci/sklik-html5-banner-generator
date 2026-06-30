@@ -13,7 +13,6 @@ import {
 import { clampParticleCount } from "@/lib/animation/keyframe-utils";
 import { buildSceneSequenceCss } from "@/lib/animation/scene-sequence-css";
 import { getEffectsForScene } from "@/lib/animation/storyboard-utils";
-import { getTextPlacement } from "@/lib/animation/timeline-utils";
 import type { BannerLayer } from "@/types/animation";
 import type { BannerEditorState } from "@/types/editor";
 import {
@@ -22,7 +21,9 @@ import {
   getExportLayersForScene,
   isLegacyFlatScene,
   projectHasBackgroundImage,
+  resolveExportLayerTextStyle,
   resolveExportScenes,
+  type ExportLayerTextStyle,
 } from "./export-layer-utils";
 import { sanitizeCssColor } from "./sanitize-export-content";
 import { totalStoryboardDurationMs } from "@/lib/animation/storyboard-utils";
@@ -122,6 +123,172 @@ function buildAnimationRules(state: BannerEditorState): string {
   return rules.join("\n");
 }
 
+function flexJustifyContent(textAlign: ExportLayerTextStyle["textAlign"]): string {
+  return textAlign === "center" ? "center" : textAlign === "right" ? "flex-end" : "flex-start";
+}
+
+function cssEscapeAttrValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function headlineClassCss(style: ExportLayerTextStyle): string {
+  return `margin: 0;
+  font-size: ${style.fontSize}px;
+  line-height: ${style.lineHeight};
+  font-weight: ${style.fontWeight};
+  text-align: ${style.textAlign};
+  display: flex;
+  align-items: center;
+  justify-content: ${flexJustifyContent(style.textAlign)};`;
+}
+
+function subheadlineClassCss(style: ExportLayerTextStyle): string {
+  return headlineClassCss(style);
+}
+
+function ctaClassCss(style: ExportLayerTextStyle, ctaBg: string, ctaText: string): string {
+  const bg = style.backgroundColor ? sanitizeCssColor(style.backgroundColor, ctaBg) : ctaBg;
+  const color = style.color ? sanitizeCssColor(style.color, ctaText) : ctaText;
+  return `display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: ${style.borderRadius ?? 4}px;
+  background: ${bg};
+  color: ${color};
+  font-size: ${style.fontSize}px;
+  font-weight: ${style.fontWeight};
+  line-height: ${style.lineHeight};
+  text-align: ${style.textAlign};`;
+}
+
+function genericTextLayerCss(style: ExportLayerTextStyle, textColor: string): string {
+  const color = style.color ? sanitizeCssColor(style.color, textColor) : textColor;
+  return `margin: 0;
+  font-size: ${style.fontSize}px;
+  line-height: ${style.lineHeight};
+  font-weight: ${style.fontWeight};
+  text-align: ${style.textAlign};
+  color: ${color};
+  display: flex;
+  align-items: center;
+  justify-content: ${flexJustifyContent(style.textAlign)};`;
+}
+
+function legacyStyleFromScene(
+  state: BannerEditorState,
+  sceneId: string,
+  legacyKey: "headline" | "subheadline" | "cta",
+): ExportLayerTextStyle {
+  const layer = getExportLayersForScene(state, sceneId).find(
+    (l) => l.type === "text" && l.legacyKey === legacyKey,
+  );
+  if (layer) {
+    return resolveExportLayerTextStyle(state, sceneId, layer);
+  }
+  return resolveExportLayerTextStyle(state, sceneId, {
+    id: legacyKey,
+    type: "text",
+    legacyKey,
+    name: legacyKey,
+    visible: true,
+    locked: false,
+    persistent: false,
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+    opacity: 1,
+    rotation: 0,
+    scale: 1,
+    zIndex: 0,
+  });
+}
+
+function buildGlobalLegacyTextClassRules(
+  state: BannerEditorState,
+  sceneId: string,
+  ctaBg: string,
+  ctaText: string,
+): string {
+  const headlineStyle = legacyStyleFromScene(state, sceneId, "headline");
+  const subStyle = legacyStyleFromScene(state, sceneId, "subheadline");
+  const ctaStyle = legacyStyleFromScene(state, sceneId, "cta");
+
+  return `.layer--headline {
+  ${headlineClassCss(headlineStyle)}
+}
+.layer--subheadline {
+  ${subheadlineClassCss(subStyle)}
+}
+.layer--cta {
+  ${ctaClassCss(ctaStyle, ctaBg, ctaText)}
+}`;
+}
+
+function buildMultiSceneTextStyleRules(
+  state: BannerEditorState,
+  textColor: string,
+  ctaBg: string,
+  ctaText: string,
+): string {
+  const rules: string[] = [];
+  const realScenes = state.scenes ?? [];
+
+  rules.push(`.layer--headline {
+  margin: 0;
+  display: flex;
+  align-items: center;
+}
+.layer--subheadline {
+  margin: 0;
+  display: flex;
+  align-items: center;
+}
+.layer--cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+}
+.layer--text {
+  margin: 0;
+  display: flex;
+  align-items: center;
+}`);
+
+  for (const scene of realScenes) {
+    for (const layer of getExportLayersForScene(state, scene.id)) {
+      if (layer.type !== "text") continue;
+      const style = resolveExportLayerTextStyle(state, scene.id, layer);
+      const selector = `.scene-${scene.id} [data-layer="${cssEscapeAttrValue(layer.id)}"]`;
+      if (layer.legacyKey === "cta") {
+        rules.push(`${selector} {\n  ${ctaClassCss(style, ctaBg, ctaText)}\n}`);
+      } else if (layer.legacyKey === "headline" || layer.legacyKey === "subheadline") {
+        rules.push(`${selector} {\n  ${headlineClassCss(style)}\n}`);
+      } else {
+        rules.push(`${selector} {\n  ${genericTextLayerCss(style, textColor)}\n}`);
+      }
+    }
+  }
+
+  return rules.join("\n");
+}
+
+function buildExportTextStyleRules(
+  state: BannerEditorState,
+  textColor: string,
+  ctaBg: string,
+  ctaText: string,
+): string {
+  const scenes = resolveExportScenes(state);
+  const multiScene = scenes.length > 1 && !isLegacyFlatScene(scenes[0]!.id);
+  if (multiScene) {
+    return buildMultiSceneTextStyleRules(state, textColor, ctaBg, ctaText);
+  }
+  return buildGlobalLegacyTextClassRules(state, scenes[0]!.id, ctaBg, ctaText);
+}
+
 export function generateBannerCss(state: BannerEditorState): string {
   const bg = sanitizeCssColor(state.backgroundColor, "#0f172a");
   const text = sanitizeCssColor(state.textColor, "#f8fafc");
@@ -129,13 +296,10 @@ export function generateBannerCss(state: BannerEditorState): string {
   const ctaText = sanitizeCssColor(state.ctaTextColor, "#ffffff");
   const accent = sanitizeCssColor(state.accentColor, "#a78bfa");
 
-  const headlinePl = getTextPlacement(state, "headline");
-  const subPl = getTextPlacement(state, "subheadline");
-  const ctaPl = getTextPlacement(state, "cta");
-
   const hasBgImage = projectHasBackgroundImage(state);
   const bannerBg = hasBgImage ? "transparent" : bg;
   const animationBlock = buildStoryboardRules(state);
+  const textStyleBlock = buildExportTextStyleRules(state, text, ctaBg, ctaText);
 
   return `*, *::before, *::after { box-sizing: border-box; }
 html, body {
@@ -182,45 +346,13 @@ body {
   text-align: center;
   background: ${bg};
 }
-.layer--headline {
-  margin: 0;
-  font-size: ${headlinePl?.fontSize ?? 16}px;
-  line-height: ${headlinePl?.lineHeight ?? 1.15};
-  font-weight: ${headlinePl?.fontWeight ?? 700};
-  text-align: ${headlinePl?.textAlign ?? "left"};
-  display: flex;
-  align-items: center;
-  justify-content: ${headlinePl?.textAlign === "center" ? "center" : headlinePl?.textAlign === "right" ? "flex-end" : "flex-start"};
-}
-.layer--subheadline {
-  margin: 0;
-  font-size: ${subPl?.fontSize ?? 11}px;
-  line-height: ${subPl?.lineHeight ?? 1.25};
-  font-weight: ${subPl?.fontWeight ?? 400};
-  text-align: ${subPl?.textAlign ?? "left"};
-  display: flex;
-  align-items: center;
-  justify-content: ${subPl?.textAlign === "center" ? "center" : subPl?.textAlign === "right" ? "flex-end" : "flex-start"};
-}
+${textStyleBlock}
 .layer--underline {
   transform-origin: left center;
 }
 .scene-layer {
   position: absolute;
   inset: 0;
-}
-.layer--cta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 10px;
-  border-radius: 4px;
-  background: ${ctaBg};
-  color: ${ctaText};
-  font-size: ${ctaPl?.fontSize ?? 11}px;
-  font-weight: ${ctaPl?.fontWeight ?? 600};
-  line-height: ${ctaPl?.lineHeight ?? 1.2};
-  text-align: ${ctaPl?.textAlign ?? "center"};
 }
 ${animationBlock}`;
 }

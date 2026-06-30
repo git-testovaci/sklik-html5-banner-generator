@@ -1,16 +1,15 @@
 import { isVideoMimeType } from "@/lib/assets/asset-validation";
 import { animationTargetIdForLayer } from "@/lib/animation/layer-instance-utils";
-import { buildPhaseLayerAnimationsForScene } from "@/lib/animation/layer-phase-utils";
+import {
+  buildPhaseLayerAnimationsForScene,
+} from "@/lib/animation/layer-phase-utils";
 import {
   getLayerTimelineRange,
   getOrderedSceneLayersForUi,
 } from "@/lib/animation/layer-timeline-utils";
-import {
-  getLayerById,
-  getLayersForScene,
-  getSceneById,
-  totalStoryboardDurationMs,
-} from "@/lib/animation/storyboard-utils";
+import { buildFlatSliceForScene, getLayerById, getLayersForScene, getSceneById, totalStoryboardDurationMs } from "@/lib/animation/storyboard-utils";
+import { getTextPlacement } from "@/lib/animation/timeline-utils";
+import type { TextLayerPlacement } from "@/types/assets";
 import type { LayerAnimation } from "@/types/animation";
 import type { BannerLayer } from "@/types/animation";
 import type { BannerEditorState } from "@/types/editor";
@@ -377,6 +376,101 @@ export function resolveExportLayerText(
   }
 
   return layer.name?.trim() ?? "";
+}
+
+export interface ExportLayerTextStyle {
+  fontSize: number;
+  fontWeight: number;
+  lineHeight: number;
+  textAlign: TextLayerPlacement["textAlign"];
+  color?: string;
+  backgroundColor?: string;
+  borderRadius?: number;
+}
+
+const HEADLINE_STYLE_DEFAULTS = {
+  fontSize: 16,
+  fontWeight: 700,
+  lineHeight: 1.15,
+  textAlign: "left" as const,
+};
+
+const SUBHEADLINE_STYLE_DEFAULTS = {
+  fontSize: 11,
+  fontWeight: 400,
+  lineHeight: 1.25,
+  textAlign: "left" as const,
+};
+
+const CTA_STYLE_DEFAULTS = {
+  fontSize: 11,
+  fontWeight: 600,
+  lineHeight: 1.2,
+  textAlign: "center" as const,
+};
+
+const GENERIC_TEXT_STYLE_DEFAULTS = {
+  fontSize: 11,
+  fontWeight: 400,
+  lineHeight: 1.25,
+  textAlign: "left" as const,
+};
+
+function defaultsForLegacyKey(
+  legacyKey: BannerLayer["legacyKey"],
+): Omit<ExportLayerTextStyle, "color" | "backgroundColor" | "borderRadius"> {
+  if (legacyKey === "headline") return HEADLINE_STYLE_DEFAULTS;
+  if (legacyKey === "subheadline") return SUBHEADLINE_STYLE_DEFAULTS;
+  if (legacyKey === "cta") return CTA_STYLE_DEFAULTS;
+  return GENERIC_TEXT_STYLE_DEFAULTS;
+}
+
+function sceneTextPlacement(
+  state: BannerEditorState,
+  sceneId: string,
+  layerId: TextLayerPlacement["layerId"],
+): TextLayerPlacement | undefined {
+  if (isLegacyFlatExport(state, sceneId)) {
+    return getTextPlacement(state, layerId);
+  }
+  const slice = buildFlatSliceForScene(state, sceneId);
+  return (slice.textPlacements ?? []).find((p) => p.layerId === layerId);
+}
+
+/** Typography/style for exported text layers — scene-aware for storyboard exports. */
+export function resolveExportLayerTextStyle(
+  state: BannerEditorState,
+  sceneId: string,
+  layer: BannerLayer,
+): ExportLayerTextStyle {
+  const legacyKey = layer.legacyKey;
+  const defaults = defaultsForLegacyKey(legacyKey);
+  const placement =
+    legacyKey === "headline" ||
+    legacyKey === "subheadline" ||
+    legacyKey === "cta"
+      ? sceneTextPlacement(state, sceneId, legacyKey)
+      : undefined;
+
+  const style: ExportLayerTextStyle = {
+    fontSize: layer.fontSize ?? placement?.fontSize ?? defaults.fontSize,
+    fontWeight: layer.fontWeight ?? placement?.fontWeight ?? defaults.fontWeight,
+    lineHeight: layer.lineHeight ?? placement?.lineHeight ?? defaults.lineHeight,
+    textAlign: layer.textAlign ?? placement?.textAlign ?? defaults.textAlign,
+  };
+
+  if (layer.color) {
+    style.color = layer.color;
+  } else if (legacyKey === "cta" && isLegacyFlatExport(state, sceneId)) {
+    style.color = state.ctaTextColor;
+  }
+
+  if (legacyKey === "cta") {
+    style.backgroundColor = layer.fill ?? state.ctaBackgroundColor;
+    style.borderRadius = layer.borderRadius ?? 4;
+  }
+
+  return style;
 }
 
 export function getLayerByIdForExport(
