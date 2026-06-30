@@ -7,7 +7,7 @@ export function isPlaybackModePlaying(mode: PlaybackMode): boolean {
 
 export interface PlaybackControllerSnapshot {
   mode: PlaybackMode;
-  /** Global banner timeline position in milliseconds. */
+  /** Global banner timeline position in milliseconds (1 real second ≈ 1000 ms). */
   playbackTimeMs: number;
   playbackSceneId: string | null;
   replayKey: number;

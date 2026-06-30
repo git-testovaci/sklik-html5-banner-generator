@@ -6,7 +6,11 @@ import type { PlaybackControllerSnapshot, PlaybackMode } from "@/types/playback"
 import { isPlaybackModePlaying } from "@/types/playback";
 import { playbackSceneIdAtGlobalMs, totalBannerDurationMs } from "@/lib/animation/global-timeline-utils";
 import type { BannerEditorState } from "@/types/editor";
-import { anchorPlaybackClock, computeLiveTimeMs } from "@/lib/playback/playback-clock";
+import {
+  anchorPlaybackClock,
+  clampPlaybackTimeMs,
+  computeLiveTimeMs,
+} from "@/lib/playback/playback-clock";
 
 export interface UsePlaybackControllerOptions {
   loop: boolean;
@@ -121,8 +125,8 @@ export function usePlaybackController(
     clockMaxMsRef.current = anchored.maxMs;
   }, []);
 
+  /** Update React-visible playhead only — clock refs are owned by anchorClock. */
   const syncVisibleTime = useCallback((ms: number) => {
-    clockOffsetMsRef.current = ms;
     setPlaybackTimeMs(ms);
     setPlaybackSceneId(resolveSceneRef.current(ms));
   }, []);
@@ -185,7 +189,7 @@ export function usePlaybackController(
   const play = useCallback(
     (startGlobalMs = 0) => {
       const duration = totalDurationRef.current;
-      const clamped = Math.max(0, Math.min(duration, startGlobalMs));
+      const clamped = clampPlaybackTimeMs(startGlobalMs, duration);
       anchorClock(clamped, duration);
       syncVisibleTime(clamped);
       setReplayKey((k) => k + 1);
@@ -197,19 +201,27 @@ export function usePlaybackController(
   const pause = useCallback(
     (frozenGlobalMs?: number) => {
       if (mode !== "playing") return;
-      const frozen = frozenGlobalMs ?? getLiveTimeMs();
+      const duration = totalDurationRef.current;
+      const frozen = clampPlaybackTimeMs(
+        frozenGlobalMs ?? getLiveTimeMs(),
+        duration,
+      );
       cancelRaf();
+      anchorClock(frozen, duration);
       syncVisibleTime(frozen);
       setMode("paused");
     },
-    [mode, cancelRaf, getLiveTimeMs, syncVisibleTime],
+    [mode, cancelRaf, anchorClock, getLiveTimeMs, syncVisibleTime],
   );
 
   const resume = useCallback(
     (startGlobalMs?: number) => {
       if (mode !== "paused") return;
       const duration = totalDurationRef.current;
-      const resumeMs = startGlobalMs ?? clockOffsetMsRef.current;
+      const resumeMs = clampPlaybackTimeMs(
+        startGlobalMs ?? clockOffsetMsRef.current,
+        duration,
+      );
       anchorClock(resumeMs, duration);
       syncVisibleTime(resumeMs);
       setMode("playing");
@@ -227,9 +239,11 @@ export function usePlaybackController(
 
   const previewSceneTransition = useCallback(
     (startGlobalMs: number, sceneId: string | null) => {
+      const duration = totalDurationRef.current;
+      const clamped = clampPlaybackTimeMs(startGlobalMs, duration);
       cancelRaf();
-      anchorClock(startGlobalMs, totalDurationRef.current);
-      syncVisibleTime(startGlobalMs);
+      anchorClock(clamped, duration);
+      syncVisibleTime(clamped);
       if (sceneId) setPlaybackSceneId(sceneId);
       setReplayKey((k) => k + 1);
       setMode("playing");
