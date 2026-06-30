@@ -6,13 +6,7 @@ import {
   invalidateAssetObjectUrl,
   saveAssetBlob,
 } from "@/lib/assets/asset-storage";
-import {
-  applyLayerTimingAtPlayhead,
-  assignAssetToSlotLayer,
-  isSelectedEmptySlot,
-  resolveLayerFromSelection,
-  slotAcceptsAssetKind,
-} from "@/lib/assets/slot-utils";
+import { placeUploadedAssetInStoryboard } from "@/lib/assets/asset-placement-utils";
 import {
   compressImageIfNeeded,
   formatFileSize,
@@ -118,18 +112,18 @@ export function AssetUploadPanel({
 
         const hasStoryboard = (state.scenes ?? []).length > 0;
         if (hasStoryboard) {
-          const emptySlot = isSelectedEmptySlot(state, selectedLayer ?? null);
-          const slot = emptySlot
-            ? resolveLayerFromSelection(state, selectedLayer ?? null)
-            : undefined;
-          if (slot && slotAcceptsAssetKind(slot, kind)) {
-            nextState = assignAssetToSlotLayer(nextState, slot.id, assetId);
-            nextState = applyLayerTimingAtPlayhead(nextState, slot.id, scrubTimeMs);
-            onUpdate(nextState);
+          const placement = placeUploadedAssetInStoryboard(nextState, {
+            assetId,
+            kind,
+            selection: selectedLayer ?? null,
+            playheadLocalMs: scrubTimeMs,
+          });
+          nextState = placement.nextState;
+          onUpdate(nextState);
+          if (placement.applied && placement.placementKind === "template-place") {
             setSuccess("Soubor nahrán a vložen do vybraného místa");
-            onPlaced?.({ type: "asset", id: slot.id }, "Soubor vložen do vybraného místa");
+            onPlaced?.(placement.selection, placement.message);
           } else {
-            onUpdate(nextState);
             setSuccess("Soubor nahrán do Média — klikněte + Přidat na časovou osu.");
           }
         } else {

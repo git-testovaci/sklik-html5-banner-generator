@@ -4,13 +4,10 @@ import { useEffect, useState } from "react";
 import { buildAssetsMetaKey, loadPreviewAssetUrls } from "@/lib/assets/asset-storage";
 import { formatFileSize } from "@/lib/assets/image-utils";
 import {
-  addMediaLayerAtPlayhead,
-  applyLayerTimingAtPlayhead,
-  assignAssetToSlotLayer,
-  isSelectedEmptySlot,
-  resolveLayerFromSelection,
-  slotLayerSelection,
-} from "@/lib/assets/slot-utils";
+  addAssetToTimeline,
+  fillSelectedTemplatePlace,
+  resolveSelectedTemplatePlace,
+} from "@/lib/assets/asset-placement-utils";
 import { countLayerInstancesUsingAsset } from "@/lib/animation/layer-instance-utils";
 import type { BannerAssetKind } from "@/types/assets";
 import type { BannerEditorState, BannerEditorStateUpdater, SelectedLayer } from "@/types/editor";
@@ -64,10 +61,8 @@ export function AssetLibrary({
   const metaKey = buildAssetsMetaKey(assets);
   const urls = useThumbnails(metaKey);
   const hasStoryboard = (state.scenes ?? []).length > 0;
-  const emptySlotSelected = isSelectedEmptySlot(state, selectedLayer ?? null);
-  const selectedSlot = emptySlotSelected
-    ? resolveLayerFromSelection(state, selectedLayer ?? null)
-    : undefined;
+  const selectedSlot = resolveSelectedTemplatePlace(state, selectedLayer ?? null);
+  const emptySlotSelected = Boolean(selectedSlot);
 
   if (assets.length === 0) {
     return (
@@ -82,20 +77,29 @@ export function AssetLibrary({
 
   function addToTimeline(assetId: string) {
     if (!hasStoryboard) return;
-    const { state: next, layer } = addMediaLayerAtPlayhead(state, assetId, scrubTimeMs);
-    onUpdate(next);
-    onPlaced?.(slotLayerSelection(layer), `${layer.name} přidán na časovou osu`);
+    let result: ReturnType<typeof addAssetToTimeline> | undefined;
+    onUpdate((prev) => {
+      result = addAssetToTimeline(prev, {
+        assetId,
+        playheadLocalMs: scrubTimeMs,
+      });
+      return result.nextState;
+    });
+    if (result) onPlaced?.(result.selection, result.message);
   }
 
   function insertIntoSelectedSlot(assetId: string) {
     if (!selectedSlot) return;
-    let next = assignAssetToSlotLayer(state, selectedSlot.id, assetId);
-    next = applyLayerTimingAtPlayhead(next, selectedSlot.id, scrubTimeMs);
-    onUpdate(next);
-    onPlaced?.(
-      { type: "asset", id: selectedSlot.id },
-      `${selectedSlot.name} — vloženo do vybraného místa`,
-    );
+    let result: ReturnType<typeof fillSelectedTemplatePlace> | null | undefined;
+    onUpdate((prev) => {
+      result = fillSelectedTemplatePlace(prev, {
+        assetId,
+        layerId: selectedSlot.id,
+        playheadLocalMs: scrubTimeMs,
+      });
+      return result?.nextState ?? prev;
+    });
+    if (result) onPlaced?.(result.selection, result.message);
   }
 
   return (

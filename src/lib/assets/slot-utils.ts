@@ -1,5 +1,5 @@
 import type { BannerAssetKind } from "@/types/assets";
-import type { BannerEditorState } from "@/types/editor";
+import type { BannerEditorState, SelectedLayer } from "@/types/editor";
 import type { BannerLayer } from "@/types/animation";
 import type { TemplateAssetSlotKind } from "@/types/template-slots";
 import {
@@ -7,7 +7,6 @@ import {
   ensureLayerInScene,
   getActiveScene,
   getLayerById,
-  getLayersForScene,
   newId,
   syncFlatFromActiveScene,
   updateBannerLayer,
@@ -15,9 +14,13 @@ import {
 import { nextMediaLayerInstanceName } from "@/lib/animation/layer-instance-utils";
 import {
   defaultInsertDurationMs,
+  frontZIndexForScene,
   updateLayerTimelineRange,
 } from "@/lib/animation/layer-timeline-utils";
-import { resolveBannerLayerForSelection } from "@/lib/animation/selection-utils";
+import {
+  resolveBannerLayerForSelection,
+  selectionForBannerLayer,
+} from "@/lib/animation/selection-utils";
 
 export function isSlotEmpty(layer: BannerLayer): boolean {
   return !layer.assetId;
@@ -211,10 +214,8 @@ export function insertImageLayerInScene(
   return addMediaLayerAtPlayhead(state, assetId, startMs, name);
 }
 
-function frontZIndexForScene(state: BannerEditorState, sceneId: string): number {
-  const layers = getLayersForScene(state, sceneId);
-  if (layers.length === 0) return 30;
-  return Math.max(...layers.map((l) => l.zIndex), 1) + 2;
+function frontZIndex(state: BannerEditorState, sceneId: string): number {
+  return frontZIndexForScene(state, sceneId);
 }
 
 /** Always creates a new image layer at playhead — never reuses an existing layer. */
@@ -245,7 +246,7 @@ export function addMediaLayerAtPlayhead(
     opacity: 1,
     rotation: 0,
     scale: 1,
-    zIndex: scene ? frontZIndexForScene(state, scene.id) : 30,
+    zIndex: scene ? frontZIndex(state, scene.id) : 30,
     assetId,
     fit: "contain",
     shadow: false,
@@ -270,11 +271,8 @@ export function applyLayerTimingAtPlayhead(
   return updateLayerTimelineRange(state, scene.id, layerId, startMs, durationMs);
 }
 
-export function slotLayerSelection(layer: BannerLayer): {
-  type: "asset";
-  id: string;
-} {
-  return { type: "asset", id: layer.id };
+export function slotLayerSelection(layer: BannerLayer): SelectedLayer {
+  return selectionForBannerLayer(layer);
 }
 
 export function resolveLayerFromSelection(
