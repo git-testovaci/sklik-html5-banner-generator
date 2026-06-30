@@ -10,6 +10,7 @@ import {
   exportLayerVisibilityClass,
   getExportLayersForScene,
   isLegacyFlatScene,
+  resolveExportLayerText,
   resolveExportScenes,
 } from "./export-layer-utils";
 import {
@@ -78,9 +79,6 @@ function renderSceneLayers(
   paths: Map<string, string>,
   anims: ReturnType<typeof collectExportLayerAnimations>,
 ): string {
-  const headline = escapeHtmlText(sanitizePlainText(state.headline, "Nadpis", 120));
-  const subheadline = escapeHtmlText(sanitizePlainText(state.subheadline, "Podnadpis", 160));
-  const cta = escapeHtmlText(sanitizePlainText(state.cta, "Zjistit více", 40));
   const logo = escapeHtmlText(sanitizePlainText(state.logoLabel, "Logo", 24));
   const product = escapeHtmlText(sanitizePlainText(state.productImageLabel, "Produkt", 24));
 
@@ -103,15 +101,24 @@ function renderSceneLayers(
     }
 
     if (layer.type === "text") {
-      const content = layer.text
-        ? escapeHtmlText(sanitizePlainText(layer.text, "Text", 160))
-        : layer.legacyKey === "headline"
-          ? headline
+      const rawText = resolveExportLayerText(state, sceneId, layer);
+      const defaultLabel =
+        layer.legacyKey === "headline"
+          ? "Nadpis"
           : layer.legacyKey === "subheadline"
-            ? subheadline
+            ? "Podnadpis"
             : layer.legacyKey === "cta"
-              ? cta
-              : escapeHtmlText(sanitizePlainText(layer.name, "Text", 80));
+              ? "Zjistit více"
+              : "Text";
+      const maxLen =
+        layer.legacyKey === "headline"
+          ? 120
+          : layer.legacyKey === "subheadline"
+            ? 160
+            : layer.legacyKey === "cta"
+              ? 40
+              : 80;
+      const content = escapeHtmlText(sanitizePlainText(rawText, defaultLabel, maxLen));
       const cls =
         layer.legacyKey === "cta"
           ? "layer--cta"

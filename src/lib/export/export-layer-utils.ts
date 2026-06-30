@@ -339,6 +339,46 @@ export function layerExportAnimClass(
   return ` anim-layer-${safe}`;
 }
 
+function isLegacyFlatExport(state: BannerEditorState, sceneId: string): boolean {
+  return isLegacyFlatScene(sceneId) || (state.scenes ?? []).length === 0;
+}
+
+/** Plain text for export HTML — scene-aware; avoids global headline/subheadline/cta in multi-scene. */
+export function resolveExportLayerText(
+  state: BannerEditorState,
+  sceneId: string,
+  layer: BannerLayer,
+): string {
+  if (layer.text != null && layer.text !== "") {
+    return layer.text;
+  }
+
+  const legacyKey = layer.legacyKey;
+  if (legacyKey === "headline" || legacyKey === "subheadline" || legacyKey === "cta") {
+    if (isLegacyFlatExport(state, sceneId)) {
+      if (legacyKey === "headline") return state.headline;
+      if (legacyKey === "subheadline") return state.subheadline;
+      return state.cta;
+    }
+
+    const sceneLayers = getLayersForScene(state, sceneId);
+    const match =
+      sceneLayers.find((l) => l.id === layer.id && l.type === "text") ??
+      sceneLayers.find((l) => l.type === "text" && l.legacyKey === legacyKey);
+    if (match?.text != null) {
+      return match.text;
+    }
+
+    return "";
+  }
+
+  if (layer.text != null) {
+    return layer.text;
+  }
+
+  return layer.name?.trim() ?? "";
+}
+
 export function getLayerByIdForExport(
   state: BannerEditorState,
   layerId: string,
