@@ -6,8 +6,9 @@ import {
   buildGlobalTimelineSegments,
   globalTimelineLayerRowLabel,
   totalBannerDurationMs,
-  transitionChipPercentLayout,
+  transitionBlockPercentLayout,
   transitionLabelForScene,
+  transitionSelectionAriaLabel,
 } from "@/lib/animation/global-timeline-utils";
 import {
   isLayerSelected,
@@ -670,7 +671,7 @@ export function UnifiedLayerTimeline({
               className="sticky left-0 z-20 shrink-0 border-r border-zinc-800/50 bg-zinc-900/50 px-2 py-1"
               style={{ width: TIMELINE_LABEL_WIDTH_PX }}
             >
-              <span className="text-[9px] uppercase tracking-wide text-zinc-600">Čas</span>
+              <span className="text-[10px] uppercase tracking-wide text-zinc-600">Čas</span>
             </div>
             {renderTrackArea(
               <>
@@ -703,7 +704,59 @@ export function UnifiedLayerTimeline({
             )}
           </div>
 
-          {/* Scene blocks + transitions */}
+          {/* Transitions row */}
+          {timelineSegments.length > 1 ? (
+            <div className="flex border-b border-zinc-800/50" style={{ height: 32 }}>
+              <div
+                className="sticky left-0 z-20 shrink-0 border-r border-zinc-800/50 bg-zinc-900/50 px-2 py-1"
+                style={{ width: TIMELINE_LABEL_WIDTH_PX }}
+              >
+                <span className="text-[10px] uppercase tracking-wide text-zinc-600">Přechody</span>
+              </div>
+              {renderTrackArea(
+                <>
+                  {timelineSegments.map((seg, i) => {
+                    if (i >= timelineSegments.length - 1) return null;
+                    const sceneObj = state.scenes?.find((s) => s.id === seg.sceneId);
+                    if (!sceneObj) return null;
+                    const block = transitionBlockPercentLayout(seg, totalDurationMs);
+                    const isSelected = selectedTransitionSceneId === seg.sceneId;
+                    return (
+                      <button
+                        key={`transition-${seg.sceneId}`}
+                        type="button"
+                        className={`absolute top-0 z-[5] flex h-full cursor-pointer items-center justify-center overflow-hidden border-x px-0.5 transition-colors ${
+                          isSelected
+                            ? "border-amber-400/80 bg-amber-900/45 ring-1 ring-amber-400/70"
+                            : "border-amber-800/40 bg-amber-950/25 hover:bg-amber-950/40"
+                        }`}
+                        style={{
+                          left: `${block.leftPct}%`,
+                          width: `${block.widthPct}%`,
+                        }}
+                        title={transitionLabelForScene(sceneObj)}
+                        aria-label={transitionSelectionAriaLabel(state, seg.sceneId)}
+                        aria-pressed={isSelected}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectTransition?.(seg.sceneId);
+                        }}
+                      >
+                        <span className="truncate text-[9px] text-amber-200/90">
+                          {transitionLabelForScene(sceneObj)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {renderPlayheadLine(false)}
+                </>,
+                "bg-amber-950/10",
+              )}
+            </div>
+          ) : null}
+
+          {/* Scene blocks */}
           {timelineSegments.length > 0 ? (
             <div className="flex border-b border-zinc-800/50" style={{ height: 36 }}>
               <div
@@ -714,63 +767,30 @@ export function UnifiedLayerTimeline({
               </div>
               {renderTrackArea(
                 <>
-                  {timelineSegments.map((seg, i) => {
+                  {timelineSegments.map((seg) => {
                     const leftPct =
                       totalDurationMs > 0 ? (seg.startGlobalMs / totalDurationMs) * 100 : 0;
                     const widthPct =
                       totalDurationMs > 0 ? (seg.durationMs / totalDurationMs) * 100 : 0;
                     const isActiveScene = activeScene?.id === seg.sceneId;
-                    const sceneObj = state.scenes?.find((s) => s.id === seg.sceneId);
                     return (
-                      <div key={seg.sceneId}>
-                        <div
-                          className={`pointer-events-none absolute top-0 flex h-full items-center overflow-hidden border-x px-1 ${
-                            isActiveScene
-                              ? "border-violet-600/50 bg-violet-950/35"
-                              : "border-zinc-700/40 bg-zinc-800/25"
+                      <div
+                        key={seg.sceneId}
+                        className={`pointer-events-none absolute top-0 flex h-full items-center overflow-hidden border-x px-1 ${
+                          isActiveScene
+                            ? "border-violet-600/50 bg-violet-950/35"
+                            : "border-zinc-700/40 bg-zinc-800/25"
+                        }`}
+                        style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+                        title={`${seg.index + 1}. ${seg.name}`}
+                      >
+                        <span
+                          className={`truncate text-[10px] font-medium ${
+                            isActiveScene ? "text-violet-200" : "text-zinc-500"
                           }`}
-                          style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
-                          title={`${seg.index + 1}. ${seg.name}`}
                         >
-                          <span
-                            className={`truncate text-[10px] font-medium ${
-                              isActiveScene ? "text-violet-200" : "text-zinc-500"
-                            }`}
-                          >
-                            {seg.index + 1}. {seg.name}
-                          </span>
-                        </div>
-                        {i < timelineSegments.length - 1 && sceneObj ? (
-                          (() => {
-                            const chip = transitionChipPercentLayout(seg, totalDurationMs);
-                            const isSelected = selectedTransitionSceneId === seg.sceneId;
-                            return (
-                              <button
-                                type="button"
-                                className={`absolute top-0 z-[5] flex h-full cursor-pointer items-center justify-center overflow-hidden border-x px-0.5 transition-colors ${
-                                  isSelected
-                                    ? "border-amber-400/80 bg-amber-900/45 ring-1 ring-amber-400/70"
-                                    : "border-amber-800/40 bg-amber-950/25 hover:bg-amber-950/40"
-                                }`}
-                                style={{
-                                  left: `${chip.leftPct}%`,
-                                  width: `${chip.widthPct}%`,
-                                }}
-                                title={transitionLabelForScene(sceneObj)}
-                                aria-label="Upravit přechod"
-                                aria-pressed={isSelected}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onSelectTransition?.(seg.sceneId);
-                                }}
-                              >
-                                <span className="truncate text-[9px] text-amber-200/90">
-                                  {transitionLabelForScene(sceneObj)}
-                                </span>
-                              </button>
-                            );
-                          })()
-                        ) : null}
+                          {seg.index + 1}. {seg.name}
+                        </span>
                       </div>
                     );
                   })}

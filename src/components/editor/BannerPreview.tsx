@@ -19,7 +19,12 @@ import {
   presetClassName,
 } from "@/lib/animation/animation-presets";
 import { clampParticleCount } from "@/lib/animation/keyframe-utils";
-import { buildSceneSequenceCss } from "@/lib/animation/scene-sequence-css";
+import { buildSceneSequenceCss, sourceSceneTransitionPose, targetSceneTransitionPose } from "@/lib/animation/scene-sequence-css";
+import {
+  getTransitionAtGlobalMs,
+  sceneAtGlobalMs,
+  sceneStartGlobalMs,
+} from "@/lib/animation/global-timeline-utils";
 import { isLayerVisibleAtTimelineTime } from "@/lib/animation/layer-timeline-utils";
 import { getLayerScrubStyle, scrubStyleToCss } from "@/lib/animation/layer-scrub-utils";
 import { animationTargetIdForLayer } from "@/lib/animation/layer-instance-utils";
@@ -80,6 +85,8 @@ interface BannerPreviewProps {
   gateLayersByPreviewTime?: boolean;
   /** When true with previewTimeMs, suppress CSS anims and apply inline scrub pose (paused/scrub only). */
   scrubPosePreview?: boolean;
+  /** Global banner playhead — enables editor transition preview between scenes. */
+  globalPreviewTimeMs?: number | null;
   /** When true, render read-only (public preview) with storyboard playback */
   publicMode?: boolean;
   onSlotActivate?: (layerId: string) => void;
@@ -808,6 +815,7 @@ export function BannerPreview({
   previewTimeMs = null,
   gateLayersByPreviewTime = false,
   scrubPosePreview = false,
+  globalPreviewTimeMs = null,
   publicMode = false,
   onSlotActivate,
 }: BannerPreviewProps) {
@@ -817,8 +825,25 @@ export function BannerPreview({
   const urlsReady = assetsMetaKey === urlsMetaKey;
   const activeScene = getActiveScene(state);
   const scenes = state.scenes ?? [];
+
+  const activeTransition = useMemo(() => {
+    if (publicMode || globalPreviewTimeMs == null || scenes.length <= 1) return null;
+    return getTransitionAtGlobalMs(state, globalPreviewTimeMs);
+  }, [publicMode, globalPreviewTimeMs, scenes.length, state]);
+
+  const locatedAtGlobal = useMemo(() => {
+    if (publicMode || globalPreviewTimeMs == null) return null;
+    return sceneAtGlobalMs(state, globalPreviewTimeMs);
+  }, [publicMode, globalPreviewTimeMs, state]);
+
   const effectiveSceneId =
-    previewSceneId ?? playbackSceneId ?? activeScene?.id ?? scenes[0]?.id ?? "default";
+    activeTransition?.sourceScene.id ??
+    previewSceneId ??
+    locatedAtGlobal?.scene.id ??
+    playbackSceneId ??
+    activeScene?.id ??
+    scenes[0]?.id ??
+    "default";
   const previewScene = scenes.find((s) => s.id === effectiveSceneId) ?? activeScene;
 
   const sequenceCss = useMemo(() => {
@@ -850,6 +875,70 @@ export function BannerPreview({
   const pauseStyle = playbackPaused
     ? ({ animation: "none", animationPlayState: "paused" } as const)
     : undefined;
+
+  if (activeTransition && !publicMode) {
+    const { sourceScene, targetScene, transitionOut, progress } = activeTransition;
+    const globalMs = globalPreviewTimeMs ?? 0;
+    const sourceLocalMs = globalMs - sceneStartGlobalMs(state, sourceScene.id);
+    const targetLocalMs = Math.max(0, globalMs - sceneStartGlobalMs(state, targetScene.id));
+    const sourcePose = sourceSceneTransitionPose(transitionOut, progress);
+    const targetPose = targetSceneTransitionPose(transitionOut, progress);
+    const transitionCanvasProps = {
+      ...canvasProps,
+      scrubPosePreview: false,
+      gateLayersByPreviewTime: true,
+    };
+
+    return (
+      <div
+        className={`relative overflow-hidden shadow-2xl ${interactive ? "select-none" : ""} ${className}`}
+        style={{
+          width: state.width,
+          height: state.height,
+          backgroundColor: state.backgroundColor,
+          color: state.textColor,
+        }}
+        role="img"
+        aria-label={`Banner preview: ${state.name}`}
+        onPointerDown={() => {
+          if (interactive) onSelectLayer?.(emptyEditorSelection());
+        }}
+      >
+        <div
+          className="absolute inset-0 overflow-hidden"
+          style={{
+            opacity: sourcePose.opacity,
+            transform: sourcePose.transform,
+            animation: "none",
+            backgroundColor: sourceScene.backgroundColor ?? state.backgroundColor,
+          }}
+        >
+          <CanvasContent
+            state={state}
+            sceneId={sourceScene.id}
+            {...transitionCanvasProps}
+            previewTimeMs={sourceLocalMs}
+          />
+        </div>
+        <div
+          className="absolute inset-0 overflow-hidden"
+          style={{
+            opacity: targetPose.opacity,
+            transform: targetPose.transform,
+            animation: "none",
+            backgroundColor: targetScene.backgroundColor ?? state.backgroundColor,
+          }}
+        >
+          <CanvasContent
+            state={state}
+            sceneId={targetScene.id}
+            {...transitionCanvasProps}
+            previewTimeMs={targetLocalMs}
+          />
+        </div>
+      </div>
+    );
+  }
 
   if (publicMode && playAll && scenes.length > 1) {
     return (

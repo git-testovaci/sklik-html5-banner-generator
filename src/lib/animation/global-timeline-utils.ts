@@ -147,17 +147,88 @@ export function transitionTargetScene(
   return scenes[idx + 1];
 }
 
-/** Percent layout for a clickable transition chip on the global timeline. */
-export function transitionChipPercentLayout(
+/** Percent layout for a transition block in the dedicated PŘECHODY row. */
+export function transitionBlockPercentLayout(
   seg: GlobalTimelineSceneSegment,
   totalDurationMs: number,
 ): { leftPct: number; widthPct: number } {
   if (totalDurationMs <= 0) return { leftPct: 0, widthPct: 0 };
   const boundaryPct = (seg.endGlobalMs / totalDurationMs) * 100;
-  const naturalWidth = (seg.transitionDurationMs / totalDurationMs) * 100;
-  const widthPct = Math.max(naturalWidth, 1.6);
-  const leftPct = Math.max(0, Math.min(100 - widthPct, boundaryPct - widthPct / 2));
-  return { leftPct, widthPct };
+  const naturalWidth =
+    totalDurationMs > 0 ? (seg.transitionDurationMs / totalDurationMs) * 100 : 0;
+  const widthPct = Math.max(naturalWidth, 1.8);
+  if (seg.transitionDurationMs <= 0) {
+    const leftPct = Math.max(0, Math.min(100 - widthPct, boundaryPct - widthPct / 2));
+    return { leftPct, widthPct };
+  }
+  const leftPct = (seg.transitionStartGlobalMs / totalDurationMs) * 100;
+  return { leftPct, widthPct: Math.min(widthPct, 100 - leftPct) };
+}
+
+/** @deprecated Use transitionBlockPercentLayout — kept for callers outside timeline UI. */
+export function transitionChipPercentLayout(
+  seg: GlobalTimelineSceneSegment,
+  totalDurationMs: number,
+): { leftPct: number; widthPct: number } {
+  return transitionBlockPercentLayout(seg, totalDurationMs);
+}
+
+export interface TransitionAtGlobalTime {
+  sourceScene: BannerScene;
+  targetScene: BannerScene;
+  sourceSceneId: string;
+  transitionOut: BannerSceneTransition;
+  transitionStartGlobalMs: number;
+  transitionEndGlobalMs: number;
+  durationMs: number;
+  localTransitionMs: number;
+  progress: number;
+}
+
+/** Active outgoing scene transition at a global playhead position, if any. */
+export function getTransitionAtGlobalMs(
+  state: BannerEditorState,
+  globalMs: number,
+): TransitionAtGlobalTime | null {
+  const segments = buildGlobalTimelineSegments(state);
+  const clamped = clampGlobalMs(state, globalMs);
+  for (let i = 0; i < segments.length - 1; i++) {
+    const seg = segments[i]!;
+    if (seg.transitionDurationMs <= 0 || seg.transitionOut === "none") continue;
+    const transStart = seg.transitionStartGlobalMs;
+    const transEnd = seg.endGlobalMs;
+    if (clamped >= transStart && clamped < transEnd) {
+      const sourceScene = (state.scenes ?? [])[i];
+      const targetScene = (state.scenes ?? [])[i + 1];
+      if (!sourceScene || !targetScene) return null;
+      const durationMs = seg.transitionDurationMs;
+      const localTransitionMs = clamped - transStart;
+      return {
+        sourceScene,
+        targetScene,
+        sourceSceneId: seg.sceneId,
+        transitionOut: seg.transitionOut,
+        transitionStartGlobalMs: transStart,
+        transitionEndGlobalMs: transEnd,
+        durationMs,
+        localTransitionMs,
+        progress: durationMs > 0 ? localTransitionMs / durationMs : 0,
+      };
+    }
+  }
+  return null;
+}
+
+export function transitionSelectionAriaLabel(
+  state: BannerEditorState,
+  sourceSceneId: string,
+): string {
+  const scenes = state.scenes ?? [];
+  const idx = scenes.findIndex((s) => s.id === sourceSceneId);
+  const source = scenes[idx];
+  const target = scenes[idx + 1];
+  if (!source || !target) return "Upravit přechod";
+  return `Upravit přechod ${source.name} → ${target.name}`;
 }
 
 export interface GlobalTimelineLayerRow {

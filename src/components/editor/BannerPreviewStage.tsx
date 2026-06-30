@@ -57,6 +57,7 @@ export function BannerPreviewStage({
   onSlotActivate,
   previewSceneId = null,
   previewTimeMs = null,
+  globalPreviewTimeMs = null,
   gateLayersByPreviewTime = false,
 }: BannerPreviewStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -277,6 +278,7 @@ export function BannerPreviewStage({
             previewSceneId={previewSceneId ?? playback.playbackSceneId ?? activeScene?.id}
             playbackPaused={playback.isPaused}
             previewTimeMs={previewTimeMs}
+            globalPreviewTimeMs={globalPreviewTimeMs}
             gateLayersByPreviewTime={gateLayersByPreviewTime}
             scrubPosePreview={!playback.isPlaying}
             onSlotActivate={onSlotActivate}

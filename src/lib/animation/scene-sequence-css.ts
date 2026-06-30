@@ -85,6 +85,63 @@ function renderKeyframes(map: Map<string, FrameState>): string {
   return entries.map((e) => `${e.pct}% { ${e.css} }`).join("\n  ");
 }
 
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+export interface SceneTransitionPose {
+  opacity: number;
+  transform: string;
+}
+
+/** Editor preview pose for the outgoing scene during a transition (progress 0–1). */
+export function sourceSceneTransitionPose(
+  transition: BannerSceneTransition,
+  progress: number,
+): SceneTransitionPose {
+  const t = Math.max(0, Math.min(1, progress));
+  switch (transition) {
+    case "swipe-left":
+    case "push-left":
+      return { opacity: 1, transform: `translateX(${lerp(0, -100, t)}%)` };
+    case "swipe-right":
+    case "push-right":
+      return { opacity: 1, transform: `translateX(${lerp(0, 100, t)}%)` };
+    case "swipe-up":
+      return { opacity: 1, transform: `translateY(${lerp(0, -100, t)}%)` };
+    case "swipe-down":
+      return { opacity: 1, transform: `translateY(${lerp(0, 100, t)}%)` };
+    case "fade":
+    case "none":
+    default:
+      return { opacity: lerp(1, 0, t), transform: "translate(0, 0)" };
+  }
+}
+
+/** Editor preview pose for the incoming scene during a transition (progress 0–1). */
+export function targetSceneTransitionPose(
+  transition: BannerSceneTransition,
+  progress: number,
+): SceneTransitionPose {
+  const t = Math.max(0, Math.min(1, progress));
+  switch (transition) {
+    case "swipe-left":
+    case "push-left":
+      return { opacity: 1, transform: `translateX(${lerp(100, 0, t)}%)` };
+    case "swipe-right":
+    case "push-right":
+      return { opacity: 1, transform: `translateX(${lerp(-100, 0, t)}%)` };
+    case "swipe-up":
+      return { opacity: 1, transform: `translateY(${lerp(100, 0, t)}%)` };
+    case "swipe-down":
+      return { opacity: 1, transform: `translateY(${lerp(-100, 0, t)}%)` };
+    case "fade":
+    case "none":
+    default:
+      return { opacity: lerp(0, 1, t), transform: "translate(0, 0)" };
+  }
+}
+
 export function buildSceneSequenceCss(
   state: BannerEditorState,
   replayKey: number,
