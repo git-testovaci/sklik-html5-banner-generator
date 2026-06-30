@@ -5,12 +5,11 @@ import type {
   BannerAssetPlacement,
   TextLayerPlacement,
 } from "@/types/assets";
-import type { BannerAnimation, BannerEditorState, SelectedLayer } from "@/types/editor";
+import type { BannerAnimation, BannerEditorState } from "@/types/editor";
 import type { BannerProject } from "@/types/project";
 import {
   editorStateToProjectWithStoryboard,
   migrateToStoryboard,
-  resolveStoryboardSelection,
   syncFlatFromActiveScene,
 } from "./storyboard-utils";
 
@@ -470,23 +469,7 @@ export function layerAnimIdForAsset(kind: BannerAssetPlacement["kind"], assetId:
   return kind === "decoration" ? `decoration-${assetId}` : kind;
 }
 
-export function resolveSelectedLayer(
-  state: BannerEditorState,
-  selected: SelectedLayer,
-): SelectedLayer {
-  if ((state.scenes ?? []).length > 0) {
-    return resolveStoryboardSelection(state, selected);
-  }
-  if (selected.type === "text") {
-    const exists = (state.textPlacements ?? []).some((p) => p.layerId === selected.id);
-    return exists ? selected : { type: "text", id: "headline" };
-  }
-  const exists = (state.assetPlacements ?? []).some((p) => p.assetId === selected.id);
-  if (exists) return selected;
-  const first = (state.assetPlacements ?? [])[0];
-  if (first) return { type: "asset", id: first.assetId };
-  return { type: "text", id: "headline" };
-}
+export { resolveSelectedLayer } from "@/lib/animation/selection-utils";
 
 export function clampTextPlacementFields(
   p: TextLayerPlacement,

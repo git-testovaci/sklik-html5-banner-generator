@@ -808,38 +808,10 @@ export function sceneLocalPlaybackTime(
   return 0;
 }
 
-export function resolveBannerLayerForSelection(
-  state: BannerEditorState,
-  selection: SelectedLayer,
-): BannerLayer | undefined {
-  const scene = getActiveScene(state);
-  if (!scene) return undefined;
-
-  if (selection.type === "asset" && selection.id === "__none__") {
-    return undefined;
-  }
-
-  if (selection.type === "text") {
-    const scene = getActiveScene(state);
-    if (scene) {
-      const inScene = getLayersForScene(state, scene.id).find(
-        (l) => l.type === "text" && l.legacyKey === selection.id,
-      );
-      if (inScene) return inScene;
-    }
-    return (state.bannerLayers ?? []).find(
-      (l) => l.type === "text" && l.legacyKey === selection.id,
-    );
-  }
-
-  const sceneLayers = getLayersForScene(state, scene.id);
-  const byId = sceneLayers.find((l) => l.id === selection.id);
-  if (byId) return byId;
-
-  const byAsset = sceneLayers.filter((l) => l.assetId === selection.id);
-  if (byAsset.length === 1) return byAsset[0];
-  return undefined;
-}
+export {
+  repairEditorSelection as resolveStoryboardSelection,
+  resolveBannerLayerForSelection,
+} from "@/lib/animation/selection-utils";
 
 /** Duplicate one layer in the active scene — copies timing, effects, and media reference. */
 export function duplicateBannerLayerInScene(
@@ -1111,32 +1083,6 @@ export function clearSceneEffects(state: BannerEditorState): BannerEditorState {
 
 export function sceneTransitionClass(transition: BannerSceneTransition): string {
   return `scene-transition-${transition}`;
-}
-
-export function resolveStoryboardSelection(
-  state: BannerEditorState,
-  selected: SelectedLayer,
-): SelectedLayer {
-  const scene = getActiveScene(state);
-  if (!scene) return selected;
-
-  if (selected.type === "asset" && selected.id === "__none__") {
-    return selected;
-  }
-
-  if (selected.type === "text") {
-    const exists = getLayersForScene(state, scene.id).some(
-      (l) => l.type === "text" && l.legacyKey === selected.id && l.visible,
-    );
-    return exists ? selected : { type: "asset", id: "__none__" };
-  }
-
-  const exists = getLayersForScene(state, scene.id).some(
-    (l) => l.id === selected.id || l.assetId === selected.id,
-  );
-  if (exists) return selected;
-
-  return { type: "asset", id: "__none__" };
 }
 
 export function editorStateToProjectWithStoryboard(

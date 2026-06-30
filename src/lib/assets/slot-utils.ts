@@ -17,6 +17,7 @@ import {
   defaultInsertDurationMs,
   updateLayerTimelineRange,
 } from "@/lib/animation/layer-timeline-utils";
+import { resolveBannerLayerForSelection } from "@/lib/animation/selection-utils";
 
 export function isSlotEmpty(layer: BannerLayer): boolean {
   return !layer.assetId;
@@ -281,11 +282,10 @@ export function resolveLayerFromSelection(
   selection: { type: string; id: string } | null | undefined,
 ): BannerLayer | undefined {
   if (!selection || selection.type !== "asset") return undefined;
-  const byId = (state.bannerLayers ?? []).find((l) => l.id === selection.id);
-  if (byId) return byId;
-  const byAsset = (state.bannerLayers ?? []).filter((l) => l.assetId === selection.id);
-  if (byAsset.length === 1) return byAsset[0];
-  return undefined;
+  return resolveBannerLayerForSelection(state, {
+    type: "asset",
+    id: selection.id,
+  });
 }
 
 export function isSelectedSlotLayer(

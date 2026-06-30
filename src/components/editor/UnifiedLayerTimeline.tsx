@@ -9,18 +9,21 @@ import {
   transitionLabelForScene,
 } from "@/lib/animation/global-timeline-utils";
 import {
+  isLayerSelected,
+  resolveBannerLayerForSelection,
+  selectionForBannerLayer,
+} from "@/lib/animation/selection-utils";
+import {
   buildRulerTicks,
   cycleTimelineZoom,
   formatTimelineSeconds,
   getLayerTimelineRange,
   isEditableKeyboardTarget,
-  isTimelineLayerSelected,
   isTimelineRowReorderable,
   layerBlockTooltip,
   layerTimelineBlockColor,
   layerTimelineTypeGlyph,
   moveLayerInSceneStack,
-  selectionForBannerLayer,
   TIMELINE_LABEL_WIDTH_PX,
   TIMELINE_ROW_HEIGHT_PX,
   TIMELINE_RULER_HEIGHT_PX,
@@ -33,7 +36,6 @@ import {
   getActiveScene,
   getSceneById,
   patchBannerLayerSlice,
-  resolveBannerLayerForSelection,
 } from "@/lib/animation/storyboard-utils";
 import {
   getLayerPhaseSegments,
@@ -784,7 +786,7 @@ export function UnifiedLayerTimeline({
                 totalDurationMs > 0 ? (globalStartMs / totalDurationMs) * 100 : 0;
               const widthPct =
                 totalDurationMs > 0 ? (range.durationMs / totalDurationMs) * 100 : 100;
-              const selected = isTimelineLayerSelected(selectedLayer, layer);
+              const selected = isLayerSelected(selectedLayer, layer);
               const blockColor = layerTimelineBlockColor(layer);
               const segments = getPhaseSegments(layer.id, sceneId);
               const blockDur = range.durationMs;

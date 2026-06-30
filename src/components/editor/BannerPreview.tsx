@@ -24,6 +24,12 @@ import { isLayerVisibleAtTimelineTime } from "@/lib/animation/layer-timeline-uti
 import { getLayerScrubStyle, scrubStyleToCss } from "@/lib/animation/layer-scrub-utils";
 import { animationTargetIdForLayer } from "@/lib/animation/layer-instance-utils";
 import {
+  emptyEditorSelection,
+  isAssetPlacementSelected,
+  isLayerSelected,
+  selectionForBannerLayer,
+} from "@/lib/animation/selection-utils";
+import {
   buildFlatSliceForScene,
   getActiveScene,
   getEffectsForScene,
@@ -114,39 +120,15 @@ function useAssetUrls(metaKey: string) {
   return snapshot;
 }
 
-function isLayerSelected(
-  selected: SelectedLayer | null | undefined,
-  layer: SelectedLayer,
-  storyboardLayers?: BannerLayer[],
-): boolean {
-  if (!selected) return false;
-  if (selected.type !== layer.type) return false;
-  if (selected.id === layer.id) return true;
-  if (
-    selected.type === "asset" &&
-    layer.type === "asset" &&
-    storyboardLayers
-  ) {
-    const sb = storyboardLayers.find((l) => l.id === selected.id);
-    if (sb?.assetId && sb.assetId === layer.id) return true;
-  }
-  return false;
-}
-
-function isAssetPlacementSelected(
-  selected: SelectedLayer | null | undefined,
-  assetId: string,
-  storyboardLayers: BannerLayer[],
-  bannerLayerId?: string,
-): boolean {
-  if (!selected || selected.type !== "asset") return false;
-  if (bannerLayerId) return selected.id === bannerLayerId;
-  if (selected.id === assetId) {
-    return storyboardLayers.filter((l) => l.assetId === assetId).length === 1;
-  }
-  return storyboardLayers.some(
-    (l) => l.id === selected.id && l.assetId === assetId,
-  );
+function placementSelectLayer(
+  sbLayer: BannerLayer | undefined,
+  placement: BannerAssetPlacement,
+): SelectedLayer {
+  if (sbLayer) return selectionForBannerLayer(sbLayer);
+  return {
+    type: "asset",
+    id: placement.bannerLayerId ?? placement.assetId,
+  };
 }
 
 function ParticleRender({ layer, replayKey }: { layer: BannerLayer; replayKey: number }) {
@@ -380,12 +362,14 @@ function CanvasContent({
           : storyboardLayers.find((l) => l.assetId === placement.assetId);
         if (sbLayer && !layerVisibleAtPreview(sbLayer.id)) return null;
         const instanceKey = placement.bannerLayerId ?? placement.assetId;
-        const selected = isAssetPlacementSelected(
-          selectedLayer,
-          placement.assetId,
-          storyboardLayers,
-          placement.bannerLayerId,
-        );
+        const selected = sbLayer
+          ? isLayerSelected(selectedLayer, sbLayer)
+          : isAssetPlacementSelected(
+              selectedLayer,
+              placement.assetId,
+              storyboardLayers,
+              placement.bannerLayerId,
+            );
         const animTargetId = animationTargetIdForLayer(
           sbLayer,
           sbLayer?.legacyKey ?? sbLayer?.id ?? placement.assetId,
@@ -421,12 +405,7 @@ function CanvasContent({
             canvasScale={canvasScale}
             replayKey={replayKey}
             animClassName={interactive ? "" : animClass}
-            onSelect={() =>
-              onSelectLayer?.({
-                type: "asset",
-                id: sbLayer?.id ?? placement.bannerLayerId ?? placement.assetId,
-              })
-            }
+            onSelect={() => onSelectLayer?.(placementSelectLayer(sbLayer, placement))}
             onPlacementChange={(patch) => {
               if (placement.bannerLayerId) {
                 onUpdateStoryboardLayer?.(placement.bannerLayerId, patch);
@@ -509,7 +488,7 @@ function CanvasContent({
 
       {slotLayers.map((layer) => {
         if (!layerVisibleAtPreview(layer.id)) return null;
-        const selected = selectedLayer?.type === "asset" && selectedLayer.id === layer.id;
+        const selected = isLayerSelected(selectedLayer, layer);
         const layerChrome = layerInteraction(layer.id);
         return (
           <InteractiveCanvasLayer
@@ -526,7 +505,7 @@ function CanvasContent({
             bannerHeight={state.height}
             canvasScale={canvasScale}
             replayKey={replayKey}
-            onSelect={() => onSelectLayer?.({ type: "asset", id: layer.id })}
+            onSelect={() => onSelectLayer?.(selectionForBannerLayer(layer))}
             onPlacementChange={(patch) => onUpdateStoryboardLayer?.(layer.id, patch)}
           >
             <SlotPlaceholder
@@ -554,7 +533,7 @@ function CanvasContent({
             <div key={`${sceneId}-${layer.id}`}>
               {cls ? <style>{underlineDrawKeyframes(cls, dur)}</style> : null}
               <InteractiveCanvasLayer
-                selected={selectedLayer?.type === "asset" && selectedLayer.id === layer.id}
+                selected={isLayerSelected(selectedLayer, layer)}
                 interactive={interactive}
                 locked={layer.locked}
                 scrubStyle={layerInteraction(layer.id).scrubStyle}
@@ -567,7 +546,7 @@ function CanvasContent({
                 canvasScale={canvasScale}
                 replayKey={replayKey}
                 animClassName={interactive || !cls ? "" : cls}
-                onSelect={() => onSelectLayer?.({ type: "asset", id: layer.id })}
+                onSelect={() => onSelectLayer?.(selectionForBannerLayer(layer))}
                 onPlacementChange={(patch) => onUpdateStoryboardLayer?.(layer.id, patch)}
               >
                 <div
@@ -595,7 +574,7 @@ function CanvasContent({
           return (
             <InteractiveCanvasLayer
               key={`${sceneId}-${layer.id}`}
-              selected={selectedLayer?.type === "asset" && selectedLayer.id === layer.id}
+              selected={isLayerSelected(selectedLayer, layer)}
               interactive={interactive}
               locked={layerChrome.locked}
               scrubStyle={layerChrome.scrubStyle}
@@ -608,7 +587,7 @@ function CanvasContent({
               canvasScale={canvasScale}
               replayKey={replayKey}
               animClassName={interactive ? "" : fxClass}
-              onSelect={() => onSelectLayer?.({ type: "asset", id: layer.id })}
+              onSelect={() => onSelectLayer?.(selectionForBannerLayer(layer))}
               onPlacementChange={(patch) => onUpdateStoryboardLayer?.(layer.id, patch)}
             >
               <div
@@ -646,7 +625,9 @@ function CanvasContent({
               : renderState.cta);
         const animTargetId = sbLayer?.legacyKey ?? sbLayer?.id ?? layerId;
         const animClass = resolveAnimClassName(animTargetId);
-        const selected = isLayerSelected(selectedLayer, { type: "text", id: layerId });
+        const selected = sbLayer
+          ? isLayerSelected(selectedLayer, sbLayer)
+          : selectedLayer?.type === "text" && selectedLayer.id === layerId;
         const isCta = layerId === "cta";
         const fontSize =
           pl.fontSize ??
@@ -681,7 +662,13 @@ function CanvasContent({
             canvasScale={canvasScale}
             replayKey={replayKey}
             animClassName={interactive ? "" : animClass}
-            onSelect={() => onSelectLayer?.({ type: "text", id: layerId })}
+            onSelect={() =>
+              onSelectLayer?.(
+                sbLayer
+                  ? selectionForBannerLayer(sbLayer)
+                  : { type: "text", id: layerId },
+              )
+            }
             onPlacementChange={(patch) => onUpdateTextPlacement?.(layerId, patch)}
           >
             {isCta ? (
@@ -752,7 +739,7 @@ function CanvasContent({
         return (
           <InteractiveCanvasLayer
             key={`${sceneId}-${layer.id}`}
-            selected={selectedLayer?.type === "asset" && selectedLayer.id === layer.id}
+            selected={isLayerSelected(selectedLayer, layer)}
             interactive={interactive}
             locked={layerChrome.locked}
             scrubStyle={layerChrome.scrubStyle}
@@ -765,7 +752,7 @@ function CanvasContent({
             canvasScale={canvasScale}
             replayKey={replayKey}
             animClassName={interactive ? "" : animClass}
-            onSelect={() => onSelectLayer?.({ type: "asset", id: layer.id })}
+            onSelect={() => onSelectLayer?.(selectionForBannerLayer(layer))}
             onPlacementChange={(patch) => onUpdateStoryboardLayer?.(layer.id, patch)}
           >
             <span
@@ -901,7 +888,7 @@ export function BannerPreview({
       role="img"
       aria-label={`Banner preview: ${state.name}`}
       onPointerDown={() => {
-        if (interactive) onSelectLayer?.({ type: "asset", id: "__none__" });
+        if (interactive) onSelectLayer?.(emptyEditorSelection());
       }}
     >
       <CanvasContent state={state} sceneId={effectiveSceneId} {...canvasProps} />

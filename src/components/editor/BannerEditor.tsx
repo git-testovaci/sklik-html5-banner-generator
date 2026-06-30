@@ -4,11 +4,11 @@ import Link from "next/link";
 import { flushSync } from "react-dom";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, useCallback } from "react";
 import {
-  normalizeEditorState,
-  projectToEditorState,
-  editorStateToProject,
+  emptyEditorSelection,
+  resolveBannerLayerForSelection,
   resolveSelectedLayer,
-} from "@/lib/animation/timeline-utils";
+  selectionForBannerLayer,
+} from "@/lib/animation/selection-utils";
 import {
   clearSelectedEffectIfMissing,
   duplicateBannerLayerInScene,
@@ -17,7 +17,6 @@ import {
   getSceneById,
   getSceneTransitionDurationMs,
   removeLayerFromEditor,
-  resolveBannerLayerForSelection,
   setActiveScene,
 } from "@/lib/animation/storyboard-utils";
 import {
@@ -30,7 +29,11 @@ import {
 import { nudgeLayerTimelineStart, updateLayerTimelineRange } from "@/lib/animation/layer-timeline-utils";
 import { updateLayerPhaseDuration } from "@/lib/animation/layer-phase-utils";
 import { createQuickLayer, type QuickAddLayerType } from "@/lib/animation/layer-factory";
-import { selectionForBannerLayer } from "@/lib/animation/layer-timeline-utils";
+import {
+  normalizeEditorState,
+  projectToEditorState,
+  editorStateToProject,
+} from "@/lib/animation/timeline-utils";
 import { usePlaybackController } from "@/lib/playback/use-playback-controller";
 import {
   getProjectByIdSnapshot,
@@ -120,10 +123,9 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   );
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [selectedLayer, setSelectedLayer] = useState<SelectedLayer>({
-    type: "asset",
-    id: "__none__",
-  });
+  const [selectedLayer, setSelectedLayer] = useState<SelectedLayer>(() =>
+    emptyEditorSelection(),
+  );
   const [selectedEffectId, setSelectedEffectId] = useState<string | null>(null);
   const [leftTab, setLeftTab] = useState<LeftTab>("templates");
   const [showExport, setShowExport] = useState(false);
@@ -270,17 +272,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
       if (!newId) return;
       onUpdate(next);
       const dup = getLayerById(next, newId);
-      if (
-        dup?.type === "text" &&
-        dup.legacyKey &&
-        (dup.legacyKey === "headline" ||
-          dup.legacyKey === "subheadline" ||
-          dup.legacyKey === "cta")
-      ) {
-        setSelectedLayer({ type: "text", id: dup.legacyKey });
-      } else {
-        setSelectedLayer({ type: "asset", id: newId });
-      }
+      if (dup) setSelectedLayer(selectionForBannerLayer(dup));
       setSelectedEffectId(null);
     },
     [state, onUpdate],
@@ -292,7 +284,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
       onUpdate(next);
       const still = (next.bannerLayers ?? []).some((l) => l.id === layerId);
       if (!still) {
-        setSelectedLayer({ type: "asset", id: "__none__" });
+        setSelectedLayer(emptyEditorSelection());
         setSelectedEffectId(null);
       }
     },
@@ -452,17 +444,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
     if (!reused) {
       onUpdate(next);
     }
-    if (
-      layer.type === "text" &&
-      layer.legacyKey &&
-      (layer.legacyKey === "headline" ||
-        layer.legacyKey === "subheadline" ||
-        layer.legacyKey === "cta")
-    ) {
-      setSelectedLayer({ type: "text", id: layer.legacyKey });
-    } else {
-      setSelectedLayer({ type: "asset", id: layer.id });
-    }
+    setSelectedLayer(selectionForBannerLayer(layer));
     setSelectedEffectId(null);
     if (reused) {
       setPlacementMessage("Logo již existuje — vybráno stávající místo");
@@ -767,7 +749,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
                 onOpenAssets={() => setLeftTab("assets")}
                 onPreviewTransition={handlePreviewTransition}
                 onLayerRemoved={() => {
-                  setSelectedLayer({ type: "asset", id: "__none__" });
+                  setSelectedLayer(emptyEditorSelection());
                   setSelectedEffectId(null);
                 }}
               />

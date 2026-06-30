@@ -1,5 +1,5 @@
 import type { BannerLayer } from "@/types/animation";
-import type { BannerEditorState, SelectedLayer } from "@/types/editor";
+import type { BannerEditorState } from "@/types/editor";
 import { repairEditorInvariants } from "@/lib/editor/editor-invariants";
 import { layoutPhaseEffectsOnLayer } from "@/lib/animation/layer-phase-utils";
 import {
@@ -196,26 +196,10 @@ export function layerTimelineBlockColor(layer: BannerLayer): string {
   return "bg-zinc-500/70 border-zinc-400/50";
 }
 
-export function selectionForBannerLayer(layer: BannerLayer): SelectedLayer {
-  if (
-    layer.type === "text" &&
-    (layer.legacyKey === "headline" ||
-      layer.legacyKey === "subheadline" ||
-      layer.legacyKey === "cta")
-  ) {
-    return { type: "text", id: layer.legacyKey };
-  }
-  return { type: "asset", id: layer.id };
-}
-
-export function isTimelineLayerSelected(
-  selected: SelectedLayer,
-  layer: BannerLayer,
-): boolean {
-  if (selected.type === "asset" && selected.id === "__none__") return false;
-  const target = selectionForBannerLayer(layer);
-  return selected.type === target.type && selected.id === target.id;
-}
+export {
+  isLayerSelected as isTimelineLayerSelected,
+  selectionForBannerLayer,
+} from "@/lib/animation/selection-utils";
 
 /** Renderable scene layers sorted front-first (same order for timeline + layer panel). */
 export function getOrderedSceneLayersForUi(

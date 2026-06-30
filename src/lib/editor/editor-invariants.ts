@@ -1,5 +1,6 @@
 import type { BannerLayer, LayerEffect } from "@/types/animation";
-import type { BannerEditorState } from "@/types/editor";
+import type { BannerEditorState, SelectedLayer } from "@/types/editor";
+import { resolveBannerLayerForSelection } from "@/lib/animation/selection-utils";
 import { layoutPhaseEffectsOnLayer } from "@/lib/animation/layer-phase-utils";
 import {
   clampTimelineRange,
@@ -131,27 +132,11 @@ export function repairEditorInvariants(state: BannerEditorState): BannerEditorSt
   return next;
 }
 
-/** True when selection resolves to a layer/effect in the active scene. */
+/** True when selection resolves to an existing layer. */
 export function isSelectionResolvable(
   state: BannerEditorState,
   selected: { type: string; id: string },
 ): boolean {
   if (selected.type === "asset" && selected.id === "__none__") return false;
-  const scenes = state.scenes ?? [];
-  if (scenes.length === 0) return true;
-
-  const sceneId = state.activeSceneId ?? scenes[0]?.id;
-  if (!sceneId) return false;
-
-  const sceneLayers = (state.bannerLayers ?? []).filter(
-    (l) => l.persistent || l.sceneId === sceneId,
-  );
-
-  if (selected.type === "text") {
-    return sceneLayers.some((l) => l.type === "text" && l.legacyKey === selected.id);
-  }
-
-  return sceneLayers.some(
-    (l) => l.id === selected.id || l.assetId === selected.id,
-  );
+  return resolveBannerLayerForSelection(state, selected as SelectedLayer) != null;
 }

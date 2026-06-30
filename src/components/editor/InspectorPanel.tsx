@@ -13,13 +13,13 @@ import {
   layerDisplayName,
   transitionFriendlyLabel,
 } from "@/lib/animation/effect-labels";
+import { resolveBannerLayerForSelection } from "@/lib/animation/selection-utils";
 import {
   applyTransitionToAllScenes,
   getActiveScene,
   getLayerById,
   getSceneById,
   getSceneTransitionDurationMs,
-  resolveBannerLayerForSelection,
   updateBannerLayer,
   updateLayerEffect,
   updateScene,
