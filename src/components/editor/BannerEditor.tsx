@@ -86,6 +86,20 @@ interface BannerEditorProps {
   projectId: string;
 }
 
+/** Debounced local autosave interval (ms). */
+const AUTOSAVE_DEBOUNCE_MS = 750;
+
+function writeEditorStateToProjectStorage(
+  projectId: string,
+  editorState: BannerEditorState,
+): BannerEditorState | null {
+  const existing = getStoredProjectById(projectId);
+  if (!existing) return null;
+  const project = editorStateToProject(editorState, existing);
+  upsertProject(project);
+  return normalizeEditorState(projectToEditorState(project));
+}
+
 function useIsClient(): boolean {
   return useSyncExternalStore(
     () => () => {},
@@ -124,6 +138,10 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   );
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
+  const stateRef = useRef(state);
+  const savedStateRef = useRef(savedState);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autosavePendingRef = useRef(false);
   const [selectedLayer, setSelectedLayer] = useState<SelectedLayer>(() =>
     emptyEditorSelection(),
   );
@@ -177,6 +195,49 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
 
   const previewSceneId = previewAtGlobal?.scene.id ?? activeScene?.id;
   const previewSceneLocalMs = previewAtGlobal?.localMs ?? 0;
+
+  useEffect(() => {
+    stateRef.current = state;
+    savedStateRef.current = savedState;
+  });
+
+  const clearAutosaveTimer = useCallback(() => {
+    if (autosaveTimerRef.current !== null) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+  }, []);
+
+  const commitPersistedEditorState = useCallback(
+    (persisted: BannerEditorState, source: BannerEditorState) => {
+      setSavedState(persisted);
+      savedStateRef.current = persisted;
+      if (!editorStatesEqual(source, persisted)) {
+        setState(persisted);
+      }
+      setSaveStatus("saved");
+      setSaveError(null);
+      autosavePendingRef.current = false;
+    },
+    [],
+  );
+
+  const flushPersistPending = useCallback(() => {
+    const current = stateRef.current;
+    const baseline = savedStateRef.current;
+    if (editorStatesEqual(current, baseline)) {
+      autosavePendingRef.current = false;
+      return true;
+    }
+    const persisted = writeEditorStateToProjectStorage(projectId, current);
+    if (!persisted) {
+      autosavePendingRef.current = false;
+      return false;
+    }
+    savedStateRef.current = persisted;
+    autosavePendingRef.current = false;
+    return true;
+  }, [projectId]);
 
   const onUpdate = useCallback<BannerEditorStateUpdater>((patch, options) => {
     setState((prev) => {
@@ -343,7 +404,57 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   }, [state, selectedLayer, handleDeleteLayer, handleDuplicateLayer, handleUndo, handleRedo]);
 
   const hasUnsavedChanges = !editorStatesEqual(state, savedState);
-  const validation = useMemo(() => getValidationSummary(state), [state]);
+
+  useEffect(() => {
+    if (editorStatesEqual(state, savedStateRef.current)) {
+      autosavePendingRef.current = false;
+      return;
+    }
+
+    autosavePendingRef.current = true;
+    clearAutosaveTimer();
+    autosaveTimerRef.current = setTimeout(() => {
+      autosaveTimerRef.current = null;
+      const current = stateRef.current;
+      if (editorStatesEqual(current, savedStateRef.current)) {
+        autosavePendingRef.current = false;
+        return;
+      }
+      const persisted = writeEditorStateToProjectStorage(projectId, current);
+      if (!persisted) {
+        setSaveError("Projekt nelze uložit — byl odstraněn z úložiště.");
+        autosavePendingRef.current = false;
+        return;
+      }
+      commitPersistedEditorState(persisted, current);
+    }, AUTOSAVE_DEBOUNCE_MS);
+
+    return clearAutosaveTimer;
+  }, [state, projectId, clearAutosaveTimer, commitPersistedEditorState]);
+
+  useEffect(() => {
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      const dirty =
+        !editorStatesEqual(stateRef.current, savedStateRef.current) ||
+        autosavePendingRef.current;
+      if (!dirty) return;
+      e.preventDefault();
+      e.returnValue = "";
+    }
+
+    function onPageHide() {
+      if (editorStatesEqual(stateRef.current, savedStateRef.current)) return;
+      flushPersistPending();
+    }
+
+    window.addEventListener("beforeunload", onBeforeUnload);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+  }, [flushPersistPending]);
+
   const resolvedInspectorLayer = useMemo(
     () =>
       !selectedEffectId && !selectedTransitionSceneId
@@ -372,20 +483,23 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
     selectedLayer,
   ]);
 
+  const validation = useMemo(() => getValidationSummary(state), [state]);
+
   function handleSave() {
+    clearAutosaveTimer();
+    autosavePendingRef.current = false;
     if (!getStoredProjectById(projectId)) {
       setSaveError("Projekt byl odstraněn. Vraťte se na přehled.");
       setSaveStatus("idle");
       return;
     }
-    const existing = getStoredProjectById(projectId);
-    const project = editorStateToProject(state, existing);
-    upsertProject(project);
-    const nextState = normalizeEditorState(projectToEditorState(project));
-    setState(nextState);
-    setSavedState(nextState);
-    setSaveStatus("saved");
-    setSaveError(null);
+    const persisted = writeEditorStateToProjectStorage(projectId, state);
+    if (!persisted) {
+      setSaveError("Projekt byl odstraněn. Vraťte se na přehled.");
+      setSaveStatus("idle");
+      return;
+    }
+    commitPersistedEditorState(persisted, state);
   }
 
   function handlePausePlayback() {
