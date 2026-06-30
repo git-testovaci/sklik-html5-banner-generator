@@ -266,7 +266,8 @@ export function BannerPreviewStage({
             previewSceneId={previewSceneId ?? playback.playbackSceneId ?? activeScene?.id}
             playbackPaused={playback.isPaused}
             previewTimeMs={previewTimeMs}
-            gateLayersByPreviewTime={gateLayersByPreviewTime || playback.isPaused}
+            gateLayersByPreviewTime={gateLayersByPreviewTime}
+            scrubPosePreview={!playback.isPlaying}
             onSlotActivate={onSlotActivate}
           />
         </div>

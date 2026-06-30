@@ -177,8 +177,6 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
   const previewSceneId = previewAtGlobal?.scene.id ?? activeScene?.id;
   const previewSceneLocalMs = previewAtGlobal?.localMs ?? 0;
 
-  const gatePreviewByTime = !playback.isPlaying;
-
   const onUpdate = useCallback<BannerEditorStateUpdater>((patch, options) => {
     setState((prev) => {
       const partial = resolveEditorStatePatch(prev, patch);
@@ -678,7 +676,7 @@ function BannerEditorInner({ initialState, projectId }: BannerEditorInnerProps) 
             previewSceneId={previewSceneId}
             previewTimeMs={previewSceneLocalMs}
             globalPreviewTimeMs={globalPlayheadMs}
-            gateLayersByPreviewTime={gatePreviewByTime}
+            gateLayersByPreviewTime
           />
           <GlobalBannerTimeline
             state={state}

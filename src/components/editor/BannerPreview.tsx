@@ -75,9 +75,11 @@ interface BannerPreviewProps {
   playbackSceneId?: string | null;
   /** Freezes CSS preview animations while playback RAF is paused. */
   playbackPaused?: boolean;
-  /** When set with gateLayersByPreviewTime, hides layers outside their timeline window */
+  /** When set, hides layers outside their timeline window (scene-local previewTimeMs). */
   previewTimeMs?: number | null;
   gateLayersByPreviewTime?: boolean;
+  /** When true with previewTimeMs, suppress CSS anims and apply inline scrub pose (paused/scrub only). */
+  scrubPosePreview?: boolean;
   /** When true, render read-only (public preview) with storyboard playback */
   publicMode?: boolean;
   onSlotActivate?: (layerId: string) => void;
@@ -197,6 +199,7 @@ interface CanvasContentProps {
   onSlotActivate?: (layerId: string) => void;
   previewTimeMs?: number | null;
   gateLayersByPreviewTime?: boolean;
+  scrubPosePreview?: boolean;
 }
 
 function CanvasContent({
@@ -219,6 +222,7 @@ function CanvasContent({
   onSlotActivate,
   previewTimeMs = null,
   gateLayersByPreviewTime = false,
+  scrubPosePreview = false,
 }: CanvasContentProps) {
   const slice = buildFlatSliceForScene(state, sceneId);
   const renderState: BannerEditorState = { ...state, ...slice };
@@ -226,7 +230,7 @@ function CanvasContent({
   const sceneBg = scene?.backgroundColor ?? state.backgroundColor;
   const assets = state.assets ?? [];
   const storyboardLayers = getLayersForScene(state, sceneId);
-  const scrubMode = gateLayersByPreviewTime && previewTimeMs != null;
+  const scrubMode = scrubPosePreview && previewTimeMs != null;
   const suppressCssAnimations = scrubMode;
 
   function layerInteraction(bannerLayerId: string | undefined) {
@@ -803,6 +807,7 @@ export function BannerPreview({
   playbackPaused = false,
   previewTimeMs = null,
   gateLayersByPreviewTime = false,
+  scrubPosePreview = false,
   publicMode = false,
   onSlotActivate,
 }: BannerPreviewProps) {
@@ -839,6 +844,7 @@ export function BannerPreview({
     onSlotActivate,
     previewTimeMs,
     gateLayersByPreviewTime,
+    scrubPosePreview,
   };
 
   const pauseStyle = playbackPaused
