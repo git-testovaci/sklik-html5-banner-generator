@@ -149,10 +149,12 @@ function subheadlineClassCss(style: ExportLayerTextStyle): string {
 function ctaClassCss(style: ExportLayerTextStyle, ctaBg: string, ctaText: string): string {
   const bg = style.backgroundColor ? sanitizeCssColor(style.backgroundColor, ctaBg) : ctaBg;
   const color = style.color ? sanitizeCssColor(style.color, ctaText) : ctaText;
+  const paddingY = style.paddingY ?? 4;
+  const paddingX = style.paddingX ?? 10;
   return `display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 10px;
+  padding: ${paddingY}px ${paddingX}px;
   border-radius: ${style.borderRadius ?? 4}px;
   background: ${bg};
   color: ${color};
@@ -249,7 +251,6 @@ function buildMultiSceneTextStyleRules(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 10px;
 }
 .layer--text {
   margin: 0;

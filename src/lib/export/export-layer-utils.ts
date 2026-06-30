@@ -386,7 +386,12 @@ export interface ExportLayerTextStyle {
   color?: string;
   backgroundColor?: string;
   borderRadius?: number;
+  paddingX?: number;
+  paddingY?: number;
 }
+
+const CTA_PADDING_X_DEFAULT = 10;
+const CTA_PADDING_Y_DEFAULT = 4;
 
 const HEADLINE_STYLE_DEFAULTS = {
   fontSize: 16,
@@ -468,6 +473,8 @@ export function resolveExportLayerTextStyle(
   if (legacyKey === "cta") {
     style.backgroundColor = layer.fill ?? state.ctaBackgroundColor;
     style.borderRadius = layer.borderRadius ?? 4;
+    style.paddingX = layer.paddingX ?? CTA_PADDING_X_DEFAULT;
+    style.paddingY = layer.paddingY ?? CTA_PADDING_Y_DEFAULT;
   }
 
   return style;
