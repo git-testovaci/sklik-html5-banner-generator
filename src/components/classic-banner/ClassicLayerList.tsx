@@ -4,6 +4,7 @@ import {
   CLASSIC_SLOT_CZECH_NAMES,
 } from "@/lib/classic-banner/classic-banner-selection";
 import {
+  getClassicLayerReorderState,
   reorderClassicBannerLayer,
   resolveClassicBannerFinalLayout,
   type ClassicLayerReorderAction,
@@ -13,6 +14,7 @@ import type {
   ClassicBannerSizeVariant,
   ClassicEditableSlotId,
 } from "@/types/classic-banner";
+import { ClassicLayerOrderControls } from "./ClassicLayerInspector";
 
 interface ClassicLayerListProps {
   data: ClassicBannerProjectData;
@@ -20,28 +22,6 @@ interface ClassicLayerListProps {
   selectedSlotId: ClassicEditableSlotId | null;
   onSelectSlot: (slotId: ClassicEditableSlotId) => void;
   onChange: (next: ClassicBannerProjectData) => void;
-}
-
-function ReorderButton({
-  label,
-  onClick,
-  disabled = false,
-}: {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      title={label}
-      onClick={onClick}
-      disabled={disabled}
-      className="rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-400 transition-colors hover:border-zinc-600 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-30"
-    >
-      {label}
-    </button>
-  );
 }
 
 export function ClassicLayerList({
@@ -53,18 +33,9 @@ export function ClassicLayerList({
 }: ClassicLayerListProps) {
   const finalLayout = resolveClassicBannerFinalLayout(data, variant);
   const ordered = [...finalLayout.layers].sort((a, b) => b.zIndex - a.zIndex);
-  const ascOrdered = [...finalLayout.layers].sort((a, b) => a.zIndex - b.zIndex);
 
   function reorder(slotId: ClassicEditableSlotId, action: ClassicLayerReorderAction) {
     onChange(reorderClassicBannerLayer(data, variant, slotId, action));
-  }
-
-  function reorderState(slotId: ClassicEditableSlotId) {
-    const index = ascOrdered.findIndex((layer) => layer.slotId === slotId);
-    return {
-      isFront: index === ascOrdered.length - 1,
-      isBack: index === 0,
-    };
   }
 
   return (
@@ -76,7 +47,7 @@ export function ClassicLayerList({
       <ul className="max-h-48 space-y-1 overflow-y-auto px-2 pb-3 lg:max-h-none">
         {ordered.map((layer) => {
           const selected = selectedSlotId === layer.slotId;
-          const { isFront, isBack } = reorderState(layer.slotId);
+          const reorderState = getClassicLayerReorderState(finalLayout, layer.slotId);
           return (
             <li key={layer.slotId}>
               <button
@@ -113,26 +84,12 @@ export function ClassicLayerList({
                 <span className="shrink-0 font-mono text-[10px] text-zinc-500">z{layer.zIndex}</span>
               </button>
               {selected ? (
-                <div className="mt-1 flex flex-wrap gap-1 px-1 pb-1">
-                  <ReorderButton
-                    label="↑"
-                    disabled={isFront || layer.locked}
-                    onClick={() => reorder(layer.slotId, "forward")}
-                  />
-                  <ReorderButton
-                    label="↓"
-                    disabled={isBack || layer.locked}
-                    onClick={() => reorder(layer.slotId, "backward")}
-                  />
-                  <ReorderButton
-                    label="Vpřed"
-                    disabled={isFront || layer.locked}
-                    onClick={() => reorder(layer.slotId, "front")}
-                  />
-                  <ReorderButton
-                    label="Dozadu"
-                    disabled={isBack || layer.locked}
-                    onClick={() => reorder(layer.slotId, "back")}
+                <div className="mt-1 px-1 pb-1">
+                  <ClassicLayerOrderControls
+                    slotId={layer.slotId}
+                    reorderState={reorderState}
+                    onReorder={(action) => reorder(layer.slotId, action)}
+                    layout="compact"
                   />
                 </div>
               ) : null}

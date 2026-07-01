@@ -247,35 +247,112 @@ export type ClassicLayerReorderAction =
   | "front"
   | "back";
 
+export interface ClassicLayerReorderState {
+  isFrontmost: boolean;
+  isBackmost: boolean;
+  canReorder: boolean;
+}
+
+export function getClassicLayerReorderState(
+  finalLayout: ClassicBannerFinalLayout,
+  slotId: ClassicEditableSlotId,
+): ClassicLayerReorderState {
+  const layer = finalLayout.layerBySlot[slotId];
+  if (!layer) {
+    return { isFrontmost: true, isBackmost: true, canReorder: false };
+  }
+
+  if (slotId === "background" || layer.locked) {
+    return { isFrontmost: false, isBackmost: true, canReorder: false };
+  }
+
+  const reorderable = [...finalLayout.layers]
+    .filter((item) => item.slotId !== "background")
+    .sort((a, b) => a.zIndex - b.zIndex);
+  const index = reorderable.findIndex((item) => item.slotId === slotId);
+  if (index < 0) {
+    return { isFrontmost: true, isBackmost: true, canReorder: false };
+  }
+
+  return {
+    isFrontmost: index === reorderable.length - 1,
+    isBackmost: index === 0,
+    canReorder: true,
+  };
+}
+
+export function moveClassicLayerForward(
+  data: ClassicBannerProjectData,
+  variant: ClassicBannerSizeVariant,
+  slotId: ClassicEditableSlotId,
+): ClassicBannerProjectData {
+  return reorderClassicBannerLayer(data, variant, slotId, "forward");
+}
+
+export function moveClassicLayerBackward(
+  data: ClassicBannerProjectData,
+  variant: ClassicBannerSizeVariant,
+  slotId: ClassicEditableSlotId,
+): ClassicBannerProjectData {
+  return reorderClassicBannerLayer(data, variant, slotId, "backward");
+}
+
+export function bringClassicLayerToFront(
+  data: ClassicBannerProjectData,
+  variant: ClassicBannerSizeVariant,
+  slotId: ClassicEditableSlotId,
+): ClassicBannerProjectData {
+  return reorderClassicBannerLayer(data, variant, slotId, "front");
+}
+
+export function sendClassicLayerToBack(
+  data: ClassicBannerProjectData,
+  variant: ClassicBannerSizeVariant,
+  slotId: ClassicEditableSlotId,
+): ClassicBannerProjectData {
+  return reorderClassicBannerLayer(data, variant, slotId, "back");
+}
+
 export function reorderClassicBannerLayer(
   data: ClassicBannerProjectData,
   variant: ClassicBannerSizeVariant,
   slotId: ClassicEditableSlotId,
   action: ClassicLayerReorderAction,
 ): ClassicBannerProjectData {
+  if (slotId === "background") return data;
+
   const final = resolveClassicBannerFinalLayout(data, variant);
-  const ordered = [...final.layers].sort((a, b) => a.zIndex - b.zIndex);
-  const index = ordered.findIndex((layer) => layer.slotId === slotId);
+  const layer = final.layerBySlot[slotId];
+  if (layer?.locked) return data;
+
+  const background = final.layers.find((item) => item.slotId === "background");
+  const reorderable = [...final.layers]
+    .filter((item) => item.slotId !== "background")
+    .sort((a, b) => a.zIndex - b.zIndex);
+
+  const index = reorderable.findIndex((item) => item.slotId === slotId);
   if (index < 0) return data;
 
   let targetIndex = index;
-  if (action === "forward") targetIndex = Math.min(index + 1, ordered.length - 1);
+  if (action === "forward") targetIndex = Math.min(index + 1, reorderable.length - 1);
   else if (action === "backward") targetIndex = Math.max(index - 1, 0);
-  else if (action === "front") targetIndex = ordered.length - 1;
+  else if (action === "front") targetIndex = reorderable.length - 1;
   else if (action === "back") targetIndex = 0;
 
   if (targetIndex === index) return data;
 
-  const reordered = [...ordered];
-  const [moved] = reordered.splice(index, 1);
-  reordered.splice(targetIndex, 0, moved);
+  const nextReorderable = [...reorderable];
+  const [moved] = nextReorderable.splice(index, 1);
+  nextReorderable.splice(targetIndex, 0, moved!);
+
+  const stacked = background ? [background, ...nextReorderable] : nextReorderable;
 
   let next = data;
-  for (let i = 0; i < reordered.length; i += 1) {
-    const layer = reordered[i]!;
+  for (let i = 0; i < stacked.length; i += 1) {
+    const stackedLayer = stacked[i]!;
     const newZ = i;
-    if (layer.zIndex === newZ && !layer.hasOverride) continue;
-    next = patchClassicBannerLayerOverride(next, variant.sizeId, layer.slotId, {
+    if (stackedLayer.zIndex === newZ && !stackedLayer.hasOverride) continue;
+    next = patchClassicBannerLayerOverride(next, variant.sizeId, stackedLayer.slotId, {
       zIndex: newZ,
     });
   }

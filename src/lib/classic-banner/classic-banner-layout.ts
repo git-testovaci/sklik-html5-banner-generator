@@ -351,10 +351,16 @@ function fitCtaMetrics(
 }
 
 function logoMaxHeightFor(width: number, height: number, master: LayoutMaster): number {
+  const shortSide = Math.min(width, height);
   if (master === "horizontal") return clamp(height * 0.62, 12, 40);
-  if (master === "square") return clamp(Math.min(width, height) * 0.1, 12, 36);
-  if (master === "vertical" && width <= 160) return clamp(width * 0.22, 12, 32);
-  return clamp(Math.min(width, height) * 0.12, 14, 52);
+  if (master === "square") return clamp(shortSide * 0.14, 18, 52);
+  if (master === "vertical") {
+    if (width <= 160) return clamp(width * 0.36, 22, 52);
+    return clamp(shortSide * 0.16, 24, 58);
+  }
+  if (master === "hero") return clamp(shortSide * 0.14, 20, 54);
+  if (master === "rectangle") return clamp(shortSide * 0.15, 20, 56);
+  return clamp(shortSide * 0.14, 16, 52);
 }
 
 function logoRect(
@@ -374,8 +380,17 @@ function logoRect(
     return rect(padX, padY + (100 - padY * 2 - logoH) / 2, logoW, logoH);
   }
 
-  const logoW = clamp((logoMaxHeight * 2.3 / width) * 100, 10, master === "square" ? 28 : 34);
-  const logoH = clamp((logoMaxHeight / height) * 100, 5, master === "square" ? 12 : 14);
+  const isNarrowVertical = master === "vertical" && width <= 160;
+  const logoW = clamp(
+    (logoMaxHeight * (isNarrowVertical ? 3.1 : 2.8) / width) * 100,
+    isNarrowVertical ? 28 : 16,
+    isNarrowVertical ? 44 : master === "square" ? 38 : 40,
+  );
+  const logoH = clamp(
+    (logoMaxHeight / height) * 100,
+    isNarrowVertical ? 7 : 6,
+    master === "square" ? 16 : isNarrowVertical ? 11 : 17,
+  );
 
   if (preset === "top-center") {
     return rect(50 - logoW / 2, padY, logoW, logoH);
@@ -726,9 +741,9 @@ function buildVerticalMaster(input: ClassicBannerLayoutInput): ClassicBannerComp
 
   const headlineTop = showLogo ? rectBottom(logo) + 1.5 : padY;
   const headlineH = clamp(
-    ((headlineFit.fontSize * 1.15 * headlineFit.maxLines) / height) * 100,
-    8,
-    width <= 160 ? 22 : 18,
+    ((headlineFit.fontSize * 1.2 * headlineFit.maxLines) / height) * 100,
+    width <= 160 ? 12 : 10,
+    width <= 160 ? 28 : 20,
   );
   const headline = rect(padX, headlineTop, 100 - padX * 2, headlineH);
 

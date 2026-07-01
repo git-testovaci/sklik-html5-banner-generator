@@ -22,7 +22,7 @@ export function ClassicCanvasToolbar({
   const percent = Math.round(zoom * 100);
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-2 rounded-lg border border-zinc-800/80 bg-zinc-900/60 px-3 py-2">
+    <div className="flex w-full flex-wrap items-center justify-center gap-2 rounded-lg border border-zinc-800/80 bg-zinc-900/60 px-3 py-2">
       <button
         type="button"
         aria-label="Oddálit"

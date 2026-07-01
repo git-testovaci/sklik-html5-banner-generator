@@ -462,20 +462,22 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
           />
         </aside>
 
-        <main className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-auto bg-zinc-950/50 p-6">
-          <ClassicBannerPreview
-            variant={selectedVariant}
-            data={classicBanner}
-            assets={assets}
-            viewZoom={viewZoom}
-            onViewZoomChange={setViewZoom}
-            selectedSlotId={selectedSlotId}
-            onSelectSlot={setSelectedSlotId}
-            onLayerOverride={handleLayerOverride}
-          />
+        <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-zinc-950/50">
+          <div className="flex min-h-0 flex-1 flex-col">
+            <ClassicBannerPreview
+              variant={selectedVariant}
+              data={classicBanner}
+              assets={assets}
+              viewZoom={viewZoom}
+              onViewZoomChange={setViewZoom}
+              selectedSlotId={selectedSlotId}
+              onSelectSlot={setSelectedSlotId}
+              onLayerOverride={handleLayerOverride}
+            />
+          </div>
           <ClassicBannerWarnings
             recommendations={previewRecommendations}
-            className="mt-4 w-full max-w-md"
+            className="shrink-0 border-t border-zinc-800/60 px-6 py-3"
           />
         </main>
 

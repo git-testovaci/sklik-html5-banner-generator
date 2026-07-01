@@ -480,30 +480,38 @@ export function ClassicBannerPreview({
 
 
   return (
-    <div
-      ref={viewportRef}
-      className="flex w-full max-w-full flex-col items-center gap-3"
-    >
-      <ClassicCanvasToolbar
-        zoom={viewZoom}
-        onZoomChange={onViewZoomChange}
-        onFitToView={handleFitToView}
-      />
+    <div className="flex h-full min-h-0 w-full max-w-full flex-col">
+      <div className="shrink-0 border-b border-zinc-800/60 bg-zinc-950/90 px-3 py-2 backdrop-blur-sm">
+        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <ClassicCanvasToolbar
+            zoom={viewZoom}
+            onZoomChange={onViewZoomChange}
+            onFitToView={handleFitToView}
+          />
+          <p className="shrink-0 text-center font-mono text-xs text-zinc-400 sm:text-right">
+            {width}×{height} · náhled {Math.round(totalScale * 100)}%
+          </p>
+        </div>
+      </div>
 
       <div
-        className="relative overflow-hidden rounded-lg border border-zinc-700/80 bg-zinc-900 shadow-xl"
-        style={{ width: frameWidth, height: frameHeight }}
+        ref={viewportRef}
+        className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-6"
       >
         <div
-          className="relative origin-top-left"
-          style={{
-            width,
-            height,
-            transform: `scale(${totalScale})`,
-          }}
-          role="img"
-          aria-label={`Náhled banneru ${width}×${height}`}
+          className="relative shrink-0 overflow-hidden rounded-lg border border-zinc-700/80 bg-zinc-900 shadow-xl"
+          style={{ width: frameWidth, height: frameHeight }}
         >
+          <div
+            className="relative origin-top-left"
+            style={{
+              width,
+              height,
+              transform: `scale(${totalScale})`,
+            }}
+            role="img"
+            aria-label={`Náhled banneru ${width}×${height}`}
+          >
           {/* Base fill — not selectable */}
           <div
             className="absolute inset-0"
@@ -625,12 +633,9 @@ export function ClassicBannerPreview({
               </InteractiveLayer>
             );
           })}
+          </div>
         </div>
       </div>
-
-      <p className="font-mono text-sm text-zinc-400">
-        {width}×{height} · náhled {Math.round(totalScale * 100)}%
-      </p>
     </div>
   );
 }

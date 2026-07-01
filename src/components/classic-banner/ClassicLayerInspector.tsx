@@ -4,7 +4,9 @@ import {
   CLASSIC_SLOT_CZECH_NAMES,
 } from "@/lib/classic-banner/classic-banner-selection";
 import {
+  getClassicLayerReorderState,
   patchClassicBannerLayerOverride,
+  reorderClassicBannerLayer,
   resetAllClassicBannerVariantOverrides,
   resetClassicBannerLayerOverride,
   resetClassicBannerVariantOverrides,
@@ -17,6 +19,7 @@ import type {
   ClassicBannerSizeVariant,
   ClassicEditableSlotId,
 } from "@/types/classic-banner";
+import type { ClassicLayerReorderAction, ClassicLayerReorderState } from "@/lib/classic-banner/classic-banner-overrides";
 
 interface ClassicLayerInspectorProps {
   data: ClassicBannerProjectData;
@@ -62,6 +65,102 @@ function NumberField({
   );
 }
 
+function OrderButton({
+  label,
+  onClick,
+  disabled = false,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      {label}
+    </button>
+  );
+}
+
+export function ClassicLayerOrderControls({
+  slotId,
+  reorderState,
+  onReorder,
+  layout = "full",
+}: {
+  slotId: ClassicEditableSlotId;
+  reorderState: ClassicLayerReorderState;
+  onReorder: (action: ClassicLayerReorderAction) => void;
+  layout?: "compact" | "full";
+}) {
+  if (slotId === "background") {
+    return (
+      <p className="text-[11px] text-zinc-500">
+        Pořadí pozadí je vždy vzadu a nelze ho měnit.
+      </p>
+    );
+  }
+
+  const { isFrontmost, isBackmost, canReorder } = reorderState;
+  const disabled = !canReorder;
+
+  if (layout === "compact") {
+    return (
+      <div className="flex flex-wrap gap-1">
+        <OrderButton
+          label="↑"
+          disabled={disabled || isFrontmost}
+          onClick={() => onReorder("forward")}
+        />
+        <OrderButton
+          label="↓"
+          disabled={disabled || isBackmost}
+          onClick={() => onReorder("backward")}
+        />
+        <OrderButton
+          label="Vpřed"
+          disabled={disabled || isFrontmost}
+          onClick={() => onReorder("front")}
+        />
+        <OrderButton
+          label="Dozadu"
+          disabled={disabled || isBackmost}
+          onClick={() => onReorder("back")}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <OrderButton
+        label="Posunout dopředu"
+        disabled={disabled || isFrontmost}
+        onClick={() => onReorder("forward")}
+      />
+      <OrderButton
+        label="Posunout dozadu"
+        disabled={disabled || isBackmost}
+        onClick={() => onReorder("backward")}
+      />
+      <OrderButton
+        label="Do popředí"
+        disabled={disabled || isFrontmost}
+        onClick={() => onReorder("front")}
+      />
+      <OrderButton
+        label="Do pozadí"
+        disabled={disabled || isBackmost}
+        onClick={() => onReorder("back")}
+      />
+    </div>
+  );
+}
+
 export function ClassicLayerInspector({
   data,
   variant,
@@ -81,6 +180,7 @@ export function ClassicLayerInspector({
   const finalLayout = resolveClassicBannerFinalLayout(data, variant);
   const layer = finalLayout.layerBySlot[selectedSlotId];
   const sizeId = variant.sizeId;
+  const reorderState = getClassicLayerReorderState(finalLayout, selectedSlotId);
 
   function emit(next: ClassicBannerProjectData) {
     onChange(prepareClassicBannerData(next));
@@ -88,6 +188,10 @@ export function ClassicLayerInspector({
 
   function patch(patch: Partial<ClassicBannerLayerOverride>) {
     emit(patchClassicBannerLayerOverride(data, sizeId, selectedSlotId!, patch));
+  }
+
+  function handleReorder(action: Parameters<typeof reorderClassicBannerLayer>[3]) {
+    emit(reorderClassicBannerLayer(data, variant, selectedSlotId!, action));
   }
 
   function updateRect(field: "left" | "top" | "width" | "height", value: number) {
@@ -168,6 +272,17 @@ export function ClassicLayerInspector({
           value={layer.rect.height}
           disabled={layer.locked}
           onChange={(height) => updateRect("height", height)}
+        />
+      </div>
+
+      <div className="mt-4">
+        <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+          Pořadí vrstvy
+        </h4>
+        <ClassicLayerOrderControls
+          slotId={selectedSlotId}
+          reorderState={reorderState}
+          onReorder={handleReorder}
         />
       </div>
 
