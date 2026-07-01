@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  clampClassicBannerRect,
+  clampClassicBannerLayerRect,
   clampClassicBannerRotation,
   resolveClassicBannerFinalLayout,
   type ClassicBannerResolvedLayer,
@@ -226,7 +226,7 @@ function InteractiveLayer({
 
         if (mode === "move") {
           onRectChange(
-            clampClassicBannerRect({
+            clampClassicBannerLayerRect(slotId, {
               ...origin,
               left: origin.left + dxPct,
               top: origin.top + dyPct,
@@ -266,7 +266,7 @@ function InteractiveLayer({
           }
         }
 
-        onRectChange(clampClassicBannerRect(next));
+        onRectChange(clampClassicBannerLayerRect(slotId, next));
       }
 
       function onUp(ev: PointerEvent) {
@@ -362,7 +362,9 @@ function InteractiveLayer({
         onSelect();
       }}
     >
-      <div className="relative h-full w-full overflow-hidden pointer-events-none">{children}</div>
+      <div className="relative h-full w-full pointer-events-none">
+        {children}
+      </div>
       <SelectionOverlay
         visible={selected}
         locked={locked}
@@ -728,7 +730,7 @@ export function ClassicBannerPreview({
       >
         <div
           ref={frameRef}
-          className="relative shrink-0 overflow-hidden rounded-lg border border-zinc-700/80 bg-zinc-900 shadow-xl"
+          className="relative shrink-0"
           style={{ width: frameWidth, height: frameHeight }}
         >
           <div
@@ -741,47 +743,61 @@ export function ClassicBannerPreview({
             role="img"
             aria-label={`Náhled banneru ${width}×${height}`}
           >
-            <div
-              className="absolute inset-0"
-              style={{
-                backgroundColor: designTokens.primaryColor,
-                zIndex: -1,
-                pointerEvents: "none",
-              }}
-            />
+            <div className="absolute inset-0 overflow-hidden rounded-lg border border-zinc-700/80 bg-zinc-900 shadow-xl">
+              <div
+                className="absolute inset-0"
+                style={{
+                  backgroundColor: designTokens.primaryColor,
+                  zIndex: -1,
+                  pointerEvents: "none",
+                }}
+              />
 
-            <div
-              className="absolute inset-0"
-              style={{ zIndex: 0 }}
-              aria-hidden
-              onPointerDown={(e) => {
-                if (e.button !== 0) return;
-                e.stopPropagation();
-                const bg = layout.layerBySlot.background;
-                if (bg.visible) {
-                  onSelectSlot("background");
-                } else {
-                  onSelectSlot(null);
-                }
-              }}
-            />
+              <div
+                className="absolute inset-0"
+                style={{ zIndex: 0 }}
+                aria-hidden
+                onPointerDown={(e) => {
+                  if (e.button !== 0) return;
+                  e.stopPropagation();
+                  const bg = layout.layerBySlot.background;
+                  if (bg.visible) {
+                    onSelectSlot("background");
+                  } else {
+                    onSelectSlot(null);
+                  }
+                }}
+              />
 
-            {canvasLayers.map((layer) => (
-              <InteractiveLayer
-                key={layer.slotId}
-                layer={layer}
-                selected={selectedSlotId === layer.slotId}
-                bannerWidth={width}
-                bannerHeight={height}
-                canvasScale={totalScale}
-                onSelect={() => onSelectSlot(layer.slotId)}
-                onRectChange={(rect) => patchLayer(layer.slotId, { rect })}
-                onRotationChange={(rotationDeg) => patchLayer(layer.slotId, { rotationDeg })}
-                pointerEvents={layerPointerEvents(layer)}
-              >
-                {layerContentWrapper(layer.slotId, renderLayerContent(layer.slotId))}
-              </InteractiveLayer>
-            ))}
+              {canvasLayers.map((layer) => (
+                <div
+                  key={`${layer.slotId}-content`}
+                  className="pointer-events-none"
+                  style={layerTransformStyle(layer.rect, layer.zIndex, layer.rotationDeg)}
+                >
+                  {layerContentWrapper(layer.slotId, renderLayerContent(layer.slotId))}
+                </div>
+              ))}
+            </div>
+
+            <div className="absolute inset-0 overflow-visible">
+              {canvasLayers.map((layer) => (
+                <InteractiveLayer
+                  key={layer.slotId}
+                  layer={layer}
+                  selected={selectedSlotId === layer.slotId}
+                  bannerWidth={width}
+                  bannerHeight={height}
+                  canvasScale={totalScale}
+                  onSelect={() => onSelectSlot(layer.slotId)}
+                  onRectChange={(rect) => patchLayer(layer.slotId, { rect })}
+                  onRotationChange={(rotationDeg) => patchLayer(layer.slotId, { rotationDeg })}
+                  pointerEvents={layerPointerEvents(layer)}
+                >
+                  {null}
+                </InteractiveLayer>
+              ))}
+            </div>
           </div>
         </div>
       </div>

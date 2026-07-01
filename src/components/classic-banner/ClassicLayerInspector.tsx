@@ -4,6 +4,12 @@ import {
   CLASSIC_SLOT_CZECH_NAMES,
 } from "@/lib/classic-banner/classic-banner-selection";
 import {
+  CLASSIC_BACKGROUND_MIN_SIZE,
+  CLASSIC_BACKGROUND_RECT_MAX_HEIGHT,
+  CLASSIC_BACKGROUND_RECT_MAX_WIDTH,
+  CLASSIC_BACKGROUND_RECT_MIN_LEFT,
+  CLASSIC_BACKGROUND_RECT_MIN_TOP,
+  clampClassicBannerLayerRect,
   clampClassicBannerRotation,
   getClassicLayerReorderState,
   patchClassicBannerLayerOverride,
@@ -37,12 +43,16 @@ function NumberField({
   value,
   onChange,
   disabled = false,
+  min,
+  max,
 }: {
   id: string;
   label: string;
   value: number;
   onChange: (value: number) => void;
   disabled?: boolean;
+  min?: number;
+  max?: number;
 }) {
   return (
     <div>
@@ -53,8 +63,8 @@ function NumberField({
         id={id}
         type="number"
         step={0.1}
-        min={0}
-        max={100}
+        min={min}
+        max={max}
         disabled={disabled}
         value={Math.round(value * 10) / 10}
         onChange={(e) => {
@@ -199,15 +209,29 @@ export function ClassicLayerInspector({
 
   function updateRect(field: "left" | "top" | "width" | "height", value: number) {
     if (!Number.isFinite(value)) return;
-    patch({
-      rect: {
-        left: field === "left" ? value : layer.rect.left,
-        top: field === "top" ? value : layer.rect.top,
-        width: field === "width" ? value : layer.rect.width,
-        height: field === "height" ? value : layer.rect.height,
-      },
-    }, { history: "replace" });
+    const nextRect = clampClassicBannerLayerRect(selectedSlotId!, {
+      left: field === "left" ? value : layer.rect.left,
+      top: field === "top" ? value : layer.rect.top,
+      width: field === "width" ? value : layer.rect.width,
+      height: field === "height" ? value : layer.rect.height,
+    });
+    patch({ rect: nextRect }, { history: "replace" });
   }
+
+  const isBackground = selectedSlotId === "background";
+  const rectFieldBounds = isBackground
+    ? {
+        left: { min: CLASSIC_BACKGROUND_RECT_MIN_LEFT, max: 100 },
+        top: { min: CLASSIC_BACKGROUND_RECT_MIN_TOP, max: 100 },
+        width: { min: CLASSIC_BACKGROUND_MIN_SIZE, max: CLASSIC_BACKGROUND_RECT_MAX_WIDTH },
+        height: { min: CLASSIC_BACKGROUND_MIN_SIZE, max: CLASSIC_BACKGROUND_RECT_MAX_HEIGHT },
+      }
+    : {
+        left: { min: 0, max: 100 },
+        top: { min: 0, max: 100 },
+        width: { min: 2, max: 100 },
+        height: { min: 2, max: 100 },
+      };
 
   function updateRotation(value: number) {
     if (!Number.isFinite(value)) return;
@@ -230,6 +254,12 @@ export function ClassicLayerInspector({
       </div>
 
       <p className="mb-3 text-[11px] text-amber-400/90">Ruční úpravy platí pro aktuální rozměr.</p>
+
+      {isBackground ? (
+        <p className="mb-3 text-[11px] text-zinc-500">
+          Pozadí může přesahovat mimo banner. Export se ořízne na výsledný rozměr.
+        </p>
+      ) : null}
 
       <div className="space-y-2">
         <label className="flex items-center justify-between rounded border border-zinc-800/60 px-2 py-1.5 text-sm text-zinc-300">
@@ -258,6 +288,8 @@ export function ClassicLayerInspector({
           label="X (%)"
           value={layer.rect.left}
           disabled={layer.locked}
+          min={rectFieldBounds.left.min}
+          max={rectFieldBounds.left.max}
           onChange={(left) => updateRect("left", left)}
         />
         <NumberField
@@ -265,6 +297,8 @@ export function ClassicLayerInspector({
           label="Y (%)"
           value={layer.rect.top}
           disabled={layer.locked}
+          min={rectFieldBounds.top.min}
+          max={rectFieldBounds.top.max}
           onChange={(top) => updateRect("top", top)}
         />
         <NumberField
@@ -272,6 +306,8 @@ export function ClassicLayerInspector({
           label="Šířka (%)"
           value={layer.rect.width}
           disabled={layer.locked}
+          min={rectFieldBounds.width.min}
+          max={rectFieldBounds.width.max}
           onChange={(width) => updateRect("width", width)}
         />
         <NumberField
@@ -279,6 +315,8 @@ export function ClassicLayerInspector({
           label="Výška (%)"
           value={layer.rect.height}
           disabled={layer.locked}
+          min={rectFieldBounds.height.min}
+          max={rectFieldBounds.height.max}
           onChange={(height) => updateRect("height", height)}
         />
       </div>

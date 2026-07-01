@@ -36,8 +36,72 @@ const MIN_RECT_PERCENT = 2;
 const ROTATION_MIN = -180;
 const ROTATION_MAX = 180;
 
+/** Background layer may extend beyond the banner crop window (Photopea-style). */
+export const CLASSIC_BACKGROUND_RECT_MIN_LEFT = -200;
+export const CLASSIC_BACKGROUND_RECT_MIN_TOP = -200;
+export const CLASSIC_BACKGROUND_RECT_MAX_WIDTH = 400;
+export const CLASSIC_BACKGROUND_RECT_MAX_HEIGHT = 400;
+export const CLASSIC_BACKGROUND_MIN_SIZE = 20;
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function rectExceedsForegroundBounds(rect: ClassicBannerLayoutRect): boolean {
+  const right = rect.left + rect.width;
+  const bottom = rect.top + rect.height;
+  return (
+    rect.left < -0.001 ||
+    rect.top < -0.001 ||
+    rect.width > 100.001 ||
+    rect.height > 100.001 ||
+    right > 100.001 ||
+    bottom > 100.001
+  );
+}
+
+function clampClassicBannerForegroundRect(rect: ClassicBannerLayoutRect): ClassicBannerLayoutRect {
+  const width = clamp(rect.width, MIN_RECT_PERCENT, 100);
+  const height = clamp(rect.height, MIN_RECT_PERCENT, 100);
+  const left = clamp(rect.left, 0, 100 - width);
+  const top = clamp(rect.top, 0, 100 - height);
+  return { left, top, width, height };
+}
+
+export function clampClassicBannerBackgroundRect(
+  rect: ClassicBannerLayoutRect,
+): ClassicBannerLayoutRect {
+  const width = clamp(
+    rect.width,
+    CLASSIC_BACKGROUND_MIN_SIZE,
+    CLASSIC_BACKGROUND_RECT_MAX_WIDTH,
+  );
+  const height = clamp(
+    rect.height,
+    CLASSIC_BACKGROUND_MIN_SIZE,
+    CLASSIC_BACKGROUND_RECT_MAX_HEIGHT,
+  );
+  const left = clamp(rect.left, CLASSIC_BACKGROUND_RECT_MIN_LEFT, 100);
+  const top = clamp(rect.top, CLASSIC_BACKGROUND_RECT_MIN_TOP, 100);
+  return { left, top, width, height };
+}
+
+export function clampClassicBannerLayerRect(
+  slotId: ClassicEditableSlotId,
+  rect: ClassicBannerLayoutRect,
+): ClassicBannerLayoutRect {
+  if (slotId === "background") {
+    return clampClassicBannerBackgroundRect(rect);
+  }
+  return clampClassicBannerForegroundRect(rect);
+}
+
+/** Foreground clamp; infers background bounds when rect exceeds the banner. */
+export function clampClassicBannerRect(rect: ClassicBannerLayoutRect): ClassicBannerLayoutRect {
+  if (rectExceedsForegroundBounds(rect)) {
+    return clampClassicBannerBackgroundRect(rect);
+  }
+  return clampClassicBannerForegroundRect(rect);
 }
 
 export function clampClassicBannerRotation(rotationDeg: number): number {
@@ -52,14 +116,6 @@ export function layerRectCenter(rect: ClassicBannerLayoutRect): { x: number; y: 
   };
 }
 
-export function clampClassicBannerRect(rect: ClassicBannerLayoutRect): ClassicBannerLayoutRect {
-  const width = clamp(rect.width, MIN_RECT_PERCENT, 100);
-  const height = clamp(rect.height, MIN_RECT_PERCENT, 100);
-  const left = clamp(rect.left, 0, 100 - width);
-  const top = clamp(rect.top, 0, 100 - height);
-  return { left, top, width, height };
-}
-
 function rectFromComputed(
   computed: ClassicBannerComputedLayout,
   slotId: ClassicEditableSlotId,
@@ -71,11 +127,12 @@ function rectFromComputed(
 }
 
 function mergeRect(
+  slotId: ClassicEditableSlotId,
   base: ClassicBannerLayoutRect,
   override?: ClassicBannerLayerOverride,
 ): ClassicBannerLayoutRect {
   if (!override?.rect) return base;
-  return clampClassicBannerRect({
+  return clampClassicBannerLayerRect(slotId, {
     left: override.rect.left ?? base.left,
     top: override.rect.top ?? base.top,
     width: override.rect.width ?? base.width,
@@ -166,7 +223,7 @@ export function resolveClassicBannerFinalLayout(
   const layers: ClassicBannerResolvedLayer[] = CLASSIC_EDITABLE_SLOTS.map((slotId) => {
     const slotOverride = overrides[slotId];
     const baseRect = rectFromComputed(computed, slotId);
-    const rect = mergeRect(baseRect, slotOverride);
+    const rect = mergeRect(slotId, baseRect, slotOverride);
     const zIndex = slotOverride?.zIndex ?? computed.zIndex[slotId];
     mergedZIndex[slotId] = zIndex;
 
