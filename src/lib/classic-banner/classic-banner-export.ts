@@ -1,11 +1,9 @@
 import JSZip from "jszip";
 import {
-  computeClassicBannerLayout,
-  type ClassicBannerLayoutRect,
-} from "@/lib/classic-banner/classic-banner-layout";
-import { isClassicBannerSlotVisible } from "@/lib/classic-banner/classic-banner-update";
+  resolveClassicBannerFinalLayout,
+} from "@/lib/classic-banner/classic-banner-overrides";
+import type { ClassicBannerLayoutRect } from "@/lib/classic-banner/classic-banner-layout";
 import {
-  hasClassicBannerImageSource,
   loadClassicBannerImageForCanvas,
 } from "@/lib/classic-banner/classic-banner-image-sources";
 import { CLASSIC_BANNER_SIZES, getClassicBannerSizeById } from "@/lib/classic-banner/classic-banner-sizes";
@@ -13,6 +11,7 @@ import type {
   ClassicBannerDesignTokens,
   ClassicBannerProjectData,
   ClassicBannerSizeVariant,
+  ClassicEditableSlotId,
 } from "@/types/classic-banner";
 
 export const CLASSIC_BANNER_CORS_ERROR =
@@ -416,32 +415,20 @@ export async function exportClassicBannerVariantToPng(
   data: ClassicBannerProjectData,
   variant: ClassicBannerSizeVariant,
 ): Promise<ClassicBannerPngExportResult> {
-  const { width, height, family } = variant;
-  const { content, designTokens, slots } = data;
+  const { width, height } = variant;
+  const { content, designTokens } = data;
   const warnings: string[] = [];
 
-  const layout = computeClassicBannerLayout({
-    width,
-    height,
-    family,
-    content,
-    designTokens,
-    slots,
-  });
+  const layout = resolveClassicBannerFinalLayout(data, variant);
+  const { layerBySlot } = layout;
 
-  const showBackground = hasClassicBannerImageSource(content, "background");
-  const showLogo =
-    isClassicBannerSlotVisible(data, "logo") && hasClassicBannerImageSource(content, "logo");
-  const showHeadline = isClassicBannerSlotVisible(data, "headline");
-  const showSlogan =
-    isClassicBannerSlotVisible(data, "slogan") &&
-    layout.showSlogan &&
-    Boolean(content.slogan.trim());
-  const showHero =
-    isClassicBannerSlotVisible(data, "hero") && hasClassicBannerImageSource(content, "hero");
-  const showCta = isClassicBannerSlotVisible(data, "cta") && Boolean(content.ctaText.trim());
-  const showBadge =
-    isClassicBannerSlotVisible(data, "badge") && Boolean(content.badgeText.trim());
+  const showBackground = layerBySlot.background.visible;
+  const showLogo = layerBySlot.logo.visible;
+  const showHeadline = layerBySlot.headline.visible;
+  const showSlogan = layerBySlot.slogan.visible;
+  const showHero = layerBySlot.hero.visible;
+  const showCta = layerBySlot.cta.visible;
+  const showBadge = layerBySlot.badge.visible;
 
   const [backgroundResult, logoResult, heroResult] = await Promise.all([
     showBackground
@@ -492,62 +479,85 @@ export async function exportClassicBannerVariantToPng(
   ctx.fillStyle = designTokens.primaryColor;
   ctx.fillRect(0, 0, width, height);
 
-  if (backgroundImg) {
-    drawImageCover(ctx, backgroundImg, 0, 0, width, height);
-  }
-
   const heroBox = rectToPixels(layout.hero, width, height);
   const headlineBox = rectToPixels(layout.headline, width, height);
   const sloganBox = rectToPixels(layout.slogan, width, height);
   const logoBox = rectToPixels(layout.logo, width, height);
   const ctaBox = rectToPixels(layout.cta, width, height);
   const badgeBox = rectToPixels(layout.badge, width, height);
+  const backgroundBox = rectToPixels(layerBySlot.background.rect, width, height);
 
-  if (showHero && heroImg && heroBox.width > 0 && heroBox.height > 0) {
-    drawImageContainCenter(ctx, heroImg, heroBox.x, heroBox.y, heroBox.width, heroBox.height);
-  }
+  const drawBySlot: Record<ClassicEditableSlotId, () => void> = {
+    background: () => {
+      if (backgroundImg && showBackground) {
+        drawImageCover(
+          ctx,
+          backgroundImg,
+          backgroundBox.x,
+          backgroundBox.y,
+          backgroundBox.width,
+          backgroundBox.height,
+        );
+      }
+    },
+    hero: () => {
+      if (showHero && heroImg && heroBox.width > 0 && heroBox.height > 0) {
+        drawImageContainCenter(ctx, heroImg, heroBox.x, heroBox.y, heroBox.width, heroBox.height);
+      }
+    },
+    headline: () => {
+      if (showHeadline && content.headline.trim()) {
+        drawHeadlineText(
+          ctx,
+          content.headline,
+          headlineBox,
+          designTokens,
+          layout.headlineFontSize,
+          layout.headlineMaxLines,
+        );
+      }
+    },
+    slogan: () => {
+      if (showSlogan) {
+        drawSloganText(ctx, content.slogan, sloganBox, designTokens, layout.sloganFontSize);
+      }
+    },
+    logo: () => {
+      if (showLogo && logoImg && logoBox.width > 0 && logoBox.height > 0) {
+        drawImageContainTopLeft(
+          ctx,
+          logoImg,
+          logoBox.x,
+          logoBox.y,
+          logoBox.width,
+          logoBox.height,
+          layout.logoMaxHeight,
+        );
+      }
+    },
+    cta: () => {
+      if (showCta) {
+        drawCtaButton(
+          ctx,
+          content.ctaText,
+          ctaBox,
+          designTokens,
+          layout.ctaFontSize,
+          layout.ctaPaddingX,
+          layout.ctaPaddingY,
+        );
+      }
+    },
+    badge: () => {
+      if (showBadge && badgeBox.width > 0 && badgeBox.height > 0) {
+        drawBadgePill(ctx, content.badgeText, badgeBox, designTokens, layout.badgeFontSize);
+      }
+    },
+  };
 
-  if (showHeadline && content.headline.trim()) {
-    drawHeadlineText(
-      ctx,
-      content.headline,
-      headlineBox,
-      designTokens,
-      layout.headlineFontSize,
-      layout.headlineMaxLines,
-    );
-  }
-
-  if (showSlogan) {
-    drawSloganText(ctx, content.slogan, sloganBox, designTokens, layout.sloganFontSize);
-  }
-
-  if (showLogo && logoImg && logoBox.width > 0 && logoBox.height > 0) {
-    drawImageContainTopLeft(
-      ctx,
-      logoImg,
-      logoBox.x,
-      logoBox.y,
-      logoBox.width,
-      logoBox.height,
-      layout.logoMaxHeight,
-    );
-  }
-
-  if (showCta) {
-    drawCtaButton(
-      ctx,
-      content.ctaText,
-      ctaBox,
-      designTokens,
-      layout.ctaFontSize,
-      layout.ctaPaddingX,
-      layout.ctaPaddingY,
-    );
-  }
-
-  if (showBadge && badgeBox.width > 0 && badgeBox.height > 0) {
-    drawBadgePill(ctx, content.badgeText, badgeBox, designTokens, layout.badgeFontSize);
+  for (const layer of [...layout.layers].sort((a, b) => a.zIndex - b.zIndex)) {
+    if (!layer.visible) continue;
+    drawBySlot[layer.slotId]();
   }
 
   const blob = await canvasToPngBlob(canvas);

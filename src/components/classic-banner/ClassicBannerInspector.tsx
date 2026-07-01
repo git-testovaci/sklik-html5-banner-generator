@@ -23,14 +23,17 @@ import type {
   ClassicBannerProjectData,
   ClassicBannerSizeVariant,
   ClassicBannerSlotId,
+  ClassicEditableSlotId,
 } from "@/types/classic-banner";
 import { ClassicBannerWarnings } from "./ClassicBannerWarnings";
+import { ClassicLayerInspector } from "./ClassicLayerInspector";
 
 interface ClassicBannerInspectorProps {
   data: ClassicBannerProjectData;
   projectId: string;
   assets: BannerAsset[];
   selectedVariant?: ClassicBannerSizeVariant;
+  selectedSlotId?: ClassicEditableSlotId | null;
   onChange: (next: ClassicBannerProjectData) => void;
   onAssetsChange: (assets: BannerAsset[]) => void;
 }
@@ -250,6 +253,7 @@ export function ClassicBannerInspector({
   projectId,
   assets,
   selectedVariant,
+  selectedSlotId = null,
   onChange,
   onAssetsChange,
 }: ClassicBannerInspectorProps) {
@@ -315,8 +319,17 @@ export function ClassicBannerInspector({
     <div className="flex h-full flex-col overflow-y-auto">
       <div className="border-b border-zinc-800/80 px-4 py-3">
         <h2 className="text-sm font-semibold text-zinc-200">Inspector</h2>
-        <p className="mt-0.5 text-xs text-zinc-500">Obsah a vzhled banneru</p>
+        <p className="mt-0.5 text-xs text-zinc-500">Vrstva, obsah a vzhled banneru</p>
       </div>
+
+      {selectedVariant ? (
+        <ClassicLayerInspector
+          data={data}
+          variant={selectedVariant}
+          selectedSlotId={selectedSlotId}
+          onChange={onChange}
+        />
+      ) : null}
 
       <div className="space-y-6 p-4">
         {recommendations.length > 0 ? (

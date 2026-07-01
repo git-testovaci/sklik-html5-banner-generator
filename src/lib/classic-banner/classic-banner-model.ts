@@ -3,7 +3,9 @@ import type {
   ClassicBannerLayoutFamily,
   ClassicBannerProjectData,
   ClassicBannerSlotId,
+  ClassicBannerVariantOverrides,
   ClassicBannerVariantStatus,
+  ClassicEditableSlotId,
 } from "@/types/classic-banner";
 
 export const PROJECT_KIND_HTML5: ProjectKind = "html5-banner";
@@ -128,7 +130,51 @@ export function migrateClassicBannerData(
         status: (v.layout as { status?: string })?.status === "ready" ? "ready" : "pending",
       },
     })),
+    variantOverrides: migrateVariantOverrides(record.variantOverrides),
   };
+}
+
+function migrateVariantOverrides(
+  value: unknown,
+): ClassicBannerProjectData["variantOverrides"] {
+  if (!value || typeof value !== "object") return undefined;
+  const result: Record<string, ClassicBannerVariantOverrides> = {};
+  for (const [sizeId, slots] of Object.entries(value as Record<string, unknown>)) {
+    if (!slots || typeof slots !== "object") continue;
+    const slotMap: ClassicBannerVariantOverrides = {};
+    for (const [slotId, override] of Object.entries(slots as Record<string, unknown>)) {
+      if (!override || typeof override !== "object") continue;
+      const o = override as Record<string, unknown>;
+      const rectRaw = o.rect;
+      const rect =
+        rectRaw && typeof rectRaw === "object"
+          ? {
+              left: typeof (rectRaw as { left?: unknown }).left === "number"
+                ? (rectRaw as { left: number }).left
+                : undefined,
+              top: typeof (rectRaw as { top?: unknown }).top === "number"
+                ? (rectRaw as { top: number }).top
+                : undefined,
+              width: typeof (rectRaw as { width?: unknown }).width === "number"
+                ? (rectRaw as { width: number }).width
+                : undefined,
+              height: typeof (rectRaw as { height?: unknown }).height === "number"
+                ? (rectRaw as { height: number }).height
+                : undefined,
+            }
+          : undefined;
+      slotMap[slotId as ClassicEditableSlotId] = {
+        rect,
+        zIndex: typeof o.zIndex === "number" ? o.zIndex : undefined,
+        visible: typeof o.visible === "boolean" ? o.visible : undefined,
+        locked: typeof o.locked === "boolean" ? o.locked : undefined,
+      };
+    }
+    if (Object.keys(slotMap).length > 0) {
+      result[sizeId] = slotMap;
+    }
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 function isValidProjectKind(value: unknown): value is ProjectKind {

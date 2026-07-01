@@ -91,10 +91,41 @@ export interface ClassicBannerSizeVariant {
   layout: ClassicBannerVariantLayoutPlaceholder;
 }
 
+/** Slots editable on the interactive canvas (per-variant overrides). */
+export type ClassicEditableSlotId =
+  | "background"
+  | "logo"
+  | "headline"
+  | "slogan"
+  | "hero"
+  | "cta"
+  | "badge";
+
+export interface ClassicBannerLayerRectOverride {
+  left?: number;
+  top?: number;
+  width?: number;
+  height?: number;
+}
+
+export interface ClassicBannerLayerOverride {
+  rect?: ClassicBannerLayerRectOverride;
+  zIndex?: number;
+  visible?: boolean;
+  locked?: boolean;
+}
+
+/** Per-size manual layout overrides — layered on computed layout, never mutating it. */
+export type ClassicBannerVariantOverrides = Partial<
+  Record<ClassicEditableSlotId, ClassicBannerLayerOverride>
+>;
+
 export interface ClassicBannerProjectData {
   masterSizeId: string;
   content: ClassicBannerContent;
   designTokens: ClassicBannerDesignTokens;
   slots: ClassicBannerSlot[];
   variants: ClassicBannerSizeVariant[];
+  /** sizeId → slot overrides for manual per-variant layout edits. */
+  variantOverrides?: Record<string, ClassicBannerVariantOverrides>;
 }

@@ -128,7 +128,8 @@ export function classicBannerDataEqual(
     JSON.stringify(a.content) === JSON.stringify(b.content) &&
     JSON.stringify(a.designTokens) === JSON.stringify(b.designTokens) &&
     slotsEqual(a.slots, b.slots) &&
-    variantsEqual(a.variants, b.variants)
+    variantsEqual(a.variants, b.variants) &&
+    JSON.stringify(a.variantOverrides ?? {}) === JSON.stringify(b.variantOverrides ?? {})
   );
 }
 

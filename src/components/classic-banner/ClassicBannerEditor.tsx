@@ -16,15 +16,17 @@ import {
   prepareClassicBannerData,
 } from "@/lib/classic-banner/classic-banner-update";
 import { getClassicBannerRecommendations } from "@/lib/classic-banner/classic-banner-recommendations";
+import { patchClassicBannerLayerOverride } from "@/lib/classic-banner/classic-banner-overrides";
 import { downloadBlob } from "@/lib/export/download-blob";
 import { getStoredProjectById, upsertProject } from "@/lib/project-storage";
-import type { ClassicBannerProjectData } from "@/types/classic-banner";
+import type { ClassicBannerProjectData, ClassicEditableSlotId } from "@/types/classic-banner";
 import type { BannerAsset } from "@/types/assets";
 import type { BannerProject } from "@/types/project";
 import { ProjectStatusBadge } from "@/components/dashboard/ProjectStatusBadge";
 import { ClassicBannerInspector } from "./ClassicBannerInspector";
 import { ClassicBannerPreview } from "./ClassicBannerPreview";
 import { ClassicBannerWarnings } from "./ClassicBannerWarnings";
+import { ClassicLayerList } from "./ClassicLayerList";
 import { ClassicVariantSwitcher } from "./ClassicVariantSwitcher";
 
 const AUTOSAVE_DEBOUNCE_MS = 750;
@@ -62,6 +64,8 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
   const [exportMode, setExportMode] = useState<"idle" | "png" | "zip">("idle");
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const [exportIsError, setExportIsError] = useState(false);
+  const [selectedSlotId, setSelectedSlotId] = useState<ClassicEditableSlotId | null>(null);
+  const [viewZoom, setViewZoom] = useState(1);
   const isExporting = exportMode !== "idle";
 
   const classicBannerRef = useRef(classicBanner);
@@ -97,6 +101,20 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
 
   function handleClassicBannerChange(next: ClassicBannerProjectData) {
     setClassicBanner(prepareClassicBannerData(next));
+  }
+
+  function handleLayerOverride(
+    slotId: ClassicEditableSlotId,
+    patch: Parameters<typeof patchClassicBannerLayerOverride>[3],
+  ) {
+    handleClassicBannerChange(
+      patchClassicBannerLayerOverride(classicBanner, selectedSizeId, slotId, patch),
+    );
+  }
+
+  function handleSelectVariant(sizeId: string) {
+    setSelectedSlotId(null);
+    setSelectedSizeId(sizeId);
   }
 
   const clearAutosaveTimer = useCallback(() => {
@@ -407,11 +425,18 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <aside className="h-48 shrink-0 border-b border-zinc-800/80 bg-zinc-900/30 lg:h-auto lg:w-56 lg:border-b-0 lg:border-r xl:w-64">
+        <aside className="flex h-48 shrink-0 flex-col border-b border-zinc-800/80 bg-zinc-900/30 lg:h-auto lg:w-56 lg:border-b-0 lg:border-r xl:w-64">
           <ClassicVariantSwitcher
             variants={classicBanner.variants}
             selectedSizeId={selectedSizeId}
-            onSelect={setSelectedSizeId}
+            onSelect={handleSelectVariant}
+          />
+          <ClassicLayerList
+            data={classicBanner}
+            variant={selectedVariant}
+            selectedSlotId={selectedSlotId}
+            onSelectSlot={setSelectedSlotId}
+            onChange={handleClassicBannerChange}
           />
         </aside>
 
@@ -420,6 +445,11 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
             variant={selectedVariant}
             data={classicBanner}
             assets={assets}
+            viewZoom={viewZoom}
+            onViewZoomChange={setViewZoom}
+            selectedSlotId={selectedSlotId}
+            onSelectSlot={setSelectedSlotId}
+            onLayerOverride={handleLayerOverride}
           />
           <ClassicBannerWarnings
             recommendations={previewRecommendations}
@@ -433,6 +463,7 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
             projectId={project.id}
             assets={assets}
             selectedVariant={selectedVariant}
+            selectedSlotId={selectedSlotId}
             onChange={handleClassicBannerChange}
             onAssetsChange={setAssets}
           />
