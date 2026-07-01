@@ -271,6 +271,170 @@ export async function loadClassicBannerImageForCanvas(
   return { image: null, source: "none" };
 }
 
+export interface ClassicBannerImportedImageBlob {
+  blob: Blob;
+  fileName: string;
+  mimeType: string;
+}
+
+export interface ClassicBannerImageUrlExportWarning {
+  id: string;
+  severity: "warning";
+  message: string;
+  slot: ClassicBannerImageSlot;
+}
+
+const URL_EXPORT_WARNING_MESSAGE =
+  "Tento obrázek je z URL. Pro spolehlivý PNG export ho stáhněte do projektu nebo nahrajte lokálně.";
+
+export function getClassicBannerImageUrlExportWarnings(
+  content: ClassicBannerContent,
+): ClassicBannerImageUrlExportWarning[] {
+  const slots: ClassicBannerImageSlot[] = ["background", "logo", "hero"];
+  return slots
+    .filter((slot) => getClassicImageUrl(content, slot) && !getClassicImageAssetId(content, slot))
+    .map((slot) => ({
+      id: `url-export-${slot}`,
+      severity: "warning" as const,
+      message: URL_EXPORT_WARNING_MESSAGE,
+      slot,
+    }));
+}
+
+/** Download an external image URL through the server import proxy. */
+export async function importClassicBannerImageUrlAsBlob(
+  url: string,
+): Promise<ClassicBannerImportedImageBlob> {
+  const response = await fetch("/api/classic-banner/import-image", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  });
+
+  if (!response.ok) {
+    let message = "Obrázek se nepodařilo stáhnout. Zkuste jinou URL nebo nahrajte soubor ručně.";
+    try {
+      const payload = (await response.json()) as { error?: string };
+      if (payload.error?.trim()) {
+        message = payload.error;
+      }
+    } catch {
+      // keep default message
+    }
+    throw new Error(message);
+  }
+
+  const mimeType =
+    response.headers.get("x-image-content-type")?.trim() ||
+    response.headers.get("content-type")?.split(";")[0]?.trim() ||
+    "application/octet-stream";
+  const fileName =
+    response.headers.get("x-image-filename")?.trim() || "imported-image.jpg";
+  const buffer = await response.arrayBuffer();
+  if (buffer.byteLength === 0) {
+    throw new Error("Obrázek se nepodařilo stáhnout. Zkuste jinou URL nebo nahrajte soubor ručně.");
+  }
+
+  return {
+    blob: new Blob([buffer], { type: mimeType }),
+    fileName,
+    mimeType,
+  };
+}
+
+async function persistClassicBannerAssetBlob(
+  blob: Blob,
+  fileName: string,
+  mimeType: string,
+  projectId: string,
+  slot: ClassicBannerImageSlot,
+  currentAssets: readonly BannerAsset[],
+  content: ClassicBannerContent,
+): Promise<ClassicBannerAssetUploadResult> {
+  const dims = await readImageDimensions(blob);
+  if (!dims && mimeType !== "image/svg+xml") {
+    return { ok: false, message: "Obrázek se nepodařilo načíst. Zkuste jiný formát." };
+  }
+
+  const assetId = `asset-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const saveResult = await saveAssetBlob(assetId, blob);
+  if (!saveResult.ok) {
+    return { ok: false, message: saveResult.message };
+  }
+
+  const previousAssetId = getClassicImageAssetId(content, slot);
+  if (previousAssetId) {
+    invalidateAssetObjectUrl(previousAssetId);
+    await deleteAssetBlob(previousAssetId);
+  }
+
+  const kind = CLASSIC_IMAGE_SLOT_ASSET_KIND[slot];
+  const asset: BannerAsset = {
+    id: assetId,
+    projectId,
+    kind,
+    fileName,
+    mimeType,
+    size: blob.size,
+    width: dims?.width ?? 100,
+    height: dims?.height ?? 100,
+    createdAt: new Date().toISOString(),
+  };
+
+  const withoutPrevious = currentAssets.filter(
+    (item) => item.id !== previousAssetId && !(item.kind === kind && kind !== "decoration"),
+  );
+  const assets = [...withoutPrevious, asset];
+  const contentPatch = {
+    [ASSET_ID_FIELD[slot]]: assetId,
+  } as Pick<ClassicBannerContent, "backgroundAssetId" | "logoAssetId" | "heroAssetId">;
+
+  return { ok: true, asset, assets, contentPatch };
+}
+
+export async function importClassicBannerImageFromUrl(
+  url: string,
+  projectId: string,
+  slot: ClassicBannerImageSlot,
+  currentAssets: readonly BannerAsset[],
+  content: ClassicBannerContent,
+): Promise<ClassicBannerAssetUploadResult> {
+  const trimmedUrl = url.trim();
+  if (!trimmedUrl) {
+    return { ok: false, message: "Chybí URL adresa obrázku." };
+  }
+
+  try {
+    const imported = await importClassicBannerImageUrlAsBlob(trimmedUrl);
+    const sourceFile = new File([imported.blob], imported.fileName, {
+      type: imported.mimeType,
+    });
+    const { blob, compressed } = await compressImageIfNeeded(sourceFile);
+    const mimeType = compressed && blob.type ? blob.type : imported.mimeType;
+    const fileName = compressed
+      ? imported.fileName.replace(/\.[^.]+$/, ".webp")
+      : imported.fileName;
+
+    return persistClassicBannerAssetBlob(
+      blob,
+      fileName,
+      mimeType,
+      projectId,
+      slot,
+      currentAssets,
+      content,
+    );
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Obrázek se nepodařilo stáhnout. Zkuste jinou URL nebo nahrajte soubor ručně.",
+    };
+  }
+}
+
 export type ClassicBannerAssetUploadResult =
   | {
       ok: true;
@@ -295,45 +459,17 @@ export async function uploadClassicBannerAsset(
   try {
     const { blob, compressed } = await compressImageIfNeeded(file);
     const mimeType = compressed && blob.type ? blob.type : resolveMimeType(file);
-    const dims = await readImageDimensions(blob);
-    if (!dims && mimeType !== "image/svg+xml") {
-      return { ok: false, message: "Obrázek se nepodařilo načíst. Zkuste jiný formát." };
-    }
+    const fileName = compressed ? file.name.replace(/\.[^.]+$/, ".webp") : file.name;
 
-    const assetId = `asset-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const saveResult = await saveAssetBlob(assetId, blob);
-    if (!saveResult.ok) {
-      return { ok: false, message: saveResult.message };
-    }
-
-    const previousAssetId = getClassicImageAssetId(content, slot);
-    if (previousAssetId) {
-      invalidateAssetObjectUrl(previousAssetId);
-      await deleteAssetBlob(previousAssetId);
-    }
-
-    const kind = CLASSIC_IMAGE_SLOT_ASSET_KIND[slot];
-    const asset: BannerAsset = {
-      id: assetId,
-      projectId,
-      kind,
-      fileName: compressed ? file.name.replace(/\.[^.]+$/, ".webp") : file.name,
+    return persistClassicBannerAssetBlob(
+      blob,
+      fileName,
       mimeType,
-      size: blob.size,
-      width: dims?.width ?? 100,
-      height: dims?.height ?? 100,
-      createdAt: new Date().toISOString(),
-    };
-
-    const withoutPrevious = currentAssets.filter(
-      (item) => item.id !== previousAssetId && !(item.kind === kind && kind !== "decoration"),
+      projectId,
+      slot,
+      currentAssets,
+      content,
     );
-    const assets = [...withoutPrevious, asset];
-    const contentPatch = {
-      [ASSET_ID_FIELD[slot]]: assetId,
-    } as Pick<ClassicBannerContent, "backgroundAssetId" | "logoAssetId" | "heroAssetId">;
-
-    return { ok: true, asset, assets, contentPatch };
   } catch {
     return { ok: false, message: "Nahrání selhalo." };
   }

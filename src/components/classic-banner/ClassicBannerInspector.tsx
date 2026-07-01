@@ -5,7 +5,9 @@ import { getClassicBannerRecommendations } from "@/lib/classic-banner/classic-ba
 import {
   classicBannerImageSourceKind,
   clearClassicBannerAsset,
+  getClassicBannerImageUrlExportWarnings,
   getClassicImageUrl,
+  importClassicBannerImageFromUrl,
   uploadClassicBannerAsset,
   type ClassicBannerImageSlot,
 } from "@/lib/classic-banner/classic-banner-image-sources";
@@ -180,9 +182,13 @@ function ClassicImageSlotField({
   sourceKind,
   asset,
   uploadError,
+  importError,
+  importSuccess,
   uploading,
+  importing,
   onUrlChange,
   onUpload,
+  onImportUrl,
   onClearLocal,
 }: {
   slot: ClassicBannerImageSlot;
@@ -191,12 +197,18 @@ function ClassicImageSlotField({
   sourceKind: ReturnType<typeof classicBannerImageSourceKind>;
   asset?: BannerAsset;
   uploadError?: string;
+  importError?: string;
+  importSuccess?: string;
   uploading: boolean;
+  importing: boolean;
   onUrlChange: (value: string) => void;
   onUpload: (file: File) => void;
+  onImportUrl: () => void;
   onClearLocal: () => void;
 }) {
   const inputId = `classic-upload-${slot}`;
+  const canImportUrl = url.trim().length > 0 && sourceKind !== "local";
+  const busy = uploading || importing;
 
   return (
     <div className="rounded-lg border border-zinc-800/60 bg-zinc-950/40 p-3">
@@ -214,6 +226,28 @@ function ClassicImageSlotField({
         onChange={onUrlChange}
       />
 
+      <div className="mt-2">
+        <button
+          type="button"
+          disabled={!canImportUrl || busy}
+          onClick={onImportUrl}
+          className="rounded border border-violet-700/70 bg-violet-950/40 px-2.5 py-1.5 text-xs font-medium text-violet-200 transition-colors hover:border-violet-600 hover:bg-violet-900/50 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {importing ? "Stahuji…" : "Stáhnout do projektu"}
+        </button>
+        {importing ? <p className="mt-1 text-xs text-zinc-500">Stahuji…</p> : null}
+        {importSuccess ? (
+          <p className="mt-1 text-xs text-emerald-400" role="status">
+            {importSuccess}
+          </p>
+        ) : null}
+        {importError ? (
+          <p className="mt-1 text-xs text-red-400" role="alert">
+            {importError}
+          </p>
+        ) : null}
+      </div>
+
       <div className="mt-3">
         <label htmlFor={inputId} className="mb-1.5 block text-sm font-medium text-zinc-300">
           Nahrát obrázek
@@ -222,7 +256,7 @@ function ClassicImageSlotField({
           id={inputId}
           type="file"
           accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,image/avif"
-          disabled={uploading}
+          disabled={busy}
           className="block w-full text-xs text-zinc-400 file:mr-2 file:rounded file:border-0 file:bg-violet-600 file:px-2 file:py-1 file:text-xs file:text-white"
           onChange={(event) => {
             const file = event.target.files?.[0];
@@ -266,13 +300,31 @@ export function ClassicBannerInspector({
 }: ClassicBannerInspectorProps) {
   const { content, designTokens } = data;
   const [uploadingSlot, setUploadingSlot] = useState<ClassicBannerImageSlot | null>(null);
+  const [importingSlot, setImportingSlot] = useState<ClassicBannerImageSlot | null>(null);
   const [uploadErrors, setUploadErrors] = useState<Partial<Record<ClassicBannerImageSlot, string>>>(
     {},
   );
-  const recommendations = useMemo(
-    () => getClassicBannerRecommendations(data, selectedVariant),
-    [data, selectedVariant],
+  const [importErrors, setImportErrors] = useState<Partial<Record<ClassicBannerImageSlot, string>>>(
+    {},
   );
+  const [importSuccess, setImportSuccess] = useState<
+    Partial<Record<ClassicBannerImageSlot, string>>
+  >({});
+  const recommendations = useMemo(() => {
+    const layoutRecommendations = getClassicBannerRecommendations(data, selectedVariant);
+    const urlWarnings = getClassicBannerImageUrlExportWarnings(content).map((item) => ({
+      id: item.id,
+      severity: item.severity,
+      message: item.message,
+    }));
+    const merged = [...layoutRecommendations];
+    for (const warning of urlWarnings) {
+      if (!merged.some((item) => item.id === warning.id)) {
+        merged.push(warning);
+      }
+    }
+    return merged;
+  }, [content, data, selectedVariant]);
 
   function emit(next: ClassicBannerProjectData, options?: ClassicBannerEditorChangeOptions) {
     onChange(prepareClassicBannerData(next), options);
@@ -294,6 +346,37 @@ export function ClassicBannerInspector({
 
   function toggleSlot(slotId: ClassicBannerSlotId, enabled: boolean) {
     emit(setClassicBannerSlotVisible(data, slotId, enabled), { history: "push" });
+  }
+
+  async function handleImportUrl(slot: ClassicBannerImageSlot) {
+    const url = getClassicImageUrl(content, slot);
+    setImportErrors((prev) => ({ ...prev, [slot]: "" }));
+    setImportSuccess((prev) => ({ ...prev, [slot]: "" }));
+    setImportingSlot(slot);
+    try {
+      const result = await importClassicBannerImageFromUrl(
+        url,
+        projectId,
+        slot,
+        assets,
+        content,
+      );
+      if (!result.ok) {
+        setImportErrors((prev) => ({ ...prev, [slot]: result.message }));
+        return;
+      }
+      onCombinedChange(
+        patchClassicBannerContent(data, result.contentPatch),
+        result.assets,
+        { history: "push" },
+      );
+      setImportSuccess((prev) => ({
+        ...prev,
+        [slot]: "Obrázek uložen lokálně. Export bude spolehlivější.",
+      }));
+    } finally {
+      setImportingSlot(null);
+    }
   }
 
   async function handleUpload(slot: ClassicBannerImageSlot, file: File) {
@@ -378,9 +461,16 @@ export function ClassicBannerInspector({
               sourceKind={classicBannerImageSourceKind(content, slot)}
               asset={assetForSlot(slot)}
               uploading={uploadingSlot === slot}
+              importing={importingSlot === slot}
               uploadError={uploadErrors[slot]}
-              onUrlChange={(value) => updateContent({ [IMAGE_URL_FIELD[slot]]: value }, { history: "replace" })}
+              importError={importErrors[slot]}
+              importSuccess={importSuccess[slot]}
+              onUrlChange={(value) => {
+                setImportSuccess((prev) => ({ ...prev, [slot]: "" }));
+                updateContent({ [IMAGE_URL_FIELD[slot]]: value }, { history: "replace" });
+              }}
               onUpload={(file) => void handleUpload(slot, file)}
+              onImportUrl={() => void handleImportUrl(slot)}
               onClearLocal={() => void handleClearLocal(slot)}
             />
           ))}
