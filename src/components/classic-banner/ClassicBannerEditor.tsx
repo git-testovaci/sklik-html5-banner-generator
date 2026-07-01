@@ -12,6 +12,8 @@ import {
 import { getClassicBannerRecommendations } from "@/lib/classic-banner/classic-banner-recommendations";
 import {
   classicBannerPngFilename,
+  classicBannerZipFilename,
+  exportClassicBannerAllVariantsToZip,
   exportClassicBannerVariantToPng,
 } from "@/lib/classic-banner/classic-banner-export";
 import { downloadBlob } from "@/lib/export/download-blob";
@@ -53,8 +55,10 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
   );
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [exportState, setExportState] = useState<"idle" | "exporting" | "success" | "error">("idle");
+  const [exportMode, setExportMode] = useState<"idle" | "png" | "zip">("idle");
   const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [exportIsError, setExportIsError] = useState(false);
+  const isExporting = exportMode !== "idle";
 
   const classicBannerRef = useRef(classicBanner);
   const savedDataRef = useRef(savedData);
@@ -189,13 +193,15 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
 
   async function handleExportPng() {
     if (!selectedVariant) {
-      setExportState("error");
+      setExportMode("idle");
+      setExportIsError(true);
       setExportMessage("Export se nepovedl");
       return;
     }
 
-    setExportState("exporting");
+    setExportMode("png");
     setExportMessage(null);
+    setExportIsError(false);
 
     try {
       const { blob, warnings } = await exportClassicBannerVariantToPng(
@@ -207,17 +213,48 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
         throw new Error("Export se nepovedl");
       }
 
-      setExportState("success");
+      setExportMode("idle");
+      setExportIsError(false);
       setExportMessage(
         warnings.length > 0 ? `PNG exportováno. ${warnings.join(" ")}` : "PNG exportováno",
       );
       window.setTimeout(() => {
-        setExportState("idle");
         setExportMessage(null);
       }, 4000);
     } catch (error) {
-      setExportState("error");
+      setExportMode("idle");
+      setExportIsError(true);
       setExportMessage(error instanceof Error ? error.message : "Export se nepovedl");
+    }
+  }
+
+  async function handleExportZip() {
+    setExportMode("zip");
+    setExportMessage(null);
+    setExportIsError(false);
+
+    try {
+      const { blob, warnings, exportedCount } = await exportClassicBannerAllVariantsToZip(
+        classicBanner,
+      );
+      const downloaded = downloadBlob(blob, classicBannerZipFilename(project.name));
+      if (!downloaded) {
+        throw new Error("ZIP export se nepovedl");
+      }
+
+      setExportMode("idle");
+      setExportIsError(false);
+      const baseMessage = `ZIP exportován (${exportedCount} PNG)`;
+      setExportMessage(
+        warnings.length > 0 ? `${baseMessage}. ${warnings.join(" ")}` : baseMessage,
+      );
+      window.setTimeout(() => {
+        setExportMessage(null);
+      }, 5000);
+    } catch (error) {
+      setExportMode("idle");
+      setExportIsError(true);
+      setExportMessage(error instanceof Error ? error.message : "ZIP export se nepovedl");
     }
   }
 
@@ -275,9 +312,9 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
             {exportMessage ? (
               <span
                 className={`text-sm font-medium ${
-                  exportState === "error" ? "text-red-400" : "text-emerald-400"
+                  exportIsError ? "text-red-400" : "text-emerald-400"
                 }`}
-                role={exportState === "error" ? "alert" : "status"}
+                role={exportIsError ? "alert" : "status"}
               >
                 {exportMessage}
               </span>
@@ -285,10 +322,18 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
             <button
               type="button"
               onClick={() => void handleExportPng()}
-              disabled={exportState === "exporting"}
+              disabled={isExporting}
               className="inline-flex items-center rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-200 transition-colors hover:border-zinc-600 hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {exportState === "exporting" ? "Exportuji…" : "Export PNG"}
+              {exportMode === "png" ? "Exportuji…" : "Export PNG"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleExportZip()}
+              disabled={isExporting}
+              className="inline-flex items-center rounded-lg border border-emerald-800/60 bg-emerald-950/30 px-4 py-2 text-sm font-medium text-emerald-200 transition-colors hover:border-emerald-700 hover:bg-emerald-950/50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {exportMode === "zip" ? "Exportuji ZIP…" : "Export všech PNG"}
             </button>
             <button
               type="button"

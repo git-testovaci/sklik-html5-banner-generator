@@ -1,8 +1,10 @@
+import JSZip from "jszip";
 import {
   computeClassicBannerLayout,
   type ClassicBannerLayoutRect,
 } from "@/lib/classic-banner/classic-banner-layout";
 import { isClassicBannerSlotVisible } from "@/lib/classic-banner/classic-banner-update";
+import { CLASSIC_BANNER_SIZES, getClassicBannerSizeById } from "@/lib/classic-banner/classic-banner-sizes";
 import type {
   ClassicBannerDesignTokens,
   ClassicBannerProjectData,
@@ -14,6 +16,27 @@ export const CLASSIC_BANNER_CORS_ERROR =
 
 export interface ClassicBannerPngExportResult {
   blob: Blob;
+  warnings: string[];
+}
+
+export interface ClassicBannerZipExportResult {
+  blob: Blob;
+  warnings: string[];
+  exportedCount: number;
+}
+
+export interface ClassicBannerZipManifest {
+  generatedAt: string;
+  projectType: "classic-banner";
+  variantCount: number;
+  variants: Array<{
+    sizeId: string;
+    width: number;
+    height: number;
+    family: ClassicBannerSizeVariant["family"];
+    networks: { sklik: boolean; google: boolean; microsoft: boolean };
+    filename: string;
+  }>;
   warnings: string[];
 }
 
@@ -281,6 +304,108 @@ function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
 
 export function classicBannerPngFilename(sizeId: string): string {
   return `classic-banner-${sizeId}.png`;
+}
+
+function slugifyProjectName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-")
+    .slice(0, 40);
+}
+
+export function classicBannerZipFilename(projectName?: string): string {
+  const slug = slugifyProjectName(projectName?.trim() ?? "");
+  if (slug) {
+    return `classic-banner-${slug}-all-sizes.zip`;
+  }
+  return "classic-banners-all-sizes.zip";
+}
+
+function isCorsExportError(error: unknown): boolean {
+  return error instanceof Error && error.message === CLASSIC_BANNER_CORS_ERROR;
+}
+
+function orderedClassicVariants(data: ClassicBannerProjectData): ClassicBannerSizeVariant[] {
+  return CLASSIC_BANNER_SIZES.map((size) => {
+    const variant = data.variants.find((item) => item.sizeId === size.id);
+    if (variant) return variant;
+    return {
+      sizeId: size.id,
+      width: size.width,
+      height: size.height,
+      family: size.family,
+      status: "placeholder",
+      layout: { family: size.family, status: "pending" },
+    };
+  });
+}
+
+/** Export all classic banner variants as PNG files inside a ZIP archive. */
+export async function exportClassicBannerAllVariantsToZip(
+  data: ClassicBannerProjectData,
+): Promise<ClassicBannerZipExportResult> {
+  const zip = new JSZip();
+  const allWarnings: string[] = [];
+  const manifestVariants: ClassicBannerZipManifest["variants"] = [];
+  let exportedCount = 0;
+
+  for (const variant of orderedClassicVariants(data)) {
+    try {
+      const { blob, warnings } = await exportClassicBannerVariantToPng(data, variant);
+      const filename = classicBannerPngFilename(variant.sizeId);
+      zip.file(filename, blob);
+      exportedCount += 1;
+
+      for (const warning of warnings) {
+        const tagged = `${variant.sizeId}: ${warning}`;
+        if (!allWarnings.includes(tagged)) {
+          allWarnings.push(tagged);
+        }
+      }
+
+      const sizeDef = getClassicBannerSizeById(variant.sizeId);
+      manifestVariants.push({
+        sizeId: variant.sizeId,
+        width: variant.width,
+        height: variant.height,
+        family: variant.family,
+        networks: sizeDef?.networks ?? { sklik: false, google: false, microsoft: false },
+        filename,
+      });
+    } catch (error) {
+      if (isCorsExportError(error)) {
+        throw error;
+      }
+      const message = error instanceof Error ? error.message : "Export se nepovedl";
+      allWarnings.push(`${variant.sizeId}: ${message}`);
+    }
+  }
+
+  if (exportedCount === 0) {
+    throw new Error("ZIP export se nepovedl — žádná varianta se nevyexportovala.");
+  }
+
+  const manifest: ClassicBannerZipManifest = {
+    generatedAt: new Date().toISOString(),
+    projectType: "classic-banner",
+    variantCount: exportedCount,
+    variants: manifestVariants,
+    warnings: allWarnings,
+  };
+
+  zip.file("manifest.json", JSON.stringify(manifest, null, 2));
+
+  const blob = await zip.generateAsync({
+    type: "blob",
+    compression: "DEFLATE",
+    compressionOptions: { level: 6 },
+  });
+
+  return { blob, warnings: allWarnings, exportedCount };
 }
 
 /** Render selected variant at exact pixel dimensions to PNG. */
