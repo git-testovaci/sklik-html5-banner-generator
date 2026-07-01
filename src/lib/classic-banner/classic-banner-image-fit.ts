@@ -144,6 +144,13 @@ export function computeClassicImageRenderedRect(
   return pixelsToLayerRect(box.x + dx, box.y + dy, dw, dh, bannerWidth, bannerHeight);
 }
 
+export const CLASSIC_BANNER_CROP_RECT: ClassicBannerLayoutRect = {
+  left: 0,
+  top: 0,
+  width: 100,
+  height: 100,
+};
+
 export function isClassicBackgroundDefaultRect(rect: ClassicBannerLayoutRect): boolean {
   return (
     Math.abs(rect.left) < 0.05 &&
@@ -151,6 +158,86 @@ export function isClassicBackgroundDefaultRect(rect: ClassicBannerLayoutRect): b
     Math.abs(rect.width - 100) < 0.05 &&
     Math.abs(rect.height - 100) < 0.05
   );
+}
+
+export interface ResolveClassicBackgroundTransformParams {
+  baseRect: ClassicBannerLayoutRect;
+  hasManualRectOverride: boolean;
+  imageWidth?: number;
+  imageHeight?: number;
+  bannerWidth: number;
+  bannerHeight: number;
+}
+
+export interface ClassicBackgroundTransform {
+  /** Effective background image layer rect (percent of banner). */
+  imageRect: ClassicBannerLayoutRect;
+  /** Fixed banner crop reference — normally 0/0/100/100. */
+  cropRect: ClassicBannerLayoutRect;
+  hasIntrinsicDimensions: boolean;
+  /** True when imageRect was computed from automatic cover fit. */
+  isAutomaticCover: boolean;
+  /**
+   * When true, the image must be fitted with object-cover / canvas cover inside imageRect
+   * (fallback when intrinsic dimensions are unknown).
+   */
+  useIntrinsicCoverFit: boolean;
+}
+
+/**
+ * Canonical background transform: one source of truth for preview, selection, inspector, export.
+ */
+export function resolveClassicBackgroundTransform(
+  params: ResolveClassicBackgroundTransformParams,
+): ClassicBackgroundTransform {
+  const {
+    baseRect,
+    hasManualRectOverride,
+    imageWidth,
+    imageHeight,
+    bannerWidth,
+    bannerHeight,
+  } = params;
+
+  const cropRect = CLASSIC_BANNER_CROP_RECT;
+  const hasIntrinsicDimensions =
+    imageWidth !== undefined &&
+    imageHeight !== undefined &&
+    imageWidth > 0 &&
+    imageHeight > 0;
+
+  if (hasManualRectOverride) {
+    return {
+      imageRect: { ...baseRect },
+      cropRect,
+      hasIntrinsicDimensions,
+      isAutomaticCover: false,
+      useIntrinsicCoverFit: false,
+    };
+  }
+
+  if (hasIntrinsicDimensions && isClassicBackgroundDefaultRect(baseRect)) {
+    return {
+      imageRect: computeClassicBackgroundCoverRect(
+        bannerWidth,
+        bannerHeight,
+        imageWidth,
+        imageHeight,
+      ),
+      cropRect,
+      hasIntrinsicDimensions,
+      isAutomaticCover: true,
+      useIntrinsicCoverFit: false,
+    };
+  }
+
+  return {
+    imageRect: { ...baseRect },
+    cropRect,
+    hasIntrinsicDimensions,
+    isAutomaticCover: false,
+    useIntrinsicCoverFit: !hasIntrinsicDimensions,
+  };
 }
 
 /**
@@ -202,33 +289,36 @@ export function resolveClassicBackgroundImageRect(params: {
   imageWidth?: number;
   imageHeight?: number;
 }): ClassicBannerLayoutRect {
-  const {
-    layerRect,
-    hasRectOverride,
-    bannerWidth,
-    bannerHeight,
-    imageWidth,
-    imageHeight,
-  } = params;
+  return resolveClassicBackgroundTransform({
+    baseRect: params.layerRect,
+    hasManualRectOverride: params.hasRectOverride,
+    bannerWidth: params.bannerWidth,
+    bannerHeight: params.bannerHeight,
+    imageWidth: params.imageWidth,
+    imageHeight: params.imageHeight,
+  }).imageRect;
+}
 
-  if (hasRectOverride) {
-    return { ...layerRect };
+interface ClassicBackgroundPixelBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Draw background image into a pixel box without double-applying cover fit. */
+export function drawClassicBackgroundImageInBox(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  box: ClassicBackgroundPixelBox,
+  useIntrinsicCoverFit: boolean,
+): void {
+  if (useIntrinsicCoverFit) {
+    drawImageCoverToBox(ctx, img, box.x, box.y, box.width, box.height);
+    return;
   }
 
-  if (!imageWidth || !imageHeight) {
-    return { ...layerRect };
-  }
-
-  if (!isClassicBackgroundDefaultRect(layerRect)) {
-    return { ...layerRect };
-  }
-
-  return computeClassicBackgroundCoverRect(
-    bannerWidth,
-    bannerHeight,
-    imageWidth,
-    imageHeight,
-  );
+  ctx.drawImage(img, 0, 0, img.width, img.height, box.x, box.y, box.width, box.height);
 }
 
 export interface DrawClassicImageFitParams {

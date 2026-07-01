@@ -7,8 +7,9 @@ import {
 import type { ClassicBannerLayoutRect } from "@/lib/classic-banner/classic-banner-layout";
 import {
   computeClassicImageRenderedRect,
+  drawClassicBackgroundImageInBox,
   getClassicImageSlotFitOptions,
-  resolveClassicBackgroundImageRect,
+  resolveClassicBackgroundTransform,
 } from "@/lib/classic-banner/classic-banner-image-fit";
 import {
   loadClassicBannerImageForCanvas,
@@ -113,16 +114,19 @@ function drawClassicImageLayer(
   if (!fitOpts) return;
 
   let drawRect = layer.rect;
+  let backgroundCoverFit = false;
 
   if (slotId === "background") {
-    drawRect = resolveClassicBackgroundImageRect({
-      layerRect: layer.rect,
-      hasRectOverride,
+    const transform = resolveClassicBackgroundTransform({
+      baseRect: layer.rect,
+      hasManualRectOverride: hasRectOverride,
       bannerWidth: canvasWidth,
       bannerHeight: canvasHeight,
       imageWidth: img.naturalWidth,
       imageHeight: img.naturalHeight,
     });
+    drawRect = transform.imageRect;
+    backgroundCoverFit = transform.useIntrinsicCoverFit;
   } else if (fitOpts.fit === "contain") {
     drawRect = computeClassicImageRenderedRect({
       layerRect: layer.rect,
@@ -139,6 +143,10 @@ function drawClassicImageLayer(
 
   const pixelBox = rectToPixels(drawRect, canvasWidth, canvasHeight);
   drawInRotatedBox(ctx, pixelBox, layer.rotationDeg, (drawCtx, box) => {
+    if (slotId === "background") {
+      drawClassicBackgroundImageInBox(drawCtx, img, box, backgroundCoverFit);
+      return;
+    }
     drawImageInLocalBox(drawCtx, img, box, fitOpts.fit);
   });
 }

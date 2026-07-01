@@ -26,7 +26,7 @@ import {
   resolveClassicBannerImageDimensionsMap,
   type ClassicBannerImageDimensions,
 } from "@/lib/classic-banner/classic-banner-image-sources";
-import { resolveClassicBackgroundImageRect } from "@/lib/classic-banner/classic-banner-image-fit";
+import { resolveClassicBackgroundTransform } from "@/lib/classic-banner/classic-banner-image-fit";
 import { prepareClassicBannerData } from "@/lib/classic-banner/classic-banner-update";
 import type { BannerAsset } from "@/types/assets";
 import type {
@@ -230,14 +230,14 @@ export function ClassicLayerInspector({
   const isBackground = selectedSlotId === "background";
   const backgroundHasRectOverride = classicBannerSlotHasRectOverride(data, sizeId, "background");
   const editableRect = isBackground
-    ? resolveClassicBackgroundImageRect({
-        layerRect: layer.rect,
-        hasRectOverride: backgroundHasRectOverride,
+    ? resolveClassicBackgroundTransform({
+        baseRect: layer.rect,
+        hasManualRectOverride: backgroundHasRectOverride,
         bannerWidth: variant.width,
         bannerHeight: variant.height,
         imageWidth: backgroundDims?.width,
         imageHeight: backgroundDims?.height,
-      })
+      }).imageRect
     : layer.rect;
 
   function emit(next: ClassicBannerProjectData, options?: ClassicBannerEditorChangeOptions) {

@@ -18,7 +18,8 @@ import type { ClassicBannerLayoutRect } from "@/lib/classic-banner/classic-banne
 import {
   computeClassicImageRenderedRect,
   getClassicImageSlotFitOptions,
-  resolveClassicBackgroundImageRect,
+  resolveClassicBackgroundTransform,
+  type ClassicBackgroundTransform,
   type ClassicImageDimensions,
 } from "@/lib/classic-banner/classic-banner-image-fit";
 import {
@@ -769,12 +770,42 @@ export function ClassicBannerPreview({
     onLayerOverride(slotId, patch);
   }
 
-  function renderLayerContent(slotId: ClassicEditableSlotId) {
+  function resolveBackgroundTransform(
+    layer: ClassicBannerResolvedLayer,
+  ): ClassicBackgroundTransform {
+    const dims = resolvedImageDimensions.background;
+    const hasRectOverride = classicBannerSlotHasRectOverride(
+      data,
+      variant.sizeId,
+      "background",
+    );
+    return resolveClassicBackgroundTransform({
+      baseRect: layer.rect,
+      hasManualRectOverride: hasRectOverride,
+      bannerWidth: width,
+      bannerHeight: height,
+      imageWidth: dims?.width,
+      imageHeight: dims?.height,
+    });
+  }
+
+  function renderLayerContent(
+    slotId: ClassicEditableSlotId,
+    backgroundTransform?: ClassicBackgroundTransform,
+  ) {
     switch (slotId) {
       case "background":
         return hasClassicBannerImageSource(content, "background") && imageUrls.background ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrls.background} alt="" className="h-full w-full object-cover" />
+          <img
+            src={imageUrls.background}
+            alt=""
+            className={
+              backgroundTransform?.useIntrinsicCoverFit
+                ? "h-full w-full object-cover"
+                : "h-full w-full"
+            }
+          />
         ) : null;
       case "hero":
         return imageUrls.hero ? (
@@ -860,22 +891,10 @@ export function ClassicBannerPreview({
   function getLayerImageChrome(layer: ClassicBannerResolvedLayer) {
     if (layer.slotId === "background") {
       const dims = resolvedImageDimensions.background;
-      const hasRectOverride = classicBannerSlotHasRectOverride(
-        data,
-        variant.sizeId,
-        "background",
-      );
-      const effectiveRect = resolveClassicBackgroundImageRect({
-        layerRect: layer.rect,
-        hasRectOverride,
-        bannerWidth: width,
-        bannerHeight: height,
-        imageWidth: dims?.width,
-        imageHeight: dims?.height,
-      });
+      const transform = resolveBackgroundTransform(layer);
       return {
-        chromeRect: effectiveRect,
-        interactionRect: effectiveRect,
+        chromeRect: transform.imageRect,
+        interactionRect: transform.imageRect,
         imageAspect: dims ? dims.width / dims.height : undefined,
       };
     }
@@ -935,7 +954,7 @@ export function ClassicBannerPreview({
       );
     }
     if (slotId === "background") {
-      return <div className="flex h-full w-full items-start justify-start">{children}</div>;
+      return <div className="h-full w-full">{children}</div>;
     }
     if (slotId === "cta") {
       return <div className="flex h-full w-full items-end">{children}</div>;
@@ -1027,6 +1046,10 @@ export function ClassicBannerPreview({
 
               {canvasLayers.map((layer) => {
                 const displayRect = getLayerDisplayRect(layer);
+                const backgroundTransform =
+                  layer.slotId === "background"
+                    ? resolveBackgroundTransform(layer)
+                    : undefined;
                 return (
                   <div
                     key={`${layer.slotId}-content`}
@@ -1037,7 +1060,10 @@ export function ClassicBannerPreview({
                       layer.rotationDeg,
                     )}
                   >
-                    {layerContentWrapper(layer.slotId, renderLayerContent(layer.slotId))}
+                    {layerContentWrapper(
+                      layer.slotId,
+                      renderLayerContent(layer.slotId, backgroundTransform),
+                    )}
                   </div>
                 );
               })}
