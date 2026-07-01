@@ -12,7 +12,8 @@ import {
 } from "./classic-banner-sizes";
 
 export const DEFAULT_CLASSIC_BANNER_CONTENT: ClassicBannerContent = {
-  backgroundUrl: "https://www.stockvault.net/data/2011/04/28/122658/preview16.jpg",
+  backgroundUrl:
+    "https://cdn12.picryl.com/photo/2016/12/31/background-blue-grunge-backgrounds-textures-31ef61-1024.jpg",
   logoUrl: "https://www.mcmarketing.cz/templates/images/logo.png",
   headline: "Potřebujete zvýraznit\nVaši firmu v on-line světě?",
   slogan: "Jste na správném místě!",
