@@ -174,14 +174,6 @@ export function ClassicLayerInspector({
         >
           Reset všech
         </button>
-        <button
-          type="button"
-          disabled
-          title="Připravuje se v další fázi"
-          className="rounded border border-zinc-800 px-2 py-1 text-xs text-zinc-600"
-        >
-          Přenést styl na podobné rozměry
-        </button>
       </div>
     </div>
   );

@@ -27,6 +27,7 @@ import type {
 } from "@/types/classic-banner";
 import { ClassicBannerWarnings } from "./ClassicBannerWarnings";
 import { ClassicLayerInspector } from "./ClassicLayerInspector";
+import { ClassicPropagationPanel } from "./ClassicPropagationPanel";
 
 interface ClassicBannerInspectorProps {
   data: ClassicBannerProjectData;
@@ -323,12 +324,20 @@ export function ClassicBannerInspector({
       </div>
 
       {selectedVariant ? (
-        <ClassicLayerInspector
-          data={data}
-          variant={selectedVariant}
-          selectedSlotId={selectedSlotId}
-          onChange={onChange}
-        />
+        <>
+          <ClassicLayerInspector
+            data={data}
+            variant={selectedVariant}
+            selectedSlotId={selectedSlotId}
+            onChange={onChange}
+          />
+          <ClassicPropagationPanel
+            data={data}
+            variant={selectedVariant}
+            selectedSlotId={selectedSlotId}
+            onChange={onChange}
+          />
+        </>
       ) : null}
 
       <div className="space-y-6 p-4">
