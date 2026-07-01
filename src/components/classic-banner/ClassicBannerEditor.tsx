@@ -10,6 +10,11 @@ import {
   prepareClassicBannerData,
 } from "@/lib/classic-banner/classic-banner-update";
 import { getClassicBannerRecommendations } from "@/lib/classic-banner/classic-banner-recommendations";
+import {
+  classicBannerPngFilename,
+  exportClassicBannerVariantToPng,
+} from "@/lib/classic-banner/classic-banner-export";
+import { downloadBlob } from "@/lib/export/download-blob";
 import { getStoredProjectById, upsertProject } from "@/lib/project-storage";
 import type { ClassicBannerProjectData } from "@/types/classic-banner";
 import type { BannerProject } from "@/types/project";
@@ -48,6 +53,8 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
   );
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [exportState, setExportState] = useState<"idle" | "exporting" | "success" | "error">("idle");
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
 
   const classicBannerRef = useRef(classicBanner);
   const savedDataRef = useRef(savedData);
@@ -180,6 +187,40 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
     classicBanner.variants.find((variant) => variant.sizeId === classicBanner.masterSizeId) ??
     classicBanner.variants[0];
 
+  async function handleExportPng() {
+    if (!selectedVariant) {
+      setExportState("error");
+      setExportMessage("Export se nepovedl");
+      return;
+    }
+
+    setExportState("exporting");
+    setExportMessage(null);
+
+    try {
+      const { blob, warnings } = await exportClassicBannerVariantToPng(
+        classicBanner,
+        selectedVariant,
+      );
+      const downloaded = downloadBlob(blob, classicBannerPngFilename(selectedVariant.sizeId));
+      if (!downloaded) {
+        throw new Error("Export se nepovedl");
+      }
+
+      setExportState("success");
+      setExportMessage(
+        warnings.length > 0 ? `PNG exportováno. ${warnings.join(" ")}` : "PNG exportováno",
+      );
+      window.setTimeout(() => {
+        setExportState("idle");
+        setExportMessage(null);
+      }, 4000);
+    } catch (error) {
+      setExportState("error");
+      setExportMessage(error instanceof Error ? error.message : "Export se nepovedl");
+    }
+  }
+
   if (!selectedVariant) {
     return (
       <div className="flex min-h-full items-center justify-center p-8 text-sm text-zinc-500">
@@ -231,6 +272,24 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
                 {saveError}
               </span>
             ) : null}
+            {exportMessage ? (
+              <span
+                className={`text-sm font-medium ${
+                  exportState === "error" ? "text-red-400" : "text-emerald-400"
+                }`}
+                role={exportState === "error" ? "alert" : "status"}
+              >
+                {exportMessage}
+              </span>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => void handleExportPng()}
+              disabled={exportState === "exporting"}
+              className="inline-flex items-center rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-200 transition-colors hover:border-zinc-600 hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {exportState === "exporting" ? "Exportuji…" : "Export PNG"}
+            </button>
             <button
               type="button"
               onClick={handleSave}
