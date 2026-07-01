@@ -41,15 +41,11 @@ function NetworkBadges({ sizeId }: { sizeId: string }) {
   );
 }
 
-function variantStatusLabel(status: ClassicBannerSizeVariant["status"]): string {
-  switch (status) {
-    case "master":
-      return "Hlavní";
-    case "derived":
-      return "Odvozená";
-    default:
-      return "Čeká";
-  }
+function variantStatusLabel(variant: ClassicBannerSizeVariant): string {
+  if (variant.status === "master") return "Hlavní";
+  if (variant.layout.status === "ready") return "Odvozená";
+  if (variant.status === "derived") return "Odvozená";
+  return "Čeká";
 }
 
 export function ClassicVariantSwitcher({
@@ -70,7 +66,7 @@ export function ClassicVariantSwitcher({
       <ul className="flex-1 overflow-y-auto p-2" role="listbox" aria-label="Velikosti banneru">
         {ordered.map((variant) => {
           const selected = variant.sizeId === selectedSizeId;
-          const layoutPending = variant.layout.status === "pending";
+          const layoutReady = variant.layout.status === "ready";
 
           return (
             <li key={variant.sizeId}>
@@ -93,12 +89,12 @@ export function ClassicVariantSwitcher({
                     className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${
                       variant.status === "master"
                         ? "bg-amber-950/50 text-amber-300"
-                        : layoutPending
-                          ? "bg-zinc-800 text-zinc-500"
-                          : "bg-emerald-950/40 text-emerald-400"
+                        : layoutReady
+                          ? "bg-emerald-950/40 text-emerald-400"
+                          : "bg-zinc-800 text-zinc-500"
                     }`}
                   >
-                    {variantStatusLabel(variant.status)}
+                    {variantStatusLabel(variant)}
                   </span>
                 </div>
                 <p className="mt-0.5 text-xs text-zinc-500">

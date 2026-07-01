@@ -48,18 +48,43 @@ export function isClassicBannerSlotVisible(
   return data.slots.find((slot) => slot.id === slotId)?.visible ?? false;
 }
 
+/** Mark all variants as layout-ready after v2 layout computation. */
+export function markClassicBannerLayoutsReady(
+  data: ClassicBannerProjectData,
+): ClassicBannerProjectData {
+  return {
+    ...data,
+    variants: data.variants.map((variant) => ({
+      ...variant,
+      status: variant.sizeId === data.masterSizeId ? "master" : "derived",
+      layout: {
+        family: variant.family,
+        status: "ready",
+      },
+    })),
+  };
+}
+
+/** Normalize classic data before persistence or editor updates. */
+export function prepareClassicBannerData(
+  data: ClassicBannerProjectData,
+): ClassicBannerProjectData {
+  return markClassicBannerLayoutsReady(data);
+}
+
 /** Sync classic payload into BannerProject top-level fields used by dashboard/cards. */
 export function mergeClassicBannerIntoProject(
   project: BannerProject,
   classicBanner: ClassicBannerProjectData,
 ): BannerProject {
-  const { content, designTokens, masterSizeId } = classicBanner;
+  const normalized = prepareClassicBannerData(classicBanner);
+  const { content, designTokens, masterSizeId } = normalized;
   const master = getClassicBannerSizeById(masterSizeId);
 
   return {
     ...project,
     projectKind: "classic-banner",
-    classicBanner,
+    classicBanner: normalized,
     headline: content.headline,
     subheadline: content.slogan,
     cta: content.ctaText,
@@ -84,6 +109,13 @@ function slotsEqual(a: ClassicBannerSlot[], b: ClassicBannerSlot[]): boolean {
   );
 }
 
+function variantsEqual(
+  a: ClassicBannerProjectData["variants"],
+  b: ClassicBannerProjectData["variants"],
+): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 export function classicBannerDataEqual(
   a: ClassicBannerProjectData,
   b: ClassicBannerProjectData,
@@ -92,6 +124,7 @@ export function classicBannerDataEqual(
     a.masterSizeId === b.masterSizeId &&
     JSON.stringify(a.content) === JSON.stringify(b.content) &&
     JSON.stringify(a.designTokens) === JSON.stringify(b.designTokens) &&
-    slotsEqual(a.slots, b.slots)
+    slotsEqual(a.slots, b.slots) &&
+    variantsEqual(a.variants, b.variants)
   );
 }

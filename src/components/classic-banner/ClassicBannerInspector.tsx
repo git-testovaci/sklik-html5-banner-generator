@@ -1,18 +1,25 @@
 "use client";
 
+import { useMemo } from "react";
+import { getClassicBannerRecommendations } from "@/lib/classic-banner/classic-banner-recommendations";
 import {
   isClassicBannerSlotVisible,
   patchClassicBannerContent,
   patchClassicBannerDesignTokens,
+  prepareClassicBannerData,
   setClassicBannerSlotVisible,
 } from "@/lib/classic-banner/classic-banner-update";
 import type {
   ClassicBannerDesignTokens,
   ClassicBannerProjectData,
+  ClassicBannerSizeVariant,
+  ClassicBannerSlotId,
 } from "@/types/classic-banner";
+import { ClassicBannerWarnings } from "./ClassicBannerWarnings";
 
 interface ClassicBannerInspectorProps {
   data: ClassicBannerProjectData;
+  selectedVariant?: ClassicBannerSizeVariant;
   onChange: (next: ClassicBannerProjectData) => void;
 }
 
@@ -99,20 +106,64 @@ function ColorField({
   );
 }
 
-export function ClassicBannerInspector({ data, onChange }: ClassicBannerInspectorProps) {
+function SlotToggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center justify-between rounded-lg border border-zinc-800/60 px-3 py-2 text-sm text-zinc-300">
+      <span>{label}</span>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-4 w-4 rounded border-zinc-600 bg-zinc-900 text-violet-600"
+      />
+    </label>
+  );
+}
+
+const SLOT_TOGGLE_LABELS: Record<ClassicBannerSlotId, string> = {
+  background: "Pozadí",
+  logo: "Logo",
+  headline: "Nadpis",
+  slogan: "Slogan",
+  hero: "Hero obrázek",
+  cta: "Výzva k akci",
+  badge: "Štítek",
+  decoration: "Dekorace",
+};
+
+export function ClassicBannerInspector({
+  data,
+  selectedVariant,
+  onChange,
+}: ClassicBannerInspectorProps) {
   const { content, designTokens } = data;
-  const badgeEnabled = isClassicBannerSlotVisible(data, "badge");
+  const recommendations = useMemo(
+    () => getClassicBannerRecommendations(data, selectedVariant),
+    [data, selectedVariant],
+  );
+
+  function emit(next: ClassicBannerProjectData) {
+    onChange(prepareClassicBannerData(next));
+  }
 
   function updateContent(patch: Partial<typeof content>) {
-    onChange(patchClassicBannerContent(data, patch));
+    emit(patchClassicBannerContent(data, patch));
   }
 
   function updateTokens(patch: Partial<ClassicBannerDesignTokens>) {
-    onChange(patchClassicBannerDesignTokens(data, patch));
+    emit(patchClassicBannerDesignTokens(data, patch));
   }
 
-  function toggleBadge(enabled: boolean) {
-    onChange(setClassicBannerSlotVisible(data, "badge", enabled));
+  function toggleSlot(slotId: ClassicBannerSlotId, enabled: boolean) {
+    emit(setClassicBannerSlotVisible(data, slotId, enabled));
   }
 
   return (
@@ -123,6 +174,47 @@ export function ClassicBannerInspector({ data, onChange }: ClassicBannerInspecto
       </div>
 
       <div className="space-y-6 p-4">
+        {recommendations.length > 0 ? (
+          <section>
+            <SectionTitle>Doporučení</SectionTitle>
+            <ClassicBannerWarnings recommendations={recommendations} className="mt-2" />
+          </section>
+        ) : null}
+
+        <section className="space-y-3">
+          <SectionTitle>Obrázky</SectionTitle>
+          <TextField
+            id="classic-background-url"
+            label="URL pozadí"
+            value={content.backgroundUrl}
+            onChange={(backgroundUrl) => updateContent({ backgroundUrl })}
+          />
+          <TextField
+            id="classic-logo-url"
+            label="URL loga"
+            value={content.logoUrl}
+            onChange={(logoUrl) => updateContent({ logoUrl })}
+          />
+          <TextField
+            id="classic-hero-url"
+            label="URL hero obrázku"
+            value={content.heroImageUrl}
+            onChange={(heroImageUrl) => updateContent({ heroImageUrl })}
+          />
+        </section>
+
+        <section className="space-y-3">
+          <SectionTitle>Vrstvy</SectionTitle>
+          {(["logo", "hero", "slogan", "badge"] as const).map((slotId) => (
+            <SlotToggle
+              key={slotId}
+              label={SLOT_TOGGLE_LABELS[slotId]}
+              checked={isClassicBannerSlotVisible(data, slotId)}
+              onChange={(enabled) => toggleSlot(slotId, enabled)}
+            />
+          ))}
+        </section>
+
         <section className="space-y-3">
           <SectionTitle>Texty</SectionTitle>
           <TextField
@@ -150,15 +242,6 @@ export function ClassicBannerInspector({ data, onChange }: ClassicBannerInspecto
             value={content.badgeText}
             onChange={(badgeText) => updateContent({ badgeText })}
           />
-          <label className="flex items-center justify-between rounded-lg border border-zinc-800/60 px-3 py-2 text-sm text-zinc-300">
-            <span>Zobrazit štítek</span>
-            <input
-              type="checkbox"
-              checked={badgeEnabled}
-              onChange={(e) => toggleBadge(e.target.checked)}
-              className="h-4 w-4 rounded border-zinc-600 bg-zinc-900 text-violet-600"
-            />
-          </label>
         </section>
 
         <section className="space-y-3">

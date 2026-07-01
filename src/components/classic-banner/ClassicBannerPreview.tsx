@@ -16,6 +16,7 @@ interface ClassicBannerPreviewProps {
 
 function layerStyle(
   rect: { left: number; top: number; width: number; height: number },
+  zIndex: number,
 ): React.CSSProperties {
   return {
     position: "absolute",
@@ -24,6 +25,7 @@ function layerStyle(
     width: `${rect.width}%`,
     height: `${rect.height}%`,
     overflow: "hidden",
+    zIndex,
   };
 }
 
@@ -52,12 +54,17 @@ export function ClassicBannerPreview({
   const frameWidth = width * scale;
   const frameHeight = height * scale;
 
-  const showLogo = isClassicBannerSlotVisible(data, "logo");
+  const showLogo = isClassicBannerSlotVisible(data, "logo") && Boolean(content.logoUrl.trim());
   const showHeadline = isClassicBannerSlotVisible(data, "headline");
-  const showSlogan = isClassicBannerSlotVisible(data, "slogan");
-  const showHero = isClassicBannerSlotVisible(data, "hero");
-  const showCta = isClassicBannerSlotVisible(data, "cta");
-  const showBadge = isClassicBannerSlotVisible(data, "badge");
+  const showSlogan =
+    isClassicBannerSlotVisible(data, "slogan") &&
+    layout.showSlogan &&
+    Boolean(content.slogan.trim());
+  const showHero =
+    isClassicBannerSlotVisible(data, "hero") && Boolean(content.heroImageUrl.trim());
+  const showCta = isClassicBannerSlotVisible(data, "cta") && Boolean(content.ctaText.trim());
+  const showBadge =
+    isClassicBannerSlotVisible(data, "badge") && Boolean(content.badgeText.trim());
 
   return (
     <div className="flex flex-col items-center gap-3">
@@ -77,25 +84,31 @@ export function ClassicBannerPreview({
         >
           <div
             className="absolute inset-0"
-            style={{ backgroundColor: designTokens.primaryColor }}
+            style={{
+              backgroundColor: designTokens.primaryColor,
+              zIndex: layout.zIndex.background,
+            }}
           />
-          {content.backgroundUrl ? (
+          {content.backgroundUrl.trim() ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={content.backgroundUrl}
               alt=""
               className="absolute inset-0 h-full w-full object-cover"
+              style={{ zIndex: layout.zIndex.background }}
             />
           ) : null}
 
-          {showLogo && content.logoUrl ? (
-            <div style={layerStyle(layout.logo)} className="flex items-start justify-start">
+          {showHero ? (
+            <div
+              style={layerStyle(layout.hero, layout.zIndex.hero)}
+              className="flex items-center justify-center"
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={content.logoUrl}
-                alt="Logo"
-                className="max-h-full max-w-full object-contain object-left-top"
-                style={{ maxHeight: layout.logoMaxHeight }}
+                src={content.heroImageUrl}
+                alt=""
+                className="max-h-full max-w-full object-contain"
               />
             </div>
           ) : null}
@@ -103,23 +116,26 @@ export function ClassicBannerPreview({
           {showHeadline ? (
             <div
               style={{
-                ...layerStyle(layout.headline),
+                ...layerStyle(layout.headline, layout.zIndex.headline),
                 color: designTokens.textColor,
                 fontFamily: designTokens.fontFamily,
                 fontWeight: designTokens.headlineFontWeight,
                 fontSize: layout.headlineFontSize,
                 lineHeight: 1.15,
                 whiteSpace: "pre-line",
+                display: "-webkit-box",
+                WebkitLineClamp: layout.headlineMaxLines,
+                WebkitBoxOrient: "vertical",
               }}
             >
               {content.headline}
             </div>
           ) : null}
 
-          {showSlogan && content.slogan ? (
+          {showSlogan ? (
             <div
               style={{
-                ...layerStyle(layout.slogan),
+                ...layerStyle(layout.slogan, layout.zIndex.slogan),
                 color: designTokens.textColor,
                 fontFamily: designTokens.fontFamily,
                 fontWeight: designTokens.bodyFontWeight,
@@ -132,19 +148,26 @@ export function ClassicBannerPreview({
             </div>
           ) : null}
 
-          {showHero && content.heroImageUrl ? (
-            <div style={layerStyle(layout.hero)} className="flex items-center justify-center">
+          {showLogo ? (
+            <div
+              style={layerStyle(layout.logo, layout.zIndex.logo)}
+              className="flex items-start justify-start"
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={content.heroImageUrl}
-                alt=""
-                className="max-h-full max-w-full object-contain"
+                src={content.logoUrl}
+                alt="Logo"
+                className="max-h-full max-w-full object-contain object-left-top"
+                style={{ maxHeight: layout.logoMaxHeight }}
               />
             </div>
           ) : null}
 
-          {showCta && content.ctaText ? (
-            <div style={layerStyle(layout.cta)} className="flex items-end">
+          {showCta ? (
+            <div
+              style={layerStyle(layout.cta, layout.zIndex.cta)}
+              className="flex items-end"
+            >
               <span
                 className="inline-flex items-center justify-center"
                 style={{
@@ -163,8 +186,11 @@ export function ClassicBannerPreview({
             </div>
           ) : null}
 
-          {showBadge && content.badgeText ? (
-            <div style={layerStyle(layout.badge)} className="flex items-start justify-end">
+          {showBadge ? (
+            <div
+              style={layerStyle(layout.badge, layout.zIndex.badge)}
+              className="flex items-start justify-end"
+            >
               <span
                 className="inline-flex items-center justify-center rounded-full font-semibold"
                 style={{

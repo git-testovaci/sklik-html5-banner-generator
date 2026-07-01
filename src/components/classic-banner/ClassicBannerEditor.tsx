@@ -7,13 +7,16 @@ import { CLASSIC_BANNER_MASTER_SIZE_ID } from "@/lib/classic-banner/classic-bann
 import {
   classicBannerDataEqual,
   mergeClassicBannerIntoProject,
+  prepareClassicBannerData,
 } from "@/lib/classic-banner/classic-banner-update";
+import { getClassicBannerRecommendations } from "@/lib/classic-banner/classic-banner-recommendations";
 import { getStoredProjectById, upsertProject } from "@/lib/project-storage";
 import type { ClassicBannerProjectData } from "@/types/classic-banner";
 import type { BannerProject } from "@/types/project";
 import { ProjectStatusBadge } from "@/components/dashboard/ProjectStatusBadge";
 import { ClassicBannerInspector } from "./ClassicBannerInspector";
 import { ClassicBannerPreview } from "./ClassicBannerPreview";
+import { ClassicBannerWarnings } from "./ClassicBannerWarnings";
 import { ClassicVariantSwitcher } from "./ClassicVariantSwitcher";
 
 const AUTOSAVE_DEBOUNCE_MS = 750;
@@ -34,8 +37,9 @@ function persistClassicBannerProject(
 }
 
 export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
-  const initialData =
+  const rawInitial =
     project.classicBanner ?? createDefaultClassicBannerData(CLASSIC_BANNER_MASTER_SIZE_ID);
+  const initialData = prepareClassicBannerData(rawInitial);
 
   const [classicBanner, setClassicBanner] = useState<ClassicBannerProjectData>(initialData);
   const [savedData, setSavedData] = useState<ClassicBannerProjectData>(initialData);
@@ -57,6 +61,18 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
   useEffect(() => {
     savedDataRef.current = savedData;
   }, [savedData]);
+
+  useEffect(() => {
+    const raw =
+      project.classicBanner ?? createDefaultClassicBannerData(CLASSIC_BANNER_MASTER_SIZE_ID);
+    const ready = prepareClassicBannerData(raw);
+    if (JSON.stringify(raw.variants) === JSON.stringify(ready.variants)) return;
+    persistClassicBannerProject(project, ready);
+  }, [project]);
+
+  function handleClassicBannerChange(next: ClassicBannerProjectData) {
+    setClassicBanner(prepareClassicBannerData(next));
+  }
 
   const clearAutosaveTimer = useCallback(() => {
     if (autosaveTimerRef.current !== null) {
@@ -172,6 +188,8 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
     );
   }
 
+  const previewRecommendations = getClassicBannerRecommendations(classicBanner, selectedVariant);
+
   return (
     <div className="flex h-[100dvh] flex-col bg-zinc-950">
       <header className="shrink-0 border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-sm">
@@ -235,12 +253,20 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
           />
         </aside>
 
-        <main className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-zinc-950/50 p-6">
+        <main className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-auto bg-zinc-950/50 p-6">
           <ClassicBannerPreview variant={selectedVariant} data={classicBanner} />
+          <ClassicBannerWarnings
+            recommendations={previewRecommendations}
+            className="mt-4 w-full max-w-md"
+          />
         </main>
 
         <aside className="h-80 shrink-0 border-t border-zinc-800/80 bg-zinc-900/40 lg:h-auto lg:w-80 lg:border-l lg:border-t-0 xl:w-96">
-          <ClassicBannerInspector data={classicBanner} onChange={setClassicBanner} />
+          <ClassicBannerInspector
+            data={classicBanner}
+            selectedVariant={selectedVariant}
+            onChange={handleClassicBannerChange}
+          />
         </aside>
       </div>
     </div>
