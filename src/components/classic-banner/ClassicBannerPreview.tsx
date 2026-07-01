@@ -2,13 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  clampClassicBannerLayerRect,
   clampClassicBannerRotation,
   classicBannerSlotHasRectOverride,
-  resizeClassicBannerRectFromCorner,
   resolveClassicBannerFinalLayout,
+  type ClassicBannerFinalLayout,
   type ClassicBannerResolvedLayer,
 } from "@/lib/classic-banner/classic-banner-overrides";
+import {
+  buildClassicBannerSnapGuides,
+  snapClassicBannerMove,
+  snapClassicBannerResize,
+  type ClassicBannerSnapGuideLine,
+} from "@/lib/classic-banner/classic-banner-snapping";
 import type { ClassicBannerLayoutRect } from "@/lib/classic-banner/classic-banner-layout";
 import {
   computeClassicImageRenderedRect,
@@ -124,6 +129,29 @@ function rectsNearlyEqual(
   );
 }
 
+function SnapGuideOverlay({ guides }: { guides: ClassicBannerSnapGuideLine[] }) {
+  if (guides.length === 0) return null;
+  return (
+    <div className="pointer-events-none absolute inset-0 z-[200]" aria-hidden>
+      {guides.map((guide, index) =>
+        guide.axis === "x" ? (
+          <div
+            key={`snap-x-${index}-${guide.positionPercent}`}
+            className="absolute bottom-0 top-0 w-px bg-violet-400/90 shadow-[0_0_0_1px_rgba(0,0,0,0.35)]"
+            style={{ left: `${guide.positionPercent}%` }}
+          />
+        ) : (
+          <div
+            key={`snap-y-${index}-${guide.positionPercent}`}
+            className="absolute left-0 right-0 h-px bg-emerald-400/90 shadow-[0_0_0_1px_rgba(0,0,0,0.35)]"
+            style={{ top: `${guide.positionPercent}%` }}
+          />
+        ),
+      )}
+    </div>
+  );
+}
+
 function SelectionOverlay({
   visible,
   locked,
@@ -213,6 +241,8 @@ interface InteractiveLayerProps {
   onRectChange: (rect: ClassicBannerLayoutRect) => void;
   onRotationChange: (rotationDeg: number) => void;
   pointerEvents: "auto" | "none";
+  finalLayout: ClassicBannerFinalLayout;
+  onSnapGuidesChange: (guides: ClassicBannerSnapGuideLine[]) => void;
 }
 
 function InteractiveLayer({
@@ -228,6 +258,8 @@ function InteractiveLayer({
   onRectChange,
   onRotationChange,
   pointerEvents,
+  finalLayout,
+  onSnapGuidesChange,
 }: InteractiveLayerProps) {
   const { rect, locked, slotId, rotationDeg } = layer;
   const chrome = chromeRect ?? rect;
@@ -269,6 +301,9 @@ function InteractiveLayer({
       const preserveAspect = CLASSIC_ASPECT_RATIO_SLOTS.has(slotId) && !e.shiftKey;
       const aspect =
         imageAspect ?? origin.width / Math.max(origin.height, 0.01);
+      const snapGuides = buildClassicBannerSnapGuides(finalLayout, slotId, {
+        includeOtherLayers: true,
+      });
       suppressClickRef.current = false;
       let dragStarted = mode !== "move";
 
@@ -290,32 +325,44 @@ function InteractiveLayer({
           suppressClickRef.current = true;
         }
         const { dxPct, dyPct } = toPercentDelta(dx, dy);
+        const snapContext = {
+          bannerWidth,
+          bannerHeight,
+          canvasScale: scale,
+          enabled: !ev.altKey,
+        };
 
         if (mode === "move") {
-          onRectChange(
-            clampClassicBannerLayerRect(slotId, {
-              ...origin,
-              left: origin.left + dxPct,
-              top: origin.top + dyPct,
-            }),
-          );
+          const result = snapClassicBannerMove({
+            rect: origin,
+            deltaXPercent: dxPct,
+            deltaYPercent: dyPct,
+            slotId,
+            guides: snapGuides,
+            context: snapContext,
+          });
+          onSnapGuidesChange(result.activeGuides);
+          onRectChange(result.rect);
           return;
         }
 
-        onRectChange(
-          resizeClassicBannerRectFromCorner({
-            rect: origin,
-            corner: mode,
-            deltaXPercent: dxPct,
-            deltaYPercent: dyPct,
-            preserveAspect,
-            aspectRatio: aspect,
-            slotId,
-          }),
-        );
+        const result = snapClassicBannerResize({
+          rect: origin,
+          corner: mode,
+          deltaXPercent: dxPct,
+          deltaYPercent: dyPct,
+          preserveAspect,
+          aspectRatio: aspect,
+          slotId,
+          guides: snapGuides,
+          context: snapContext,
+        });
+        onSnapGuidesChange(result.activeGuides);
+        onRectChange(result.rect);
       }
 
       function onUp(ev: PointerEvent) {
+        onSnapGuidesChange([]);
         try {
           target.releasePointerCapture(ev.pointerId);
         } catch {
@@ -330,7 +377,7 @@ function InteractiveLayer({
       target.addEventListener("pointerup", onUp);
       target.addEventListener("pointercancel", onUp);
     },
-    [bannerHeight, bannerWidth, canInteract, canvasScale, imageAspect, onRectChange, onSelect, pointerEvents, slotId, transformBase],
+    [bannerHeight, bannerWidth, canInteract, canvasScale, finalLayout, imageAspect, onRectChange, onSelect, onSnapGuidesChange, pointerEvents, slotId, transformBase],
   );
 
   const startRotate = useCallback(
@@ -523,6 +570,7 @@ export function ClassicBannerPreview({
   const [imageUrls, setImageUrls] =
     useState<Record<ClassicBannerImageSlot, string | null>>(EMPTY_IMAGE_URLS);
   const [imageDimensions, setImageDimensions] = useState(EMPTY_IMAGE_DIMENSIONS);
+  const [activeSnapGuides, setActiveSnapGuides] = useState<ClassicBannerSnapGuideLine[]>([]);
 
   const assetImageDimensions = useMemo(
     () => ({
@@ -995,6 +1043,8 @@ export function ClassicBannerPreview({
               })}
             </div>
 
+            <SnapGuideOverlay guides={activeSnapGuides} />
+
             <div className="absolute inset-0 overflow-visible">
               {canvasLayers.map((layer) => {
                 const { chromeRect, interactionRect, imageAspect } = getLayerImageChrome(layer);
@@ -1013,6 +1063,8 @@ export function ClassicBannerPreview({
                     onRectChange={(rect) => patchLayer(layer.slotId, { rect })}
                     onRotationChange={(rotationDeg) => patchLayer(layer.slotId, { rotationDeg })}
                     pointerEvents={layerPointerEvents(layer)}
+                    finalLayout={layout}
+                    onSnapGuidesChange={setActiveSnapGuides}
                   />
                 );
               })}
