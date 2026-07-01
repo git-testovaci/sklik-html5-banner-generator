@@ -1,7 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { getClassicBannerRecommendations } from "@/lib/classic-banner/classic-banner-recommendations";
+import {
+  classicBannerImageSourceKind,
+  clearClassicBannerAsset,
+  getClassicImageUrl,
+  uploadClassicBannerAsset,
+  type ClassicBannerImageSlot,
+} from "@/lib/classic-banner/classic-banner-image-sources";
 import {
   isClassicBannerSlotVisible,
   patchClassicBannerContent,
@@ -9,6 +16,8 @@ import {
   prepareClassicBannerData,
   setClassicBannerSlotVisible,
 } from "@/lib/classic-banner/classic-banner-update";
+import { formatFileSize } from "@/lib/assets/image-utils";
+import type { BannerAsset } from "@/types/assets";
 import type {
   ClassicBannerDesignTokens,
   ClassicBannerProjectData,
@@ -19,8 +28,11 @@ import { ClassicBannerWarnings } from "./ClassicBannerWarnings";
 
 interface ClassicBannerInspectorProps {
   data: ClassicBannerProjectData;
+  projectId: string;
+  assets: BannerAsset[];
   selectedVariant?: ClassicBannerSizeVariant;
   onChange: (next: ClassicBannerProjectData) => void;
+  onAssetsChange: (assets: BannerAsset[]) => void;
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -139,12 +151,113 @@ const SLOT_TOGGLE_LABELS: Record<ClassicBannerSlotId, string> = {
   decoration: "Dekorace",
 };
 
+const IMAGE_SLOT_LABELS: Record<ClassicBannerImageSlot, string> = {
+  background: "Pozadí",
+  logo: "Logo",
+  hero: "Hero obrázek",
+};
+
+const IMAGE_URL_FIELD: Record<ClassicBannerImageSlot, "backgroundUrl" | "logoUrl" | "heroImageUrl"> = {
+  background: "backgroundUrl",
+  logo: "logoUrl",
+  hero: "heroImageUrl",
+};
+
+function ClassicImageSlotField({
+  slot,
+  label,
+  url,
+  sourceKind,
+  asset,
+  uploadError,
+  uploading,
+  onUrlChange,
+  onUpload,
+  onClearLocal,
+}: {
+  slot: ClassicBannerImageSlot;
+  label: string;
+  url: string;
+  sourceKind: ReturnType<typeof classicBannerImageSourceKind>;
+  asset?: BannerAsset;
+  uploadError?: string;
+  uploading: boolean;
+  onUrlChange: (value: string) => void;
+  onUpload: (file: File) => void;
+  onClearLocal: () => void;
+}) {
+  const inputId = `classic-upload-${slot}`;
+
+  return (
+    <div className="rounded-lg border border-zinc-800/60 bg-zinc-950/40 p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-sm font-medium text-zinc-300">{label}</p>
+        <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+          {sourceKind === "local" ? "Používá se nahraný soubor" : "Používá se URL"}
+        </span>
+      </div>
+
+      <TextField
+        id={`classic-${slot}-url`}
+        label="URL"
+        value={url}
+        onChange={onUrlChange}
+      />
+
+      <div className="mt-3">
+        <label htmlFor={inputId} className="mb-1.5 block text-sm font-medium text-zinc-300">
+          Nahrát obrázek
+        </label>
+        <input
+          id={inputId}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,image/avif"
+          disabled={uploading}
+          className="block w-full text-xs text-zinc-400 file:mr-2 file:rounded file:border-0 file:bg-violet-600 file:px-2 file:py-1 file:text-xs file:text-white"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) onUpload(file);
+            event.target.value = "";
+          }}
+        />
+        {uploading ? <p className="mt-1 text-xs text-zinc-500">Nahrávání…</p> : null}
+        {uploadError ? (
+          <p className="mt-1 text-xs text-red-400" role="alert">
+            {uploadError}
+          </p>
+        ) : null}
+        {asset ? (
+          <div className="mt-2 flex items-center justify-between gap-2 text-xs text-zinc-400">
+            <span className="truncate">
+              {asset.fileName} · {asset.width}×{asset.height} · {formatFileSize(asset.size)}
+            </span>
+            <button
+              type="button"
+              onClick={onClearLocal}
+              className="shrink-0 text-red-400 hover:text-red-300"
+            >
+              Odebrat nahraný soubor
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export function ClassicBannerInspector({
   data,
+  projectId,
+  assets,
   selectedVariant,
   onChange,
+  onAssetsChange,
 }: ClassicBannerInspectorProps) {
   const { content, designTokens } = data;
+  const [uploadingSlot, setUploadingSlot] = useState<ClassicBannerImageSlot | null>(null);
+  const [uploadErrors, setUploadErrors] = useState<Partial<Record<ClassicBannerImageSlot, string>>>(
+    {},
+  );
   const recommendations = useMemo(
     () => getClassicBannerRecommendations(data, selectedVariant),
     [data, selectedVariant],
@@ -166,6 +279,38 @@ export function ClassicBannerInspector({
     emit(setClassicBannerSlotVisible(data, slotId, enabled));
   }
 
+  async function handleUpload(slot: ClassicBannerImageSlot, file: File) {
+    setUploadErrors((prev) => ({ ...prev, [slot]: "" }));
+    setUploadingSlot(slot);
+    try {
+      const result = await uploadClassicBannerAsset(file, projectId, slot, assets, content);
+      if (!result.ok) {
+        setUploadErrors((prev) => ({ ...prev, [slot]: result.message }));
+        return;
+      }
+      onAssetsChange(result.assets);
+      emit(patchClassicBannerContent(data, result.contentPatch));
+    } finally {
+      setUploadingSlot(null);
+    }
+  }
+
+  async function handleClearLocal(slot: ClassicBannerImageSlot) {
+    const result = await clearClassicBannerAsset(slot, assets, content);
+    onAssetsChange(result.assets);
+    emit(patchClassicBannerContent(data, result.contentPatch));
+  }
+
+  function assetForSlot(slot: ClassicBannerImageSlot): BannerAsset | undefined {
+    const assetId =
+      slot === "background"
+        ? content.backgroundAssetId
+        : slot === "logo"
+          ? content.logoAssetId
+          : content.heroAssetId;
+    return assetId ? assets.find((item) => item.id === assetId) : undefined;
+  }
+
   return (
     <div className="flex h-full flex-col overflow-y-auto">
       <div className="border-b border-zinc-800/80 px-4 py-3">
@@ -183,24 +328,21 @@ export function ClassicBannerInspector({
 
         <section className="space-y-3">
           <SectionTitle>Obrázky</SectionTitle>
-          <TextField
-            id="classic-background-url"
-            label="URL pozadí"
-            value={content.backgroundUrl}
-            onChange={(backgroundUrl) => updateContent({ backgroundUrl })}
-          />
-          <TextField
-            id="classic-logo-url"
-            label="URL loga"
-            value={content.logoUrl}
-            onChange={(logoUrl) => updateContent({ logoUrl })}
-          />
-          <TextField
-            id="classic-hero-url"
-            label="URL hero obrázku"
-            value={content.heroImageUrl}
-            onChange={(heroImageUrl) => updateContent({ heroImageUrl })}
-          />
+          {(["background", "logo", "hero"] as const).map((slot) => (
+            <ClassicImageSlotField
+              key={slot}
+              slot={slot}
+              label={IMAGE_SLOT_LABELS[slot]}
+              url={getClassicImageUrl(content, slot)}
+              sourceKind={classicBannerImageSourceKind(content, slot)}
+              asset={assetForSlot(slot)}
+              uploading={uploadingSlot === slot}
+              uploadError={uploadErrors[slot]}
+              onUrlChange={(value) => updateContent({ [IMAGE_URL_FIELD[slot]]: value })}
+              onUpload={(file) => void handleUpload(slot, file)}
+              onClearLocal={() => void handleClearLocal(slot)}
+            />
+          ))}
         </section>
 
         <section className="space-y-3">

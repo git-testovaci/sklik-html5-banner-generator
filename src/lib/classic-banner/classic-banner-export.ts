@@ -4,6 +4,10 @@ import {
   type ClassicBannerLayoutRect,
 } from "@/lib/classic-banner/classic-banner-layout";
 import { isClassicBannerSlotVisible } from "@/lib/classic-banner/classic-banner-update";
+import {
+  hasClassicBannerImageSource,
+  loadClassicBannerImageForCanvas,
+} from "@/lib/classic-banner/classic-banner-image-sources";
 import { CLASSIC_BANNER_SIZES, getClassicBannerSizeById } from "@/lib/classic-banner/classic-banner-sizes";
 import type {
   ClassicBannerDesignTokens,
@@ -58,20 +62,6 @@ function rectToPixels(
     width: (rect.width / 100) * canvasWidth,
     height: (rect.height / 100) * canvasHeight,
   };
-}
-
-function loadImage(url: string): Promise<HTMLImageElement | null> {
-  const trimmed = url.trim();
-  if (!trimmed) return Promise.resolve(null);
-
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.decoding = "async";
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = trimmed;
-  });
 }
 
 function drawImageCover(
@@ -344,6 +334,19 @@ function orderedClassicVariants(data: ClassicBannerProjectData): ClassicBannerSi
   });
 }
 
+function pushImageWarning(
+  warnings: string[],
+  result: { image: HTMLImageElement | null; warning?: string },
+  missingMessage: string,
+): void {
+  if (result.warning && !warnings.includes(result.warning)) {
+    warnings.push(result.warning);
+  }
+  if (!result.image) {
+    warnings.push(missingMessage);
+  }
+}
+
 /** Export all classic banner variants as PNG files inside a ZIP archive. */
 export async function exportClassicBannerAllVariantsToZip(
   data: ClassicBannerProjectData,
@@ -426,32 +429,56 @@ export async function exportClassicBannerVariantToPng(
     slots,
   });
 
-  const showLogo = isClassicBannerSlotVisible(data, "logo") && Boolean(content.logoUrl.trim());
+  const showBackground = hasClassicBannerImageSource(content, "background");
+  const showLogo =
+    isClassicBannerSlotVisible(data, "logo") && hasClassicBannerImageSource(content, "logo");
   const showHeadline = isClassicBannerSlotVisible(data, "headline");
   const showSlogan =
     isClassicBannerSlotVisible(data, "slogan") &&
     layout.showSlogan &&
     Boolean(content.slogan.trim());
   const showHero =
-    isClassicBannerSlotVisible(data, "hero") && Boolean(content.heroImageUrl.trim());
+    isClassicBannerSlotVisible(data, "hero") && hasClassicBannerImageSource(content, "hero");
   const showCta = isClassicBannerSlotVisible(data, "cta") && Boolean(content.ctaText.trim());
   const showBadge =
     isClassicBannerSlotVisible(data, "badge") && Boolean(content.badgeText.trim());
 
-  const [backgroundImg, logoImg, heroImg] = await Promise.all([
-    content.backgroundUrl.trim() ? loadImage(content.backgroundUrl) : Promise.resolve(null),
-    showLogo ? loadImage(content.logoUrl) : Promise.resolve(null),
-    showHero ? loadImage(content.heroImageUrl) : Promise.resolve(null),
+  const [backgroundResult, logoResult, heroResult] = await Promise.all([
+    showBackground
+      ? loadClassicBannerImageForCanvas(content, "background")
+      : Promise.resolve({ image: null, source: "none" as const }),
+    showLogo
+      ? loadClassicBannerImageForCanvas(content, "logo")
+      : Promise.resolve({ image: null, source: "none" as const }),
+    showHero
+      ? loadClassicBannerImageForCanvas(content, "hero")
+      : Promise.resolve({ image: null, source: "none" as const }),
   ]);
 
-  if (content.backgroundUrl.trim() && !backgroundImg) {
-    warnings.push("Pozadí se nepodařilo načíst — export pokračuje bez obrázku pozadí.");
+  const backgroundImg = backgroundResult.image;
+  const logoImg = logoResult.image;
+  const heroImg = heroResult.image;
+
+  if (showBackground) {
+    pushImageWarning(
+      warnings,
+      backgroundResult,
+      "Pozadí se nepodařilo načíst — export pokračuje bez obrázku pozadí.",
+    );
   }
-  if (showLogo && !logoImg) {
-    warnings.push("Logo se nepodařilo načíst — export pokračuje bez loga.");
+  if (showLogo) {
+    pushImageWarning(
+      warnings,
+      logoResult,
+      "Logo se nepodařilo načíst — export pokračuje bez loga.",
+    );
   }
-  if (showHero && !heroImg) {
-    warnings.push("Hero obrázek se nepodařilo načíst — export pokračuje bez hero obrázku.");
+  if (showHero) {
+    pushImageWarning(
+      warnings,
+      heroResult,
+      "Hero obrázek se nepodařilo načíst — export pokračuje bez hero obrázku.",
+    );
   }
 
   const canvas = document.createElement("canvas");

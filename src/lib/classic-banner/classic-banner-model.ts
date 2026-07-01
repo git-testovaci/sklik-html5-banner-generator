@@ -84,6 +84,10 @@ export function migrateClassicBannerData(
       heroImageUrl: String(content.heroImageUrl ?? ""),
       ctaText: String(content.ctaText ?? ""),
       badgeText: String(content.badgeText ?? ""),
+      backgroundAssetId:
+        typeof content.backgroundAssetId === "string" ? content.backgroundAssetId : undefined,
+      logoAssetId: typeof content.logoAssetId === "string" ? content.logoAssetId : undefined,
+      heroAssetId: typeof content.heroAssetId === "string" ? content.heroAssetId : undefined,
     },
     designTokens: {
       fontFamily: String(tokens.fontFamily ?? "system-ui, sans-serif"),

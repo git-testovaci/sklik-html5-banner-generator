@@ -1,8 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { computeClassicBannerLayout } from "@/lib/classic-banner/classic-banner-layout";
+import {
+  hasClassicBannerImageSource,
+  resolveClassicBannerImageSources,
+  type ClassicBannerImageSlot,
+} from "@/lib/classic-banner/classic-banner-image-sources";
 import { isClassicBannerSlotVisible } from "@/lib/classic-banner/classic-banner-update";
+import type { BannerAsset } from "@/types/assets";
 import type {
   ClassicBannerProjectData,
   ClassicBannerSizeVariant,
@@ -11,6 +17,7 @@ import type {
 interface ClassicBannerPreviewProps {
   variant: ClassicBannerSizeVariant;
   data: ClassicBannerProjectData;
+  assets?: BannerAsset[];
   maxWidth?: number;
 }
 
@@ -29,13 +36,22 @@ function layerStyle(
   };
 }
 
+const EMPTY_IMAGE_URLS: Record<ClassicBannerImageSlot, string | null> = {
+  background: null,
+  logo: null,
+  hero: null,
+};
+
 export function ClassicBannerPreview({
   variant,
   data,
+  assets = [],
   maxWidth = 520,
 }: ClassicBannerPreviewProps) {
   const { width, height, family } = variant;
   const { content, designTokens, slots } = data;
+  const [imageUrls, setImageUrls] =
+    useState<Record<ClassicBannerImageSlot, string | null>>(EMPTY_IMAGE_URLS);
 
   const layout = useMemo(
     () =>
@@ -50,21 +66,39 @@ export function ClassicBannerPreview({
     [width, height, family, content, designTokens, slots],
   );
 
+  useEffect(() => {
+    let cancelled = false;
+
+    void resolveClassicBannerImageSources(content, assets).then((resolved) => {
+      if (cancelled) return;
+      setImageUrls({
+        background: resolved.background.url,
+        logo: resolved.logo.url,
+        hero: resolved.hero.url,
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [content, assets]);
+
   const scale = Math.min(1, maxWidth / width);
   const frameWidth = width * scale;
   const frameHeight = height * scale;
 
-  const showLogo = isClassicBannerSlotVisible(data, "logo") && Boolean(content.logoUrl.trim());
+  const showLogo =
+    isClassicBannerSlotVisible(data, "logo") && Boolean(imageUrls.logo);
   const showHeadline = isClassicBannerSlotVisible(data, "headline");
   const showSlogan =
     isClassicBannerSlotVisible(data, "slogan") &&
     layout.showSlogan &&
     Boolean(content.slogan.trim());
-  const showHero =
-    isClassicBannerSlotVisible(data, "hero") && Boolean(content.heroImageUrl.trim());
+  const showHero = isClassicBannerSlotVisible(data, "hero") && Boolean(imageUrls.hero);
   const showCta = isClassicBannerSlotVisible(data, "cta") && Boolean(content.ctaText.trim());
   const showBadge =
     isClassicBannerSlotVisible(data, "badge") && Boolean(content.badgeText.trim());
+  const showBackground = hasClassicBannerImageSource(content, "background");
 
   return (
     <div className="flex flex-col items-center gap-3">
@@ -89,10 +123,10 @@ export function ClassicBannerPreview({
               zIndex: layout.zIndex.background,
             }}
           />
-          {content.backgroundUrl.trim() ? (
+          {showBackground && imageUrls.background ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={content.backgroundUrl}
+              src={imageUrls.background}
               alt=""
               className="absolute inset-0 h-full w-full object-cover"
               style={{ zIndex: layout.zIndex.background }}
@@ -106,7 +140,7 @@ export function ClassicBannerPreview({
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={content.heroImageUrl}
+                src={imageUrls.hero!}
                 alt=""
                 className="max-h-full max-w-full object-contain"
               />
@@ -155,7 +189,7 @@ export function ClassicBannerPreview({
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={content.logoUrl}
+                src={imageUrls.logo!}
                 alt="Logo"
                 className="max-h-full max-w-full object-contain object-left-top"
                 style={{ maxHeight: layout.logoMaxHeight }}

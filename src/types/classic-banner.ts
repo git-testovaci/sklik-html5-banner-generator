@@ -68,6 +68,12 @@ export interface ClassicBannerContent {
   heroImageUrl: string;
   ctaText: string;
   badgeText: string;
+  /** Local IndexedDB asset — takes priority over backgroundUrl when set. */
+  backgroundAssetId?: string;
+  /** Local IndexedDB asset — takes priority over logoUrl when set. */
+  logoAssetId?: string;
+  /** Local IndexedDB asset — takes priority over heroImageUrl when set. */
+  heroAssetId?: string;
 }
 
 export interface ClassicBannerSlot {

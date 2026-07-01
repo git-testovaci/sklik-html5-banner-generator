@@ -1,3 +1,4 @@
+import type { BannerAsset } from "@/types/assets";
 import type {
   ClassicBannerContent,
   ClassicBannerDesignTokens,
@@ -76,6 +77,7 @@ export function prepareClassicBannerData(
 export function mergeClassicBannerIntoProject(
   project: BannerProject,
   classicBanner: ClassicBannerProjectData,
+  assets?: BannerAsset[],
 ): BannerProject {
   const normalized = prepareClassicBannerData(classicBanner);
   const { content, designTokens, masterSizeId } = normalized;
@@ -85,6 +87,7 @@ export function mergeClassicBannerIntoProject(
     ...project,
     projectKind: "classic-banner",
     classicBanner: normalized,
+    assets: assets ?? project.assets ?? [],
     headline: content.headline,
     subheadline: content.slogan,
     cta: content.ctaText,
@@ -127,4 +130,17 @@ export function classicBannerDataEqual(
     slotsEqual(a.slots, b.slots) &&
     variantsEqual(a.variants, b.variants)
   );
+}
+
+function assetsEqual(a: readonly BannerAsset[], b: readonly BannerAsset[]): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+export function classicBannerEditorStateEqual(
+  classicBanner: ClassicBannerProjectData,
+  assets: readonly BannerAsset[],
+  otherClassicBanner: ClassicBannerProjectData,
+  otherAssets: readonly BannerAsset[],
+): boolean {
+  return classicBannerDataEqual(classicBanner, otherClassicBanner) && assetsEqual(assets, otherAssets);
 }

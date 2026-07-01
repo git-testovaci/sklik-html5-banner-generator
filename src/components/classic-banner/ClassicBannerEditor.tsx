@@ -3,22 +3,23 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createDefaultClassicBannerData } from "@/lib/classic-banner/classic-banner-defaults";
-import { CLASSIC_BANNER_MASTER_SIZE_ID } from "@/lib/classic-banner/classic-banner-sizes";
-import {
-  classicBannerDataEqual,
-  mergeClassicBannerIntoProject,
-  prepareClassicBannerData,
-} from "@/lib/classic-banner/classic-banner-update";
-import { getClassicBannerRecommendations } from "@/lib/classic-banner/classic-banner-recommendations";
 import {
   classicBannerPngFilename,
   classicBannerZipFilename,
   exportClassicBannerAllVariantsToZip,
   exportClassicBannerVariantToPng,
 } from "@/lib/classic-banner/classic-banner-export";
+import { CLASSIC_BANNER_MASTER_SIZE_ID } from "@/lib/classic-banner/classic-banner-sizes";
+import {
+  classicBannerEditorStateEqual,
+  mergeClassicBannerIntoProject,
+  prepareClassicBannerData,
+} from "@/lib/classic-banner/classic-banner-update";
+import { getClassicBannerRecommendations } from "@/lib/classic-banner/classic-banner-recommendations";
 import { downloadBlob } from "@/lib/export/download-blob";
 import { getStoredProjectById, upsertProject } from "@/lib/project-storage";
 import type { ClassicBannerProjectData } from "@/types/classic-banner";
+import type { BannerAsset } from "@/types/assets";
 import type { BannerProject } from "@/types/project";
 import { ProjectStatusBadge } from "@/components/dashboard/ProjectStatusBadge";
 import { ClassicBannerInspector } from "./ClassicBannerInspector";
@@ -35,10 +36,11 @@ interface ClassicBannerEditorProps {
 function persistClassicBannerProject(
   project: BannerProject,
   classicBanner: ClassicBannerProjectData,
+  assets: BannerAsset[],
 ): BannerProject | null {
   const existing = getStoredProjectById(project.id);
   if (!existing) return null;
-  const next = mergeClassicBannerIntoProject(existing, classicBanner);
+  const next = mergeClassicBannerIntoProject(existing, classicBanner, assets);
   upsertProject(next);
   return next;
 }
@@ -50,6 +52,8 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
 
   const [classicBanner, setClassicBanner] = useState<ClassicBannerProjectData>(initialData);
   const [savedData, setSavedData] = useState<ClassicBannerProjectData>(initialData);
+  const [assets, setAssets] = useState<BannerAsset[]>(project.assets ?? []);
+  const [savedAssets, setSavedAssets] = useState<BannerAsset[]>(project.assets ?? []);
   const [selectedSizeId, setSelectedSizeId] = useState(
     initialData.masterSizeId || CLASSIC_BANNER_MASTER_SIZE_ID,
   );
@@ -62,6 +66,8 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
 
   const classicBannerRef = useRef(classicBanner);
   const savedDataRef = useRef(savedData);
+  const assetsRef = useRef(assets);
+  const savedAssetsRef = useRef(savedAssets);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autosavePendingRef = useRef(false);
 
@@ -74,11 +80,19 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
   }, [savedData]);
 
   useEffect(() => {
+    assetsRef.current = assets;
+  }, [assets]);
+
+  useEffect(() => {
+    savedAssetsRef.current = savedAssets;
+  }, [savedAssets]);
+
+  useEffect(() => {
     const raw =
       project.classicBanner ?? createDefaultClassicBannerData(CLASSIC_BANNER_MASTER_SIZE_ID);
     const ready = prepareClassicBannerData(raw);
     if (JSON.stringify(raw.variants) === JSON.stringify(ready.variants)) return;
-    persistClassicBannerProject(project, ready);
+    persistClassicBannerProject(project, ready, project.assets ?? []);
   }, [project]);
 
   function handleClassicBannerChange(next: ClassicBannerProjectData) {
@@ -92,9 +106,12 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
     }
   }, []);
 
-  const commitPersisted = useCallback((persisted: ClassicBannerProjectData) => {
-    setSavedData(persisted);
-    savedDataRef.current = persisted;
+  const commitPersisted = useCallback((persistedProject: BannerProject) => {
+    if (!persistedProject.classicBanner) return;
+    setSavedData(persistedProject.classicBanner);
+    savedDataRef.current = persistedProject.classicBanner;
+    setSavedAssets(persistedProject.assets ?? []);
+    savedAssetsRef.current = persistedProject.assets ?? [];
     setSaveStatus("saved");
     setSaveError(null);
   }, []);
@@ -102,24 +119,44 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
   const flushPersistPending = useCallback(() => {
     clearAutosaveTimer();
     const current = classicBannerRef.current;
-    if (classicBannerDataEqual(current, savedDataRef.current)) {
+    const currentAssets = assetsRef.current;
+    if (
+      classicBannerEditorStateEqual(
+        current,
+        currentAssets,
+        savedDataRef.current,
+        savedAssetsRef.current,
+      )
+    ) {
       autosavePendingRef.current = false;
       return;
     }
-    const persisted = persistClassicBannerProject(project, current);
+    const persisted = persistClassicBannerProject(project, current, currentAssets);
     if (!persisted?.classicBanner) {
       setSaveError("Projekt nelze uložit — byl odstraněn z úložiště.");
       autosavePendingRef.current = false;
       return;
     }
-    commitPersisted(persisted.classicBanner);
+    commitPersisted(persisted);
     autosavePendingRef.current = false;
   }, [clearAutosaveTimer, commitPersisted, project]);
 
-  const hasUnsavedChanges = !classicBannerDataEqual(classicBanner, savedData);
+  const hasUnsavedChanges = !classicBannerEditorStateEqual(
+    classicBanner,
+    assets,
+    savedData,
+    savedAssets,
+  );
 
   useEffect(() => {
-    if (classicBannerDataEqual(classicBanner, savedDataRef.current)) {
+    if (
+      classicBannerEditorStateEqual(
+        classicBanner,
+        assets,
+        savedDataRef.current,
+        savedAssetsRef.current,
+      )
+    ) {
       autosavePendingRef.current = false;
       return;
     }
@@ -129,35 +166,56 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
     autosaveTimerRef.current = setTimeout(() => {
       autosaveTimerRef.current = null;
       const current = classicBannerRef.current;
-      if (classicBannerDataEqual(current, savedDataRef.current)) {
+      const currentAssets = assetsRef.current;
+      if (
+        classicBannerEditorStateEqual(
+          current,
+          currentAssets,
+          savedDataRef.current,
+          savedAssetsRef.current,
+        )
+      ) {
         autosavePendingRef.current = false;
         return;
       }
-      const persisted = persistClassicBannerProject(project, current);
+      const persisted = persistClassicBannerProject(project, current, currentAssets);
       if (!persisted?.classicBanner) {
         setSaveError("Projekt nelze uložit — byl odstraněn z úložiště.");
         autosavePendingRef.current = false;
         return;
       }
-      commitPersisted(persisted.classicBanner);
+      commitPersisted(persisted);
       autosavePendingRef.current = false;
     }, AUTOSAVE_DEBOUNCE_MS);
 
     return clearAutosaveTimer;
-  }, [classicBanner, project, clearAutosaveTimer, commitPersisted]);
+  }, [classicBanner, assets, project, clearAutosaveTimer, commitPersisted]);
 
   useEffect(() => {
     function onBeforeUnload(e: BeforeUnloadEvent) {
       const dirty =
-        !classicBannerDataEqual(classicBannerRef.current, savedDataRef.current) ||
-        autosavePendingRef.current;
+        !classicBannerEditorStateEqual(
+          classicBannerRef.current,
+          assetsRef.current,
+          savedDataRef.current,
+          savedAssetsRef.current,
+        ) || autosavePendingRef.current;
       if (!dirty) return;
       e.preventDefault();
       e.returnValue = "";
     }
 
     function onPageHide() {
-      if (classicBannerDataEqual(classicBannerRef.current, savedDataRef.current)) return;
+      if (
+        classicBannerEditorStateEqual(
+          classicBannerRef.current,
+          assetsRef.current,
+          savedDataRef.current,
+          savedAssetsRef.current,
+        )
+      ) {
+        return;
+      }
       flushPersistPending();
     }
 
@@ -177,13 +235,13 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
       setSaveStatus("idle");
       return;
     }
-    const persisted = persistClassicBannerProject(project, classicBanner);
+    const persisted = persistClassicBannerProject(project, classicBanner, assets);
     if (!persisted?.classicBanner) {
       setSaveError("Projekt byl odstraněn. Vraťte se na přehled.");
       setSaveStatus("idle");
       return;
     }
-    commitPersisted(persisted.classicBanner);
+    commitPersisted(persisted);
   }
 
   const selectedVariant =
@@ -358,7 +416,11 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
         </aside>
 
         <main className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-auto bg-zinc-950/50 p-6">
-          <ClassicBannerPreview variant={selectedVariant} data={classicBanner} />
+          <ClassicBannerPreview
+            variant={selectedVariant}
+            data={classicBanner}
+            assets={assets}
+          />
           <ClassicBannerWarnings
             recommendations={previewRecommendations}
             className="mt-4 w-full max-w-md"
@@ -368,8 +430,11 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
         <aside className="h-80 shrink-0 border-t border-zinc-800/80 bg-zinc-900/40 lg:h-auto lg:w-80 lg:border-l lg:border-t-0 xl:w-96">
           <ClassicBannerInspector
             data={classicBanner}
+            projectId={project.id}
+            assets={assets}
             selectedVariant={selectedVariant}
             onChange={handleClassicBannerChange}
+            onAssetsChange={setAssets}
           />
         </aside>
       </div>

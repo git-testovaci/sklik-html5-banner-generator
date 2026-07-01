@@ -1,3 +1,4 @@
+import { hasClassicBannerImageSource } from "@/lib/classic-banner/classic-banner-image-sources";
 import { isClassicBannerSlotVisible } from "@/lib/classic-banner/classic-banner-update";
 import type {
   ClassicBannerProjectData,
@@ -62,7 +63,7 @@ export function getClassicBannerRecommendations(
     });
   }
 
-  if (isClassicBannerSlotVisible(data, "logo") && !content.logoUrl.trim()) {
+  if (isClassicBannerSlotVisible(data, "logo") && !hasClassicBannerImageSource(content, "logo")) {
     items.push({
       id: "logo-missing",
       severity: "warning",
@@ -70,7 +71,7 @@ export function getClassicBannerRecommendations(
     });
   }
 
-  if (!content.backgroundUrl.trim()) {
+  if (!hasClassicBannerImageSource(content, "background")) {
     items.push({
       id: "background-missing",
       severity: "warning",
@@ -78,7 +79,7 @@ export function getClassicBannerRecommendations(
     });
   }
 
-  if (isClassicBannerSlotVisible(data, "hero") && !content.heroImageUrl.trim()) {
+  if (isClassicBannerSlotVisible(data, "hero") && !hasClassicBannerImageSource(content, "hero")) {
     items.push({
       id: "hero-missing",
       severity: "warning",
