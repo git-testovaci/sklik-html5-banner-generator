@@ -30,11 +30,13 @@ function NumberField({
   label,
   value,
   onChange,
+  disabled = false,
 }: {
   id: string;
   label: string;
   value: number;
   onChange: (value: number) => void;
+  disabled?: boolean;
 }) {
   return (
     <div>
@@ -47,9 +49,14 @@ function NumberField({
         step={0.1}
         min={0}
         max={100}
+        disabled={disabled}
         value={Math.round(value * 10) / 10}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono text-xs text-zinc-100"
+        onChange={(e) => {
+          const next = Number(e.target.value);
+          if (!Number.isFinite(next)) return;
+          onChange(next);
+        }}
+        className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono text-xs text-zinc-100 disabled:opacity-50"
       />
     </div>
   );
@@ -84,7 +91,15 @@ export function ClassicLayerInspector({
   }
 
   function updateRect(field: "left" | "top" | "width" | "height", value: number) {
-    patch({ rect: { [field]: value } });
+    if (!Number.isFinite(value)) return;
+    patch({
+      rect: {
+        left: field === "left" ? value : layer.rect.left,
+        top: field === "top" ? value : layer.rect.top,
+        width: field === "width" ? value : layer.rect.width,
+        height: field === "height" ? value : layer.rect.height,
+      },
+    });
   }
 
   return (
@@ -130,24 +145,28 @@ export function ClassicLayerInspector({
           id="layer-x"
           label="X (%)"
           value={layer.rect.left}
+          disabled={layer.locked}
           onChange={(left) => updateRect("left", left)}
         />
         <NumberField
           id="layer-y"
           label="Y (%)"
           value={layer.rect.top}
+          disabled={layer.locked}
           onChange={(top) => updateRect("top", top)}
         />
         <NumberField
           id="layer-w"
           label="Šířka (%)"
           value={layer.rect.width}
+          disabled={layer.locked}
           onChange={(width) => updateRect("width", width)}
         />
         <NumberField
           id="layer-h"
           label="Výška (%)"
           value={layer.rect.height}
+          disabled={layer.locked}
           onChange={(height) => updateRect("height", height)}
         />
       </div>

@@ -194,6 +194,13 @@ export async function loadClassicBannerImageForCanvas(
 
   if (fallbackUrl) {
     const image = await loadImageElement(fallbackUrl, true);
+    if (!image) {
+      return {
+        image: null,
+        source: "url",
+        warning: "Obrázek z URL se nepodařilo načíst.",
+      };
+    }
     return { image, source: "url" };
   }
 

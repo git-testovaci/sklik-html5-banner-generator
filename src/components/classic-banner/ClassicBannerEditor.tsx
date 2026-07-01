@@ -16,7 +16,7 @@ import {
   prepareClassicBannerData,
 } from "@/lib/classic-banner/classic-banner-update";
 import { getClassicBannerRecommendations } from "@/lib/classic-banner/classic-banner-recommendations";
-import { patchClassicBannerLayerOverride } from "@/lib/classic-banner/classic-banner-overrides";
+import { patchClassicBannerLayerOverride, resolveClassicBannerFinalLayout } from "@/lib/classic-banner/classic-banner-overrides";
 import { downloadBlob } from "@/lib/export/download-blob";
 import { getStoredProjectById, upsertProject } from "@/lib/project-storage";
 import type { ClassicBannerProjectData, ClassicEditableSlotId } from "@/types/classic-banner";
@@ -72,6 +72,7 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
   const savedDataRef = useRef(savedData);
   const assetsRef = useRef(assets);
   const savedAssetsRef = useRef(savedAssets);
+  const selectedSizeIdRef = useRef(selectedSizeId);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autosavePendingRef = useRef(false);
 
@@ -92,6 +93,10 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
   }, [savedAssets]);
 
   useEffect(() => {
+    selectedSizeIdRef.current = selectedSizeId;
+  }, [selectedSizeId]);
+
+  useEffect(() => {
     const raw =
       project.classicBanner ?? createDefaultClassicBannerData(CLASSIC_BANNER_MASTER_SIZE_ID);
     const ready = prepareClassicBannerData(raw);
@@ -100,16 +105,33 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
   }, [project]);
 
   function handleClassicBannerChange(next: ClassicBannerProjectData) {
-    setClassicBanner(prepareClassicBannerData(next));
+    const prepared = prepareClassicBannerData(next);
+    setClassicBanner(prepared);
+    if (selectedSlotId) {
+      const variant =
+        prepared.variants.find((item) => item.sizeId === selectedSizeIdRef.current) ??
+        prepared.variants.find((item) => item.sizeId === prepared.masterSizeId) ??
+        prepared.variants[0];
+      if (variant) {
+        const layer = resolveClassicBannerFinalLayout(prepared, variant).layerBySlot[selectedSlotId];
+        if (layer && !layer.visible) {
+          setSelectedSlotId(null);
+        }
+      }
+    }
   }
 
   function handleLayerOverride(
     slotId: ClassicEditableSlotId,
     patch: Parameters<typeof patchClassicBannerLayerOverride>[3],
   ) {
-    handleClassicBannerChange(
-      patchClassicBannerLayerOverride(classicBanner, selectedSizeId, slotId, patch),
-    );
+    setClassicBanner((prev) => {
+      const next = prepareClassicBannerData(
+        patchClassicBannerLayerOverride(prev, selectedSizeIdRef.current, slotId, patch),
+      );
+      classicBannerRef.current = next;
+      return next;
+    });
   }
 
   function handleSelectVariant(sizeId: string) {

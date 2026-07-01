@@ -86,7 +86,9 @@ export function ClassicLayerList({
                 className={`flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors ${
                   selected
                     ? "bg-violet-950/60 text-violet-100 ring-2 ring-violet-500/70"
-                    : "text-zinc-300 hover:bg-zinc-800/60"
+                    : layer.visible
+                      ? "text-zinc-300 hover:bg-zinc-800/60"
+                      : "text-zinc-500 hover:bg-zinc-800/40"
                 }`}
               >
                 <span className="truncate">

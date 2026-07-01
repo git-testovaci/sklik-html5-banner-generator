@@ -69,6 +69,8 @@ export function ClassicPropagationPanel({
   if (boundSourceId !== variant.sizeId) {
     setBoundSourceId(variant.sizeId);
     setManualSelection(null);
+    setTransformMode("copy-percent");
+    setTargetMode("same-family");
   }
 
   const defaultSelectedIds = useMemo(

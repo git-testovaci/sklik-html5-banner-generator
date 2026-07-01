@@ -148,6 +148,7 @@ function InteractiveLayer({
 
   const startDrag = useCallback(
     (e: React.PointerEvent, mode: "move" | Corner) => {
+      if (e.button !== 0) return;
       if (!canInteract) {
         if (pointerEvents === "auto") {
           e.stopPropagation();
@@ -173,6 +174,7 @@ function InteractiveLayer({
       const preserveAspect = CLASSIC_ASPECT_RATIO_SLOTS.has(slotId) && !e.shiftKey;
       const aspect = origin.width / Math.max(origin.height, 0.01);
       suppressClickRef.current = false;
+      let dragStarted = mode !== "move";
 
       function toPercentDelta(dx: number, dy: number) {
         return {
@@ -184,6 +186,10 @@ function InteractiveLayer({
       function onMove(ev: PointerEvent) {
         const dx = ev.clientX - startClientX;
         const dy = ev.clientY - startClientY;
+        if (!dragStarted) {
+          if (Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+          dragStarted = true;
+        }
         if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
           suppressClickRef.current = true;
         }
@@ -263,6 +269,7 @@ function InteractiveLayer({
       }}
       onPointerDown={(e) => {
         if (pointerEvents !== "auto") return;
+        if (e.button !== 0) return;
         if ((e.target as HTMLElement).closest("[data-resize-handle]")) return;
         startDrag(e, "move");
       }}
@@ -310,12 +317,22 @@ export function ClassicBannerPreview({
   const { width, height } = variant;
   const { content, designTokens } = data;
   const viewportRef = useRef<HTMLDivElement>(null);
+  const viewZoomRef = useRef(viewZoom);
   const [imageUrls, setImageUrls] =
     useState<Record<ClassicBannerImageSlot, string | null>>(EMPTY_IMAGE_URLS);
+
+  useEffect(() => {
+    viewZoomRef.current = viewZoom;
+  }, [viewZoom]);
 
   const layout = useMemo(
     () => resolveClassicBannerFinalLayout(data, variant),
     [data, variant],
+  );
+
+  const canvasLayers = useMemo(
+    () => layout.layers.filter((layer) => layer.visible),
+    [layout],
   );
 
   useEffect(() => {
@@ -356,9 +373,9 @@ export function ClassicBannerPreview({
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
       const delta = e.deltaY > 0 ? -0.08 : 0.08;
-      onViewZoomChange(clampZoom(viewZoom + delta));
+      onViewZoomChange(clampZoom(viewZoomRef.current + delta));
     },
-    [onViewZoomChange, viewZoom],
+    [onViewZoomChange],
   );
 
   useEffect(() => {
@@ -461,7 +478,6 @@ export function ClassicBannerPreview({
     }
   }
 
-  const visibleLayers = layout.layers.filter((layer) => layer.visible);
 
   return (
     <div
@@ -498,18 +514,19 @@ export function ClassicBannerPreview({
             }}
           />
 
-          {/* Deselect hit area for empty canvas clicks */}
+          {/* Deselect hit area — behind interactive layers */}
           <div
             className="absolute inset-0"
-            style={{ zIndex: 0 }}
+            style={{ zIndex: -1 }}
             aria-hidden
             onPointerDown={(e) => {
+              if (e.button !== 0) return;
               e.stopPropagation();
               onSelectSlot(null);
             }}
           />
 
-          {visibleLayers.map((layer) => {
+          {canvasLayers.map((layer) => {
             const isBackground = layer.slotId === "background";
             const pointerEvents: "auto" | "none" =
               isBackground && selectedSlotId !== "background" ? "none" : "auto";
