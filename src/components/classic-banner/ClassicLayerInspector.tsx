@@ -27,6 +27,7 @@ import {
   type ClassicBannerImageDimensions,
 } from "@/lib/classic-banner/classic-banner-image-sources";
 import { resolveClassicBackgroundTransform } from "@/lib/classic-banner/classic-banner-image-fit";
+import { withCanonicalClassicBannerVariant } from "@/lib/classic-banner/classic-banner-rendering";
 import { prepareClassicBannerData } from "@/lib/classic-banner/classic-banner-update";
 import type { BannerAsset } from "@/types/assets";
 import type {
@@ -221,9 +222,10 @@ export function ClassicLayerInspector({
     );
   }
 
-  const finalLayout = resolveClassicBannerFinalLayout(data, variant);
+  const canonicalVariant = withCanonicalClassicBannerVariant(variant);
+  const finalLayout = resolveClassicBannerFinalLayout(data, canonicalVariant);
   const layer = finalLayout.layerBySlot[selectedSlotId];
-  const sizeId = variant.sizeId;
+  const sizeId = canonicalVariant.sizeId;
   const reorderState = getClassicLayerReorderState(finalLayout, selectedSlotId);
 
   const backgroundDims = assetBackgroundDims ?? urlBackgroundDims;
@@ -233,8 +235,8 @@ export function ClassicLayerInspector({
     ? resolveClassicBackgroundTransform({
         baseRect: layer.rect,
         hasManualRectOverride: backgroundHasRectOverride,
-        bannerWidth: variant.width,
-        bannerHeight: variant.height,
+        bannerWidth: canonicalVariant.width,
+        bannerHeight: canonicalVariant.height,
         imageWidth: backgroundDims?.width,
         imageHeight: backgroundDims?.height,
       }).imageRect
@@ -249,7 +251,7 @@ export function ClassicLayerInspector({
   }
 
   function handleReorder(action: Parameters<typeof reorderClassicBannerLayer>[3]) {
-    emit(reorderClassicBannerLayer(data, variant, selectedSlotId!, action), { history: "push" });
+    emit(reorderClassicBannerLayer(data, canonicalVariant, selectedSlotId!, action), { history: "push" });
   }
 
   function updateRect(field: "left" | "top" | "width" | "height", value: number) {

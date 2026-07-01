@@ -6,14 +6,28 @@ import {
 } from "@/lib/classic-banner/classic-banner-overrides";
 import type { ClassicBannerLayoutRect } from "@/lib/classic-banner/classic-banner-layout";
 import {
-  computeClassicImageRenderedRect,
   drawClassicBackgroundImageInBox,
-  getClassicImageSlotFitOptions,
   resolveClassicBackgroundTransform,
+  type ClassicImageDimensions,
 } from "@/lib/classic-banner/classic-banner-image-fit";
 import {
   loadClassicBannerImageForCanvas,
+  type ClassicBannerImageSlot,
 } from "@/lib/classic-banner/classic-banner-image-sources";
+import {
+  classicBannerImageSlotFromLayer,
+  classicBannerRectToPixels,
+  resolveClassicBannerLayerDrawRect,
+  resolveClassicBannerVariantDimensions,
+  withCanonicalClassicBannerVariant,
+  type ClassicBannerPixelRect,
+} from "@/lib/classic-banner/classic-banner-rendering";
+import {
+  awaitClassicBannerCanvasFonts,
+  measureClassicBadgePillRect,
+  measureClassicCtaButtonRect,
+  wrapClassicHeadlineLines,
+} from "@/lib/classic-banner/classic-banner-text";
 import { CLASSIC_BANNER_SIZES, getClassicBannerSizeById } from "@/lib/classic-banner/classic-banner-sizes";
 import type {
   ClassicBannerDesignTokens,
@@ -51,104 +65,12 @@ export interface ClassicBannerZipManifest {
   warnings: string[];
 }
 
-interface PixelRect {
-  x: number;
-  y: number;
+function resolveClassicBannerExportDimensions(variant: ClassicBannerSizeVariant): {
   width: number;
   height: number;
-}
-
-function rectToPixels(
-  rect: ClassicBannerLayoutRect,
-  canvasWidth: number,
-  canvasHeight: number,
-): PixelRect {
-  return {
-    x: (rect.left / 100) * canvasWidth,
-    y: (rect.top / 100) * canvasHeight,
-    width: (rect.width / 100) * canvasWidth,
-    height: (rect.height / 100) * canvasHeight,
-  };
-}
-
-function drawImageInLocalBox(
-  ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
-  box: PixelRect,
-  fit: "contain" | "cover",
-): void {
-  if (fit === "cover") {
-    const boxRatio = box.width / box.height;
-    const imgRatio = img.width / img.height;
-    let sx = 0;
-    let sy = 0;
-    let sw = img.width;
-    let sh = img.height;
-
-    if (imgRatio > boxRatio) {
-      sw = img.height * boxRatio;
-      sx = (img.width - sw) / 2;
-    } else {
-      sh = img.width / boxRatio;
-      sy = (img.height - sh) / 2;
-    }
-
-    ctx.drawImage(img, sx, sy, sw, sh, box.x, box.y, box.width, box.height);
-    return;
-  }
-
-  ctx.drawImage(img, 0, 0, img.width, img.height, box.x, box.y, box.width, box.height);
-}
-
-function drawClassicImageLayer(
-  ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
-  layer: ClassicBannerResolvedLayer,
-  slotId: ClassicEditableSlotId,
-  canvasWidth: number,
-  canvasHeight: number,
-  logoMaxHeight: number,
-  hasRectOverride: boolean,
-): void {
-  const fitOpts = getClassicImageSlotFitOptions(slotId, logoMaxHeight);
-  if (!fitOpts) return;
-
-  let drawRect = layer.rect;
-  let backgroundCoverFit = false;
-
-  if (slotId === "background") {
-    const transform = resolveClassicBackgroundTransform({
-      baseRect: layer.rect,
-      hasManualRectOverride: hasRectOverride,
-      bannerWidth: canvasWidth,
-      bannerHeight: canvasHeight,
-      imageWidth: img.naturalWidth,
-      imageHeight: img.naturalHeight,
-    });
-    drawRect = transform.imageRect;
-    backgroundCoverFit = transform.useIntrinsicCoverFit;
-  } else if (fitOpts.fit === "contain") {
-    drawRect = computeClassicImageRenderedRect({
-      layerRect: layer.rect,
-      imageWidth: img.naturalWidth,
-      imageHeight: img.naturalHeight,
-      fit: fitOpts.fit,
-      bannerWidth: canvasWidth,
-      bannerHeight: canvasHeight,
-      maxHeightPx: fitOpts.maxHeightPx,
-      align: fitOpts.align,
-      allowUpscale: fitOpts.allowUpscale,
-    });
-  }
-
-  const pixelBox = rectToPixels(drawRect, canvasWidth, canvasHeight);
-  drawInRotatedBox(ctx, pixelBox, layer.rotationDeg, (drawCtx, box) => {
-    if (slotId === "background") {
-      drawClassicBackgroundImageInBox(drawCtx, img, box, backgroundCoverFit);
-      return;
-    }
-    drawImageInLocalBox(drawCtx, img, box, fitOpts.fit);
-  });
+} {
+  const dims = resolveClassicBannerVariantDimensions(variant);
+  return { width: dims.width, height: dims.height };
 }
 
 function roundRectPath(
@@ -173,46 +95,11 @@ function roundRectPath(
   ctx.closePath();
 }
 
-function wrapTextLines(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number,
-  maxLines: number,
-): string[] {
-  const lines: string[] = [];
-  const paragraphs = text.split("\n");
-
-  for (const paragraph of paragraphs) {
-    const words = paragraph.trim().split(/\s+/).filter(Boolean);
-    if (words.length === 0) {
-      if (lines.length < maxLines) lines.push("");
-      continue;
-    }
-
-    let current = words[0] ?? "";
-    for (let i = 1; i < words.length; i++) {
-      const word = words[i]!;
-      const candidate = `${current} ${word}`;
-      if (ctx.measureText(candidate).width <= maxWidth) {
-        current = candidate;
-      } else {
-        lines.push(current);
-        current = word;
-        if (lines.length >= maxLines) return lines.slice(0, maxLines);
-      }
-    }
-    lines.push(current);
-    if (lines.length >= maxLines) return lines.slice(0, maxLines);
-  }
-
-  return lines.slice(0, maxLines);
-}
-
 function drawInRotatedBox(
   ctx: CanvasRenderingContext2D,
-  box: PixelRect,
+  box: ClassicBannerPixelRect,
   rotationDeg: number,
-  draw: (ctx: CanvasRenderingContext2D, box: PixelRect) => void,
+  draw: (ctx: CanvasRenderingContext2D, box: ClassicBannerPixelRect) => void,
 ): void {
   if (Math.abs(rotationDeg) < 0.01) {
     draw(ctx, box);
@@ -235,7 +122,7 @@ function drawInRotatedBox(
 function drawHeadlineText(
   ctx: CanvasRenderingContext2D,
   text: string,
-  box: PixelRect,
+  box: ClassicBannerPixelRect,
   tokens: ClassicBannerDesignTokens,
   fontSize: number,
   maxLines: number,
@@ -251,7 +138,7 @@ function drawHeadlineText(
   ctx.textBaseline = "top";
 
   const lineHeight = fontSize * 1.15;
-  const lines = wrapTextLines(ctx, text, box.width, maxLines);
+  const lines = wrapClassicHeadlineLines(ctx, text, box.width, maxLines);
 
   lines.forEach((line, index) => {
     ctx.fillText(line, box.x, box.y + index * lineHeight);
@@ -263,7 +150,7 @@ function drawHeadlineText(
 function drawSloganText(
   ctx: CanvasRenderingContext2D,
   text: string,
-  box: PixelRect,
+  box: ClassicBannerPixelRect,
   tokens: ClassicBannerDesignTokens,
   fontSize: number,
 ): void {
@@ -284,51 +171,79 @@ function drawSloganText(
 function drawCtaButton(
   ctx: CanvasRenderingContext2D,
   text: string,
-  box: PixelRect,
+  box: ClassicBannerPixelRect,
   tokens: ClassicBannerDesignTokens,
   fontSize: number,
   paddingX: number,
   paddingY: number,
 ): void {
-  ctx.font = `${tokens.headlineFontWeight} ${fontSize}px ${tokens.fontFamily}`;
-  const textWidth = ctx.measureText(text).width;
-  const btnWidth = Math.min(box.width, textWidth + paddingX * 2);
-  const btnHeight = Math.min(box.height, fontSize + paddingY * 2);
-  const btnX = box.x;
-  const btnY = box.y + box.height - btnHeight;
+  const btn = measureClassicCtaButtonRect(ctx, text, box, tokens, fontSize, paddingX, paddingY);
 
-  roundRectPath(ctx, btnX, btnY, btnWidth, btnHeight, tokens.borderRadius);
+  roundRectPath(ctx, btn.x, btn.y, btn.width, btn.height, tokens.borderRadius);
   ctx.fillStyle = tokens.ctaBackgroundColor;
   ctx.fill();
 
   ctx.fillStyle = tokens.ctaTextColor;
+  ctx.font = `${tokens.headlineFontWeight} ${fontSize}px ${tokens.fontFamily}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(text, btnX + btnWidth / 2, btnY + btnHeight / 2);
+  ctx.fillText(text, btn.x + btn.width / 2, btn.y + btn.height / 2);
 }
 
 function drawBadgePill(
   ctx: CanvasRenderingContext2D,
   text: string,
-  box: PixelRect,
+  box: ClassicBannerPixelRect,
   tokens: ClassicBannerDesignTokens,
   fontSize: number,
 ): void {
-  ctx.font = `600 ${fontSize}px ${tokens.fontFamily}`;
-  const textWidth = ctx.measureText(text).width;
-  const pillW = Math.min(box.width, textWidth + 16);
-  const pillH = Math.min(box.height, fontSize + 6);
-  const pillX = box.x + box.width - pillW;
-  const pillY = box.y;
+  const pill = measureClassicBadgePillRect(ctx, text, box, tokens, fontSize);
 
-  roundRectPath(ctx, pillX, pillY, pillW, pillH, pillH / 2);
+  roundRectPath(ctx, pill.x, pill.y, pill.width, pill.height, pill.height / 2);
   ctx.fillStyle = tokens.badgeBackgroundColor;
   ctx.fill();
 
   ctx.fillStyle = tokens.badgeTextColor;
+  ctx.font = `600 ${fontSize}px ${tokens.fontFamily}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(text, pillX + pillW / 2, pillY + pillH / 2);
+  ctx.fillText(text, pill.x + pill.width / 2, pill.y + pill.height / 2);
+}
+
+function resolveLayerDrawRect(
+  layer: ClassicBannerResolvedLayer,
+  bannerWidth: number,
+  bannerHeight: number,
+  logoMaxHeight: number,
+  backgroundHasRectOverride: boolean,
+  imageDimensionsBySlot: Partial<Record<ClassicBannerImageSlot, ClassicImageDimensions | null>>,
+): ClassicBannerLayoutRect {
+  const imageSlot = classicBannerImageSlotFromLayer(layer.slotId);
+  return resolveClassicBannerLayerDrawRect({
+    slotId: layer.slotId,
+    layerRect: layer.rect,
+    bannerWidth,
+    bannerHeight,
+    logoMaxHeight,
+    hasBackgroundRectOverride:
+      layer.slotId === "background" ? backgroundHasRectOverride : false,
+    imageDimensions: imageSlot ? (imageDimensionsBySlot[imageSlot] ?? null) : null,
+  });
+}
+
+function drawClassicRasterImageLayer(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  layer: ClassicBannerResolvedLayer,
+  drawRect: ClassicBannerLayoutRect,
+  bannerWidth: number,
+  bannerHeight: number,
+  useIntrinsicCoverFit: boolean,
+): void {
+  const box = classicBannerRectToPixels(drawRect, bannerWidth, bannerHeight);
+  drawInRotatedBox(ctx, box, layer.rotationDeg, (drawCtx, localBox) => {
+    drawClassicBackgroundImageInBox(drawCtx, img, localBox, useIntrinsicCoverFit);
+  });
 }
 
 function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
@@ -428,8 +343,8 @@ export async function exportClassicBannerAllVariantsToZip(
       const sizeDef = getClassicBannerSizeById(variant.sizeId);
       manifestVariants.push({
         sizeId: variant.sizeId,
-        width: variant.width,
-        height: variant.height,
+        width: sizeDef?.width ?? variant.width,
+        height: sizeDef?.height ?? variant.height,
         family: variant.family,
         networks: sizeDef?.networks ?? { sklik: false, google: false, microsoft: false },
         filename,
@@ -471,11 +386,12 @@ export async function exportClassicBannerVariantToPng(
   data: ClassicBannerProjectData,
   variant: ClassicBannerSizeVariant,
 ): Promise<ClassicBannerPngExportResult> {
-  const { width, height } = variant;
+  const { width, height } = resolveClassicBannerExportDimensions(variant);
   const { content, designTokens } = data;
   const warnings: string[] = [];
 
-  const layout = resolveClassicBannerFinalLayout(data, variant);
+  const canonicalVariant = withCanonicalClassicBannerVariant(variant);
+  const layout = resolveClassicBannerFinalLayout(data, canonicalVariant);
   const { layerBySlot } = layout;
 
   const showBackground = layerBySlot.background.visible;
@@ -524,6 +440,22 @@ export async function exportClassicBannerVariantToPng(
     );
   }
 
+  const imageDimensionsBySlot: Partial<
+    Record<ClassicBannerImageSlot, ClassicImageDimensions | null>
+  > = {
+    background: backgroundImg
+      ? { width: backgroundImg.naturalWidth, height: backgroundImg.naturalHeight }
+      : null,
+    logo: logoImg ? { width: logoImg.naturalWidth, height: logoImg.naturalHeight } : null,
+    hero: heroImg ? { width: heroImg.naturalWidth, height: heroImg.naturalHeight } : null,
+  };
+
+  const backgroundHasRectOverride = classicBannerSlotHasRectOverride(
+    data,
+    variant.sizeId,
+    "background",
+  );
+
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
@@ -532,110 +464,99 @@ export async function exportClassicBannerVariantToPng(
     throw new Error("Export se nepovedl — canvas není k dispozici.");
   }
 
+  await awaitClassicBannerCanvasFonts(designTokens);
+
   ctx.fillStyle = designTokens.primaryColor;
   ctx.fillRect(0, 0, width, height);
 
-  const backgroundHasRectOverride = classicBannerSlotHasRectOverride(
-    data,
-    variant.sizeId,
-    "background",
-  );
-
   const drawBySlot: Record<
     ClassicEditableSlotId,
-    (layer: ClassicBannerResolvedLayer, box: PixelRect) => void
+    (layer: ClassicBannerResolvedLayer, drawRect: ClassicBannerLayoutRect) => void
   > = {
-    background: (layer) => {
-      if (backgroundImg && showBackground) {
-        drawClassicImageLayer(
-          ctx,
-          backgroundImg,
-          layer,
-          "background",
-          width,
-          height,
-          layout.logoMaxHeight,
-          backgroundHasRectOverride,
+    background: (layer, drawRect) => {
+      if (!backgroundImg || !showBackground) return;
+      const backgroundTransform = resolveClassicBackgroundTransform({
+        baseRect: layer.rect,
+        hasManualRectOverride: backgroundHasRectOverride,
+        bannerWidth: width,
+        bannerHeight: height,
+        imageWidth: imageDimensionsBySlot.background?.width,
+        imageHeight: imageDimensionsBySlot.background?.height,
+      });
+      drawClassicRasterImageLayer(
+        ctx,
+        backgroundImg,
+        layer,
+        drawRect,
+        width,
+        height,
+        backgroundTransform.useIntrinsicCoverFit,
+      );
+    },
+    hero: (layer, drawRect) => {
+      if (!showHero || !heroImg || drawRect.width <= 0 || drawRect.height <= 0) return;
+      drawClassicRasterImageLayer(ctx, heroImg, layer, drawRect, width, height, false);
+    },
+    headline: (layer, drawRect) => {
+      if (!showHeadline || !content.headline.trim()) return;
+      const box = classicBannerRectToPixels(drawRect, width, height);
+      drawInRotatedBox(ctx, box, layer.rotationDeg, (drawCtx, localBox) => {
+        drawHeadlineText(
+          drawCtx,
+          content.headline,
+          localBox,
+          designTokens,
+          layout.headlineFontSize,
+          layout.headlineMaxLines,
         );
-      }
+      });
     },
-    hero: (layer) => {
-      if (showHero && heroImg && layer.rect.width > 0 && layer.rect.height > 0) {
-        drawClassicImageLayer(
-          ctx,
-          heroImg,
-          layer,
-          "hero",
-          width,
-          height,
-          layout.logoMaxHeight,
-          false,
+    slogan: (layer, drawRect) => {
+      if (!showSlogan) return;
+      const box = classicBannerRectToPixels(drawRect, width, height);
+      drawInRotatedBox(ctx, box, layer.rotationDeg, (drawCtx, localBox) => {
+        drawSloganText(drawCtx, content.slogan, localBox, designTokens, layout.sloganFontSize);
+      });
+    },
+    logo: (layer, drawRect) => {
+      if (!showLogo || !logoImg || drawRect.width <= 0 || drawRect.height <= 0) return;
+      drawClassicRasterImageLayer(ctx, logoImg, layer, drawRect, width, height, false);
+    },
+    cta: (layer, drawRect) => {
+      if (!showCta) return;
+      const box = classicBannerRectToPixels(drawRect, width, height);
+      drawInRotatedBox(ctx, box, layer.rotationDeg, (drawCtx, localBox) => {
+        drawCtaButton(
+          drawCtx,
+          content.ctaText,
+          localBox,
+          designTokens,
+          layout.ctaFontSize,
+          layout.ctaPaddingX,
+          layout.ctaPaddingY,
         );
-      }
+      });
     },
-    headline: (layer, headlineBox) => {
-      if (showHeadline && content.headline.trim()) {
-        drawInRotatedBox(ctx, headlineBox, layer.rotationDeg, (drawCtx, box) => {
-          drawHeadlineText(
-            drawCtx,
-            content.headline,
-            box,
-            designTokens,
-            layout.headlineFontSize,
-            layout.headlineMaxLines,
-          );
-        });
-      }
-    },
-    slogan: (layer, sloganBox) => {
-      if (showSlogan) {
-        drawInRotatedBox(ctx, sloganBox, layer.rotationDeg, (drawCtx, box) => {
-          drawSloganText(drawCtx, content.slogan, box, designTokens, layout.sloganFontSize);
-        });
-      }
-    },
-    logo: (layer) => {
-      if (showLogo && logoImg && layer.rect.width > 0 && layer.rect.height > 0) {
-        drawClassicImageLayer(
-          ctx,
-          logoImg,
-          layer,
-          "logo",
-          width,
-          height,
-          layout.logoMaxHeight,
-          false,
-        );
-      }
-    },
-    cta: (layer, ctaBox) => {
-      if (showCta) {
-        drawInRotatedBox(ctx, ctaBox, layer.rotationDeg, (drawCtx, box) => {
-          drawCtaButton(
-            drawCtx,
-            content.ctaText,
-            box,
-            designTokens,
-            layout.ctaFontSize,
-            layout.ctaPaddingX,
-            layout.ctaPaddingY,
-          );
-        });
-      }
-    },
-    badge: (layer, badgeBox) => {
-      if (showBadge && badgeBox.width > 0 && badgeBox.height > 0) {
-        drawInRotatedBox(ctx, badgeBox, layer.rotationDeg, (drawCtx, box) => {
-          drawBadgePill(drawCtx, content.badgeText, box, designTokens, layout.badgeFontSize);
-        });
-      }
+    badge: (layer, drawRect) => {
+      if (!showBadge || drawRect.width <= 0 || drawRect.height <= 0) return;
+      const box = classicBannerRectToPixels(drawRect, width, height);
+      drawInRotatedBox(ctx, box, layer.rotationDeg, (drawCtx, localBox) => {
+        drawBadgePill(drawCtx, content.badgeText, localBox, designTokens, layout.badgeFontSize);
+      });
     },
   };
 
   for (const layer of [...layout.layers].sort((a, b) => a.zIndex - b.zIndex)) {
     if (!layer.visible) continue;
-    const box = rectToPixels(layer.rect, width, height);
-    drawBySlot[layer.slotId](layer, box);
+    const drawRect = resolveLayerDrawRect(
+      layer,
+      width,
+      height,
+      layout.logoMaxHeight,
+      backgroundHasRectOverride,
+      imageDimensionsBySlot,
+    );
+    drawBySlot[layer.slotId](layer, drawRect);
   }
 
   const blob = await canvasToPngBlob(canvas);

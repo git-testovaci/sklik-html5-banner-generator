@@ -14,10 +14,13 @@ import {
   snapClassicBannerResize,
   type ClassicBannerSnapGuideLine,
 } from "@/lib/classic-banner/classic-banner-snapping";
+import {
+  resolveClassicBannerLayerDrawRect,
+  resolveClassicBannerVariantDimensions,
+  withCanonicalClassicBannerVariant,
+} from "@/lib/classic-banner/classic-banner-rendering";
 import type { ClassicBannerLayoutRect } from "@/lib/classic-banner/classic-banner-layout";
 import {
-  computeClassicImageRenderedRect,
-  getClassicImageSlotFitOptions,
   resolveClassicBackgroundTransform,
   type ClassicBackgroundTransform,
   type ClassicImageDimensions,
@@ -91,31 +94,6 @@ const EMPTY_IMAGE_DIMENSIONS: Record<ClassicBannerImageSlot, ClassicImageDimensi
   logo: null,
   hero: null,
 };
-
-function resolveImageChromeRect(
-  slotId: ClassicEditableSlotId,
-  layerRect: ClassicBannerLayoutRect,
-  dimensions: ClassicImageDimensions | null,
-  bannerWidth: number,
-  bannerHeight: number,
-  logoMaxHeight: number,
-): ClassicBannerLayoutRect | undefined {
-  if (slotId !== "logo" && slotId !== "hero") return undefined;
-  if (!dimensions) return undefined;
-  const fitOpts = getClassicImageSlotFitOptions(slotId, logoMaxHeight);
-  if (!fitOpts) return undefined;
-  return computeClassicImageRenderedRect({
-    layerRect,
-    imageWidth: dimensions.width,
-    imageHeight: dimensions.height,
-    fit: fitOpts.fit,
-    bannerWidth,
-    bannerHeight,
-    maxHeightPx: fitOpts.maxHeightPx,
-    align: fitOpts.align,
-    allowUpscale: fitOpts.allowUpscale,
-  });
-}
 
 function rectsNearlyEqual(
   a: ClassicBannerLayoutRect,
@@ -561,12 +539,19 @@ export function ClassicBannerPreview({
   onLayerOverride,
   maxFitWidth = 520,
 }: ClassicBannerPreviewProps) {
-  const { width, height } = variant;
+  const canonicalVariant = useMemo(
+    () => withCanonicalClassicBannerVariant(variant),
+    [variant],
+  );
+  const { width, height } = useMemo(
+    () => resolveClassicBannerVariantDimensions(canonicalVariant),
+    [canonicalVariant],
+  );
   const { content, designTokens } = data;
   const viewportRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const viewZoomRef = useRef(viewZoom);
-  const layoutRef = useRef(resolveClassicBannerFinalLayout(data, variant));
+  const layoutRef = useRef(resolveClassicBannerFinalLayout(data, canonicalVariant));
   const selectedSlotIdRef = useRef(selectedSlotId);
   const [imageUrls, setImageUrls] =
     useState<Record<ClassicBannerImageSlot, string | null>>(EMPTY_IMAGE_URLS);
@@ -596,8 +581,8 @@ export function ClassicBannerPreview({
   }, [viewZoom]);
 
   const layout = useMemo(
-    () => resolveClassicBannerFinalLayout(data, variant),
-    [data, variant],
+    () => resolveClassicBannerFinalLayout(data, canonicalVariant),
+    [canonicalVariant, data],
   );
 
   useEffect(() => {
@@ -776,7 +761,7 @@ export function ClassicBannerPreview({
     const dims = resolvedImageDimensions.background;
     const hasRectOverride = classicBannerSlotHasRectOverride(
       data,
-      variant.sizeId,
+      canonicalVariant.sizeId,
       "background",
     );
     return resolveClassicBackgroundTransform({
@@ -786,6 +771,25 @@ export function ClassicBannerPreview({
       bannerHeight: height,
       imageWidth: dims?.width,
       imageHeight: dims?.height,
+    });
+  }
+
+  function resolveLayerDrawRect(layer: ClassicBannerResolvedLayer): ClassicBannerLayoutRect {
+    const imageSlot =
+      layer.slotId === "background" || layer.slotId === "logo" || layer.slotId === "hero"
+        ? layer.slotId
+        : null;
+    return resolveClassicBannerLayerDrawRect({
+      slotId: layer.slotId,
+      layerRect: layer.rect,
+      bannerWidth: width,
+      bannerHeight: height,
+      logoMaxHeight: layout.logoMaxHeight,
+      hasBackgroundRectOverride:
+        layer.slotId === "background"
+          ? classicBannerSlotHasRectOverride(data, canonicalVariant.sizeId, "background")
+          : false,
+      imageDimensions: imageSlot ? resolvedImageDimensions[imageSlot] : null,
     });
   }
 
@@ -889,12 +893,13 @@ export function ClassicBannerPreview({
   }
 
   function getLayerImageChrome(layer: ClassicBannerResolvedLayer) {
+    const drawRect = resolveLayerDrawRect(layer);
+
     if (layer.slotId === "background") {
       const dims = resolvedImageDimensions.background;
-      const transform = resolveBackgroundTransform(layer);
       return {
-        chromeRect: transform.imageRect,
-        interactionRect: transform.imageRect,
+        chromeRect: drawRect,
+        interactionRect: drawRect,
         imageAspect: dims ? dims.width / dims.height : undefined,
       };
     }
@@ -903,28 +908,15 @@ export function ClassicBannerPreview({
       return { chromeRect: undefined, interactionRect: undefined, imageAspect: undefined };
     }
     const dims = resolvedImageDimensions[layer.slotId];
-    const chromeRect = resolveImageChromeRect(
-      layer.slotId,
-      layer.rect,
-      dims,
-      width,
-      height,
-      layout.logoMaxHeight,
-    );
     return {
-      chromeRect,
+      chromeRect: dims ? drawRect : undefined,
       interactionRect: undefined,
       imageAspect: dims ? dims.width / dims.height : undefined,
     };
   }
 
   function getLayerDisplayRect(layer: ClassicBannerResolvedLayer): ClassicBannerLayoutRect {
-    if (layer.slotId === "background") {
-      const { chromeRect } = getLayerImageChrome(layer);
-      return chromeRect ?? layer.rect;
-    }
-    const { chromeRect } = getLayerImageChrome(layer);
-    return chromeRect ?? layer.rect;
+    return resolveLayerDrawRect(layer);
   }
 
   function layerPointerEvents(layer: ClassicBannerResolvedLayer): "auto" | "none" {
