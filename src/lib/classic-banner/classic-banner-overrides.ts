@@ -90,11 +90,19 @@ function defaultLayerVisible(
         Boolean(content.slogan.trim())
       );
     case "hero":
-      return isClassicBannerSlotVisible(data, "hero") && hasClassicBannerImageSource(content, "hero");
+      return (
+        isClassicBannerSlotVisible(data, "hero") &&
+        computed.showHero &&
+        hasClassicBannerImageSource(content, "hero")
+      );
     case "cta":
       return isClassicBannerSlotVisible(data, "cta") && Boolean(content.ctaText.trim());
     case "badge":
-      return isClassicBannerSlotVisible(data, "badge") && Boolean(content.badgeText.trim());
+      return (
+        isClassicBannerSlotVisible(data, "badge") &&
+        computed.showBadge &&
+        Boolean(content.badgeText.trim())
+      );
     default:
       return false;
   }
