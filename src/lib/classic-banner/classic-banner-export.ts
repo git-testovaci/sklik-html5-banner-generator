@@ -1,12 +1,14 @@
 import JSZip from "jszip";
 import {
   resolveClassicBannerFinalLayout,
+  classicBannerSlotHasRectOverride,
   type ClassicBannerResolvedLayer,
 } from "@/lib/classic-banner/classic-banner-overrides";
 import type { ClassicBannerLayoutRect } from "@/lib/classic-banner/classic-banner-layout";
 import {
   computeClassicImageRenderedRect,
   getClassicImageSlotFitOptions,
+  resolveClassicBackgroundImageRect,
 } from "@/lib/classic-banner/classic-banner-image-fit";
 import {
   loadClassicBannerImageForCanvas,
@@ -105,26 +107,37 @@ function drawClassicImageLayer(
   canvasWidth: number,
   canvasHeight: number,
   logoMaxHeight: number,
+  hasRectOverride: boolean,
 ): void {
   const fitOpts = getClassicImageSlotFitOptions(slotId, logoMaxHeight);
   if (!fitOpts) return;
 
-  const renderedRect =
-    fitOpts.fit === "contain"
-      ? computeClassicImageRenderedRect({
-          layerRect: layer.rect,
-          imageWidth: img.naturalWidth,
-          imageHeight: img.naturalHeight,
-          fit: fitOpts.fit,
-          bannerWidth: canvasWidth,
-          bannerHeight: canvasHeight,
-          maxHeightPx: fitOpts.maxHeightPx,
-          align: fitOpts.align,
-          allowUpscale: fitOpts.allowUpscale,
-        })
-      : layer.rect;
+  let drawRect = layer.rect;
 
-  const pixelBox = rectToPixels(renderedRect, canvasWidth, canvasHeight);
+  if (slotId === "background") {
+    drawRect = resolveClassicBackgroundImageRect({
+      layerRect: layer.rect,
+      hasRectOverride,
+      bannerWidth: canvasWidth,
+      bannerHeight: canvasHeight,
+      imageWidth: img.naturalWidth,
+      imageHeight: img.naturalHeight,
+    });
+  } else if (fitOpts.fit === "contain") {
+    drawRect = computeClassicImageRenderedRect({
+      layerRect: layer.rect,
+      imageWidth: img.naturalWidth,
+      imageHeight: img.naturalHeight,
+      fit: fitOpts.fit,
+      bannerWidth: canvasWidth,
+      bannerHeight: canvasHeight,
+      maxHeightPx: fitOpts.maxHeightPx,
+      align: fitOpts.align,
+      allowUpscale: fitOpts.allowUpscale,
+    });
+  }
+
+  const pixelBox = rectToPixels(drawRect, canvasWidth, canvasHeight);
   drawInRotatedBox(ctx, pixelBox, layer.rotationDeg, (drawCtx, box) => {
     drawImageInLocalBox(drawCtx, img, box, fitOpts.fit);
   });
@@ -514,6 +527,12 @@ export async function exportClassicBannerVariantToPng(
   ctx.fillStyle = designTokens.primaryColor;
   ctx.fillRect(0, 0, width, height);
 
+  const backgroundHasRectOverride = classicBannerSlotHasRectOverride(
+    data,
+    variant.sizeId,
+    "background",
+  );
+
   const drawBySlot: Record<
     ClassicEditableSlotId,
     (layer: ClassicBannerResolvedLayer, box: PixelRect) => void
@@ -528,12 +547,22 @@ export async function exportClassicBannerVariantToPng(
           width,
           height,
           layout.logoMaxHeight,
+          backgroundHasRectOverride,
         );
       }
     },
     hero: (layer) => {
       if (showHero && heroImg && layer.rect.width > 0 && layer.rect.height > 0) {
-        drawClassicImageLayer(ctx, heroImg, layer, "hero", width, height, layout.logoMaxHeight);
+        drawClassicImageLayer(
+          ctx,
+          heroImg,
+          layer,
+          "hero",
+          width,
+          height,
+          layout.logoMaxHeight,
+          false,
+        );
       }
     },
     headline: (layer, headlineBox) => {
@@ -559,7 +588,16 @@ export async function exportClassicBannerVariantToPng(
     },
     logo: (layer) => {
       if (showLogo && logoImg && layer.rect.width > 0 && layer.rect.height > 0) {
-        drawClassicImageLayer(ctx, logoImg, layer, "logo", width, height, layout.logoMaxHeight);
+        drawClassicImageLayer(
+          ctx,
+          logoImg,
+          layer,
+          "logo",
+          width,
+          height,
+          layout.logoMaxHeight,
+          false,
+        );
       }
     },
     cta: (layer, ctaBox) => {

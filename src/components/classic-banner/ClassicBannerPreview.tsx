@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   clampClassicBannerLayerRect,
   clampClassicBannerRotation,
+  classicBannerSlotHasRectOverride,
   resolveClassicBannerFinalLayout,
   type ClassicBannerResolvedLayer,
 } from "@/lib/classic-banner/classic-banner-overrides";
@@ -11,6 +12,7 @@ import type { ClassicBannerLayoutRect } from "@/lib/classic-banner/classic-banne
 import {
   computeClassicImageRenderedRect,
   getClassicImageSlotFitOptions,
+  resolveClassicBackgroundImageRect,
   type ClassicImageDimensions,
 } from "@/lib/classic-banner/classic-banner-image-fit";
 import {
@@ -203,6 +205,7 @@ interface InteractiveLayerProps {
   bannerHeight: number;
   canvasScale: number;
   chromeRect?: ClassicBannerLayoutRect;
+  interactionRect?: ClassicBannerLayoutRect;
   imageAspect?: number;
   onSelect: () => void;
   onRectChange: (rect: ClassicBannerLayoutRect) => void;
@@ -217,6 +220,7 @@ function InteractiveLayer({
   bannerHeight,
   canvasScale,
   chromeRect,
+  interactionRect,
   imageAspect,
   onSelect,
   onRectChange,
@@ -225,7 +229,11 @@ function InteractiveLayer({
 }: InteractiveLayerProps) {
   const { rect, locked, slotId, rotationDeg } = layer;
   const chrome = chromeRect ?? rect;
+  const hit = interactionRect ?? rect;
   const usesChromeRect = chromeRect !== undefined && !rectsNearlyEqual(chromeRect, rect);
+  const usesInteractionRect =
+    interactionRect !== undefined && !rectsNearlyEqual(interactionRect, rect);
+  const transformBase = interactionRect ?? (usesChromeRect ? chrome : rect);
   const canInteract = !locked && pointerEvents === "auto";
   const suppressClickRef = useRef(false);
   const hitRef = useRef<HTMLDivElement>(null);
@@ -255,7 +263,7 @@ function InteractiveLayer({
       const scale = canvasScale > 0 ? canvasScale : 1;
       const startClientX = e.clientX;
       const startClientY = e.clientY;
-      const origin = mode === "move" || !usesChromeRect ? { ...rect } : { ...chrome };
+      const origin = { ...transformBase };
       const preserveAspect = CLASSIC_ASPECT_RATIO_SLOTS.has(slotId) && !e.shiftKey;
       const aspect =
         imageAspect ?? origin.width / Math.max(origin.height, 0.01);
@@ -284,9 +292,9 @@ function InteractiveLayer({
         if (mode === "move") {
           onRectChange(
             clampClassicBannerLayerRect(slotId, {
-              ...rect,
-              left: rect.left + dxPct,
-              top: rect.top + dyPct,
+              ...origin,
+              left: origin.left + dxPct,
+              top: origin.top + dyPct,
             }),
           );
           return;
@@ -341,7 +349,7 @@ function InteractiveLayer({
       target.addEventListener("pointerup", onUp);
       target.addEventListener("pointercancel", onUp);
     },
-    [bannerHeight, bannerWidth, canInteract, canvasScale, chrome, imageAspect, onRectChange, onSelect, pointerEvents, rect, slotId, usesChromeRect],
+    [bannerHeight, bannerWidth, canInteract, canvasScale, imageAspect, onRectChange, onSelect, pointerEvents, slotId, transformBase],
   );
 
   const startRotate = useCallback(
@@ -392,6 +400,64 @@ function InteractiveLayer({
     [canInteract, onRotationChange, onSelect, rotationDeg],
   );
 
+  const hitUsesRotation = usesInteractionRect || slotId === "background" || usesChromeRect;
+  const unifiedInteraction = interactionRect !== undefined;
+
+  if (unifiedInteraction) {
+    return (
+      <div
+        ref={chromeRef}
+        className={`absolute touch-none select-none ${
+          locked
+            ? "cursor-not-allowed"
+            : canInteract
+              ? "cursor-move"
+              : pointerEvents === "auto"
+                ? "cursor-pointer"
+                : ""
+        }`}
+        style={{
+          ...layerTransformStyle(hit, layer.zIndex, rotationDeg),
+          pointerEvents,
+        }}
+        onPointerDown={(e) => {
+          if (pointerEvents !== "auto") return;
+          if (e.button !== 0) return;
+          if ((e.target as HTMLElement).closest("[data-resize-handle], [data-rotate-handle]")) return;
+          startDrag(e, "move");
+        }}
+        onClick={(e) => {
+          if (pointerEvents !== "auto") return;
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false;
+            e.stopPropagation();
+            return;
+          }
+          e.stopPropagation();
+          onSelect();
+        }}
+      >
+        <SelectionOverlay
+          visible={selected}
+          locked={locked}
+          label={CLASSIC_SLOT_CZECH_NAMES[slotId]}
+        />
+        {canInteract && selected ? (
+          <>
+            <RotationHandle onPointerDown={startRotate} />
+            {(["tl", "tr", "bl", "br"] as Corner[]).map((corner) => (
+              <ResizeHandle
+                key={corner}
+                corner={corner}
+                onPointerDown={(e, c) => startDrag(e, c)}
+              />
+            ))}
+          </>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <>
       <div
@@ -406,7 +472,7 @@ function InteractiveLayer({
                 : ""
         }`}
         style={{
-          ...layerTransformStyle(rect, layer.zIndex, 0),
+          ...layerTransformStyle(hit, layer.zIndex, hitUsesRotation ? rotationDeg : 0),
           pointerEvents,
         }}
         onPointerDown={(e) => {
@@ -763,8 +829,30 @@ export function ClassicBannerPreview({
   }
 
   function getLayerImageChrome(layer: ClassicBannerResolvedLayer) {
+    if (layer.slotId === "background") {
+      const dims = resolvedImageDimensions.background;
+      const hasRectOverride = classicBannerSlotHasRectOverride(
+        data,
+        variant.sizeId,
+        "background",
+      );
+      const effectiveRect = resolveClassicBackgroundImageRect({
+        layerRect: layer.rect,
+        hasRectOverride,
+        bannerWidth: width,
+        bannerHeight: height,
+        imageWidth: dims?.width,
+        imageHeight: dims?.height,
+      });
+      return {
+        chromeRect: effectiveRect,
+        interactionRect: effectiveRect,
+        imageAspect: dims ? dims.width / dims.height : undefined,
+      };
+    }
+
     if (layer.slotId !== "logo" && layer.slotId !== "hero") {
-      return { chromeRect: undefined, imageAspect: undefined };
+      return { chromeRect: undefined, interactionRect: undefined, imageAspect: undefined };
     }
     const dims = resolvedImageDimensions[layer.slotId];
     const chromeRect = resolveImageChromeRect(
@@ -777,11 +865,16 @@ export function ClassicBannerPreview({
     );
     return {
       chromeRect,
+      interactionRect: undefined,
       imageAspect: dims ? dims.width / dims.height : undefined,
     };
   }
 
   function getLayerDisplayRect(layer: ClassicBannerResolvedLayer): ClassicBannerLayoutRect {
+    if (layer.slotId === "background") {
+      const { chromeRect } = getLayerImageChrome(layer);
+      return chromeRect ?? layer.rect;
+    }
     const { chromeRect } = getLayerImageChrome(layer);
     return chromeRect ?? layer.rect;
   }
@@ -923,7 +1016,7 @@ export function ClassicBannerPreview({
 
             <div className="absolute inset-0 overflow-visible">
               {canvasLayers.map((layer) => {
-                const { chromeRect, imageAspect } = getLayerImageChrome(layer);
+                const { chromeRect, interactionRect, imageAspect } = getLayerImageChrome(layer);
                 return (
                   <InteractiveLayer
                     key={layer.slotId}
@@ -933,6 +1026,7 @@ export function ClassicBannerPreview({
                     bannerHeight={height}
                     canvasScale={totalScale}
                     chromeRect={chromeRect}
+                    interactionRect={interactionRect}
                     imageAspect={imageAspect}
                     onSelect={() => onSelectSlot(layer.slotId)}
                     onRectChange={(rect) => patchLayer(layer.slotId, { rect })}

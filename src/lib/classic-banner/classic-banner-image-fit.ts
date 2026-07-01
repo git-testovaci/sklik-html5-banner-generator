@@ -1,4 +1,5 @@
 import type { ClassicBannerLayoutRect } from "@/lib/classic-banner/classic-banner-layout";
+import { clampClassicBannerBackgroundRect } from "@/lib/classic-banner/classic-banner-overrides";
 import type { ClassicEditableSlotId } from "@/types/classic-banner";
 
 export type ClassicImageFitMode = "contain" | "cover";
@@ -141,6 +142,93 @@ export function computeClassicImageRenderedRect(
   }
 
   return pixelsToLayerRect(box.x + dx, box.y + dy, dw, dh, bannerWidth, bannerHeight);
+}
+
+export function isClassicBackgroundDefaultRect(rect: ClassicBannerLayoutRect): boolean {
+  return (
+    Math.abs(rect.left) < 0.05 &&
+    Math.abs(rect.top) < 0.05 &&
+    Math.abs(rect.width - 100) < 0.05 &&
+    Math.abs(rect.height - 100) < 0.05
+  );
+}
+
+/**
+ * Cover-style background image layer rect under a fixed banner crop.
+ * May extend beyond 0–100% when image aspect differs from banner aspect.
+ */
+export function computeClassicBackgroundCoverRect(
+  bannerWidth: number,
+  bannerHeight: number,
+  imageWidth: number,
+  imageHeight: number,
+): ClassicBannerLayoutRect {
+  if (
+    bannerWidth <= 0 ||
+    bannerHeight <= 0 ||
+    imageWidth <= 0 ||
+    imageHeight <= 0
+  ) {
+    return { left: 0, top: 0, width: 100, height: 100 };
+  }
+
+  const bannerRatio = bannerWidth / bannerHeight;
+  const imageRatio = imageWidth / imageHeight;
+
+  let widthPct: number;
+  let heightPct: number;
+
+  if (imageRatio > bannerRatio) {
+    heightPct = 100;
+    widthPct = 100 * (imageRatio / bannerRatio);
+  } else {
+    widthPct = 100;
+    heightPct = 100 * (bannerRatio / imageRatio);
+  }
+
+  return clampClassicBannerBackgroundRect({
+    left: (100 - widthPct) / 2,
+    top: (100 - heightPct) / 2,
+    width: widthPct,
+    height: heightPct,
+  });
+}
+
+export function resolveClassicBackgroundImageRect(params: {
+  layerRect: ClassicBannerLayoutRect;
+  hasRectOverride: boolean;
+  bannerWidth: number;
+  bannerHeight: number;
+  imageWidth?: number;
+  imageHeight?: number;
+}): ClassicBannerLayoutRect {
+  const {
+    layerRect,
+    hasRectOverride,
+    bannerWidth,
+    bannerHeight,
+    imageWidth,
+    imageHeight,
+  } = params;
+
+  if (hasRectOverride) {
+    return { ...layerRect };
+  }
+
+  if (!imageWidth || !imageHeight) {
+    return { ...layerRect };
+  }
+
+  if (!isClassicBackgroundDefaultRect(layerRect)) {
+    return { ...layerRect };
+  }
+
+  return computeClassicBackgroundCoverRect(
+    bannerWidth,
+    bannerHeight,
+    imageWidth,
+    imageHeight,
+  );
 }
 
 export interface DrawClassicImageFitParams {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import {
   CLASSIC_SLOT_CZECH_NAMES,
 } from "@/lib/classic-banner/classic-banner-selection";
@@ -11,6 +12,7 @@ import {
   CLASSIC_BACKGROUND_RECT_MIN_TOP,
   clampClassicBannerLayerRect,
   clampClassicBannerRotation,
+  classicBannerSlotHasRectOverride,
   getClassicLayerReorderState,
   patchClassicBannerLayerOverride,
   reorderClassicBannerLayer,
@@ -19,7 +21,14 @@ import {
   resetClassicBannerVariantOverrides,
   resolveClassicBannerFinalLayout,
 } from "@/lib/classic-banner/classic-banner-overrides";
+import {
+  getClassicBannerImageDimensionsFromAssets,
+  resolveClassicBannerImageDimensionsMap,
+  type ClassicBannerImageDimensions,
+} from "@/lib/classic-banner/classic-banner-image-sources";
+import { resolveClassicBackgroundImageRect } from "@/lib/classic-banner/classic-banner-image-fit";
 import { prepareClassicBannerData } from "@/lib/classic-banner/classic-banner-update";
+import type { BannerAsset } from "@/types/assets";
 import type {
   ClassicBannerLayerOverride,
   ClassicBannerEditorChangeOptions,
@@ -34,6 +43,7 @@ interface ClassicLayerInspectorProps {
   data: ClassicBannerProjectData;
   variant: ClassicBannerSizeVariant;
   selectedSlotId: ClassicEditableSlotId | null;
+  assets?: BannerAsset[];
   onChange: ClassicBannerOnChange;
 }
 
@@ -178,13 +188,34 @@ export function ClassicLayerInspector({
   data,
   variant,
   selectedSlotId,
+  assets = [],
   onChange,
 }: ClassicLayerInspectorProps) {
+  const [urlBackgroundDims, setUrlBackgroundDims] = useState<ClassicBannerImageDimensions | null>(
+    null,
+  );
+
+  const assetBackgroundDims = useMemo(
+    () => getClassicBannerImageDimensionsFromAssets(data.content, "background", assets),
+    [assets, data.content],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void resolveClassicBannerImageDimensionsMap(data.content, assets).then((resolved) => {
+      if (cancelled) return;
+      setUrlBackgroundDims(resolved.background);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [assets, data.content]);
+
   if (!selectedSlotId) {
     return (
       <div className="border-b border-zinc-800/80 px-4 py-3">
         <p className="text-xs text-zinc-500">
-          Klikněte na vrstvu v náhledu nebo v seznamu vrstev pro úpravu pozice.
+          Klikněte na vrstvu v náhledu nebo v seznamu vrstev pro úpradu pozice.
         </p>
       </div>
     );
@@ -194,6 +225,20 @@ export function ClassicLayerInspector({
   const layer = finalLayout.layerBySlot[selectedSlotId];
   const sizeId = variant.sizeId;
   const reorderState = getClassicLayerReorderState(finalLayout, selectedSlotId);
+
+  const backgroundDims = assetBackgroundDims ?? urlBackgroundDims;
+  const isBackground = selectedSlotId === "background";
+  const backgroundHasRectOverride = classicBannerSlotHasRectOverride(data, sizeId, "background");
+  const editableRect = isBackground
+    ? resolveClassicBackgroundImageRect({
+        layerRect: layer.rect,
+        hasRectOverride: backgroundHasRectOverride,
+        bannerWidth: variant.width,
+        bannerHeight: variant.height,
+        imageWidth: backgroundDims?.width,
+        imageHeight: backgroundDims?.height,
+      })
+    : layer.rect;
 
   function emit(next: ClassicBannerProjectData, options?: ClassicBannerEditorChangeOptions) {
     onChange(prepareClassicBannerData(next), options);
@@ -210,15 +255,14 @@ export function ClassicLayerInspector({
   function updateRect(field: "left" | "top" | "width" | "height", value: number) {
     if (!Number.isFinite(value)) return;
     const nextRect = clampClassicBannerLayerRect(selectedSlotId!, {
-      left: field === "left" ? value : layer.rect.left,
-      top: field === "top" ? value : layer.rect.top,
-      width: field === "width" ? value : layer.rect.width,
-      height: field === "height" ? value : layer.rect.height,
+      left: field === "left" ? value : editableRect.left,
+      top: field === "top" ? value : editableRect.top,
+      width: field === "width" ? value : editableRect.width,
+      height: field === "height" ? value : editableRect.height,
     });
     patch({ rect: nextRect }, { history: "replace" });
   }
 
-  const isBackground = selectedSlotId === "background";
   const rectFieldBounds = isBackground
     ? {
         left: { min: CLASSIC_BACKGROUND_RECT_MIN_LEFT, max: 100 },
@@ -257,7 +301,8 @@ export function ClassicLayerInspector({
 
       {isBackground ? (
         <p className="mb-3 text-[11px] text-zinc-500">
-          Pozadí může přesahovat mimo banner. Export se ořízne na výsledný rozměr.
+          Pozadí je obrázek pod pevným výřezem banneru. Může přesahovat mimo banner; export se
+          ořízne.
         </p>
       ) : null}
 
@@ -286,7 +331,7 @@ export function ClassicLayerInspector({
         <NumberField
           id="layer-x"
           label="X (%)"
-          value={layer.rect.left}
+          value={editableRect.left}
           disabled={layer.locked}
           min={rectFieldBounds.left.min}
           max={rectFieldBounds.left.max}
@@ -295,7 +340,7 @@ export function ClassicLayerInspector({
         <NumberField
           id="layer-y"
           label="Y (%)"
-          value={layer.rect.top}
+          value={editableRect.top}
           disabled={layer.locked}
           min={rectFieldBounds.top.min}
           max={rectFieldBounds.top.max}
@@ -304,7 +349,7 @@ export function ClassicLayerInspector({
         <NumberField
           id="layer-w"
           label="Šířka (%)"
-          value={layer.rect.width}
+          value={editableRect.width}
           disabled={layer.locked}
           min={rectFieldBounds.width.min}
           max={rectFieldBounds.width.max}
@@ -313,7 +358,7 @@ export function ClassicLayerInspector({
         <NumberField
           id="layer-h"
           label="Výška (%)"
-          value={layer.rect.height}
+          value={editableRect.height}
           disabled={layer.locked}
           min={rectFieldBounds.height.min}
           max={rectFieldBounds.height.max}

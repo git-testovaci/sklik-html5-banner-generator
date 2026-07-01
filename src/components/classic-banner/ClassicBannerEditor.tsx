@@ -650,13 +650,6 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
             selectedSizeId={selectedSizeId}
             onSelect={handleSelectVariant}
           />
-          <ClassicLayerList
-            data={classicBanner}
-            variant={selectedVariant}
-            selectedSlotId={selectedSlotId}
-            onSelectSlot={setSelectedSlotId}
-            onChange={handleClassicBannerChange}
-          />
         </aside>
 
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-zinc-950/50">
@@ -678,16 +671,25 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
           />
         </main>
 
-        <aside className="h-80 shrink-0 border-t border-zinc-800/80 bg-zinc-900/40 lg:h-auto lg:w-80 lg:border-l lg:border-t-0 xl:w-96">
-          <ClassicBannerInspector
+        <aside className="flex h-80 min-h-0 shrink-0 flex-col border-t border-zinc-800/80 bg-zinc-900/40 lg:h-auto lg:w-80 lg:border-l lg:border-t-0 xl:w-96">
+          <ClassicLayerList
             data={classicBanner}
-            projectId={project.id}
-            assets={assets}
-            selectedVariant={selectedVariant}
+            variant={selectedVariant}
             selectedSlotId={selectedSlotId}
+            onSelectSlot={setSelectedSlotId}
             onChange={handleClassicBannerChange}
-            onCombinedChange={handleCombinedChange}
           />
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <ClassicBannerInspector
+              data={classicBanner}
+              projectId={project.id}
+              assets={assets}
+              selectedVariant={selectedVariant}
+              selectedSlotId={selectedSlotId}
+              onChange={handleClassicBannerChange}
+              onCombinedChange={handleCombinedChange}
+            />
+          </div>
         </aside>
       </div>
     </div>

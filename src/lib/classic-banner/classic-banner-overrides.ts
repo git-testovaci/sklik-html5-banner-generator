@@ -449,3 +449,11 @@ export function variantHasManualOverrides(
   const overrides = getVariantOverrides(data, sizeId);
   return Object.values(overrides).some(hasAnyOverride);
 }
+
+export function classicBannerSlotHasRectOverride(
+  data: ClassicBannerProjectData,
+  sizeId: string,
+  slotId: ClassicEditableSlotId,
+): boolean {
+  return getVariantOverrides(data, sizeId)[slotId]?.rect !== undefined;
+}

@@ -335,10 +335,10 @@ export function ClassicBannerInspector({
   }
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto">
+    <div className="flex flex-col">
       <div className="border-b border-zinc-800/80 px-4 py-3">
         <h2 className="text-sm font-semibold text-zinc-200">Inspector</h2>
-        <p className="mt-0.5 text-xs text-zinc-500">Vrstva, obsah a vzhled banneru</p>
+        <p className="mt-0.5 text-xs text-zinc-500">Vlastnosti vybrané vrstvy, obsah a vzhled</p>
       </div>
 
       {selectedVariant ? (
@@ -347,6 +347,7 @@ export function ClassicBannerInspector({
             data={data}
             variant={selectedVariant}
             selectedSlotId={selectedSlotId}
+            assets={assets}
             onChange={onChange}
           />
           <ClassicPropagationPanel

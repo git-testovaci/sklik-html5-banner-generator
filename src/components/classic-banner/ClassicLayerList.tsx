@@ -40,12 +40,12 @@ export function ClassicLayerList({
   }
 
   return (
-    <div className="flex flex-col border-t border-zinc-800/80">
+    <div className="flex shrink-0 flex-col border-b border-zinc-800/80">
       <div className="px-3 py-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Vrstvy</h3>
         <p className="mt-0.5 text-[10px] text-zinc-600">Seřazeno podle z-indexu (nahoře = vpředu)</p>
       </div>
-      <ul className="max-h-48 space-y-1 overflow-y-auto px-2 pb-3 lg:max-h-none">
+      <ul className="max-h-40 space-y-1 overflow-y-auto px-2 pb-3">
         {ordered.map((layer) => {
           const selected = selectedSlotId === layer.slotId;
           const reorderState = getClassicLayerReorderState(finalLayout, layer.slotId);
