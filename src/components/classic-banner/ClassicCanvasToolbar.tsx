@@ -10,13 +10,17 @@ function clampZoom(value: number): number {
 
 interface ClassicCanvasToolbarProps {
   zoom: number;
-  onZoomChange: (zoom: number) => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onZoomReset: () => void;
   onFitToView: () => void;
 }
 
 export function ClassicCanvasToolbar({
   zoom,
-  onZoomChange,
+  onZoomIn,
+  onZoomOut,
+  onZoomReset,
   onFitToView,
 }: ClassicCanvasToolbarProps) {
   const percent = Math.round(zoom * 100);
@@ -26,7 +30,7 @@ export function ClassicCanvasToolbar({
       <button
         type="button"
         aria-label="Oddálit"
-        onClick={() => onZoomChange(clampZoom(zoom - ZOOM_STEP))}
+        onClick={onZoomOut}
         className="inline-flex h-8 w-8 items-center justify-center rounded border border-zinc-700 text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800"
       >
         −
@@ -35,14 +39,14 @@ export function ClassicCanvasToolbar({
       <button
         type="button"
         aria-label="Přiblížit"
-        onClick={() => onZoomChange(clampZoom(zoom + ZOOM_STEP))}
+        onClick={onZoomIn}
         className="inline-flex h-8 w-8 items-center justify-center rounded border border-zinc-700 text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800"
       >
         +
       </button>
       <button
         type="button"
-        onClick={() => onZoomChange(1)}
+        onClick={onZoomReset}
         className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800"
       >
         100%
@@ -58,4 +62,4 @@ export function ClassicCanvasToolbar({
   );
 }
 
-export { ZOOM_MIN, ZOOM_MAX, clampZoom };
+export { ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, clampZoom };

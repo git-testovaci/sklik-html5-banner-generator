@@ -22,6 +22,7 @@ export interface ClassicBannerResolvedLayer {
   zIndex: number;
   visible: boolean;
   locked: boolean;
+  rotationDeg: number;
   hasOverride: boolean;
 }
 
@@ -32,9 +33,23 @@ export interface ClassicBannerFinalLayout extends ClassicBannerComputedLayout {
 }
 
 const MIN_RECT_PERCENT = 2;
+const ROTATION_MIN = -180;
+const ROTATION_MAX = 180;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+export function clampClassicBannerRotation(rotationDeg: number): number {
+  if (!Number.isFinite(rotationDeg)) return 0;
+  return clamp(Math.round(rotationDeg * 10) / 10, ROTATION_MIN, ROTATION_MAX);
+}
+
+export function layerRectCenter(rect: ClassicBannerLayoutRect): { x: number; y: number } {
+  return {
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2,
+  };
 }
 
 export function clampClassicBannerRect(rect: ClassicBannerLayoutRect): ClassicBannerLayoutRect {
@@ -66,6 +81,11 @@ function mergeRect(
     width: override.rect.width ?? base.width,
     height: override.rect.height ?? base.height,
   });
+}
+
+function mergeRotation(override?: ClassicBannerLayerOverride): number {
+  if (override?.rotationDeg === undefined) return 0;
+  return clampClassicBannerRotation(override.rotationDeg);
 }
 
 function defaultLayerVisible(
@@ -121,7 +141,8 @@ function hasAnyOverride(override?: ClassicBannerLayerOverride): boolean {
     override.rect !== undefined ||
     override.zIndex !== undefined ||
     override.visible !== undefined ||
-    override.locked === true
+    override.locked === true ||
+    override.rotationDeg !== undefined
   );
 }
 
@@ -155,6 +176,7 @@ export function resolveClassicBannerFinalLayout(
       zIndex,
       visible: slotOverride?.visible ?? defaultLayerVisible(data, computed, slotId),
       locked: slotOverride?.locked ?? false,
+      rotationDeg: mergeRotation(slotOverride),
       hasOverride: hasAnyOverride(slotOverride),
     };
   });
@@ -213,6 +235,9 @@ export function patchClassicBannerLayerOverride(
   if (patch.zIndex !== undefined) existing.zIndex = patch.zIndex;
   if (patch.visible !== undefined) existing.visible = patch.visible;
   if (patch.locked !== undefined) existing.locked = patch.locked;
+  if (patch.rotationDeg !== undefined) {
+    existing.rotationDeg = clampClassicBannerRotation(patch.rotationDeg);
+  }
 
   sizeOverrides[slotId] = existing;
   return withVariantOverrides(data, sizeId, sizeOverrides);

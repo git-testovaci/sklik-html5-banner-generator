@@ -4,6 +4,7 @@ import {
   CLASSIC_SLOT_CZECH_NAMES,
 } from "@/lib/classic-banner/classic-banner-selection";
 import {
+  clampClassicBannerRotation,
   getClassicLayerReorderState,
   patchClassicBannerLayerOverride,
   reorderClassicBannerLayer,
@@ -208,6 +209,11 @@ export function ClassicLayerInspector({
     }, { history: "replace" });
   }
 
+  function updateRotation(value: number) {
+    if (!Number.isFinite(value)) return;
+    patch({ rotationDeg: clampClassicBannerRotation(value) }, { history: "replace" });
+  }
+
   return (
     <div className="border-b border-zinc-800/80 px-4 py-3">
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -275,6 +281,65 @@ export function ClassicLayerInspector({
           disabled={layer.locked}
           onChange={(height) => updateRect("height", height)}
         />
+      </div>
+
+      <div className="mt-4">
+        <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+          Rotace
+        </h4>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <input
+              id="layer-rotation"
+              type="range"
+              min={-180}
+              max={180}
+              step={1}
+              disabled={layer.locked}
+              value={layer.rotationDeg}
+              onChange={(e) => updateRotation(Number(e.target.value))}
+              className="min-w-0 flex-1 disabled:opacity-50"
+            />
+            <input
+              type="number"
+              min={-180}
+              max={180}
+              step={1}
+              disabled={layer.locked}
+              value={Math.round(layer.rotationDeg)}
+              onChange={(e) => updateRotation(Number(e.target.value))}
+              className="w-16 rounded border border-zinc-700 bg-zinc-900 px-1 py-1 text-center font-mono text-xs text-zinc-100 disabled:opacity-50"
+              aria-label="Rotace ve stupních"
+            />
+            <span className="text-xs text-zinc-500">°</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={layer.locked}
+              onClick={() => updateRotation(layer.rotationDeg - 15)}
+              className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
+            >
+              −15°
+            </button>
+            <button
+              type="button"
+              disabled={layer.locked}
+              onClick={() => updateRotation(layer.rotationDeg + 15)}
+              className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
+            >
+              +15°
+            </button>
+            <button
+              type="button"
+              disabled={layer.locked || layer.rotationDeg === 0}
+              onClick={() => patch({ rotationDeg: 0 }, { history: "push" })}
+              className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
+            >
+              Reset rotace
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="mt-4">

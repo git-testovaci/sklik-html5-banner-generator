@@ -55,7 +55,8 @@ function layerHasManualOverride(override?: ClassicBannerLayerOverride): boolean 
     override.rect !== undefined ||
     override.zIndex !== undefined ||
     override.visible !== undefined ||
-    override.locked === true
+    override.locked === true ||
+    override.rotationDeg !== undefined
   );
 }
 
@@ -65,6 +66,7 @@ function copyLayerOverride(source: ClassicBannerLayerOverride): ClassicBannerLay
     zIndex: source.zIndex,
     visible: source.visible,
     locked: source.locked,
+    rotationDeg: source.rotationDeg,
   };
 }
 

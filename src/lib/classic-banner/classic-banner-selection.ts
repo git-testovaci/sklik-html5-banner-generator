@@ -23,6 +23,7 @@ export const CLASSIC_SLOT_CZECH_NAMES: Record<ClassicEditableSlotId, string> = {
 
 /** Image slots preserve aspect ratio on corner resize unless Shift is held. */
 export const CLASSIC_ASPECT_RATIO_SLOTS: ReadonlySet<ClassicEditableSlotId> = new Set([
+  "background",
   "logo",
   "hero",
 ]);

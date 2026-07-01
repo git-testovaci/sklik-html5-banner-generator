@@ -116,6 +116,7 @@ export interface ClassicBannerLayerOverride {
   zIndex?: number;
   visible?: boolean;
   locked?: boolean;
+  rotationDeg?: number;
 }
 
 /** Per-size manual layout overrides — layered on computed layout, never mutating it. */

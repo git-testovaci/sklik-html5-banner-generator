@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   clampClassicBannerRect,
+  clampClassicBannerRotation,
   resolveClassicBannerFinalLayout,
   type ClassicBannerResolvedLayer,
 } from "@/lib/classic-banner/classic-banner-overrides";
@@ -23,7 +24,7 @@ import type {
   ClassicBannerSizeVariant,
   ClassicEditableSlotId,
 } from "@/types/classic-banner";
-import { ClassicCanvasToolbar, clampZoom } from "./ClassicCanvasToolbar";
+import { ClassicCanvasToolbar, ZOOM_STEP, clampZoom } from "./ClassicCanvasToolbar";
 
 type Corner = "tl" | "tr" | "bl" | "br";
 
@@ -42,17 +43,22 @@ interface ClassicBannerPreviewProps {
   maxFitWidth?: number;
 }
 
-function layerStyle(
+function layerTransformStyle(
   rect: ClassicBannerLayoutRect,
   zIndex: number,
+  rotationDeg: number,
 ): React.CSSProperties {
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
   return {
     position: "absolute",
-    left: `${rect.left}%`,
-    top: `${rect.top}%`,
+    left: `${cx}%`,
+    top: `${cy}%`,
     width: `${rect.width}%`,
     height: `${rect.height}%`,
-    overflow: "hidden",
+    transform: `translate(-50%, -50%) rotate(${rotationDeg}deg)`,
+    transformOrigin: "center center",
+    overflow: "visible",
     zIndex,
   };
 }
@@ -83,7 +89,7 @@ function SelectionOverlay({
             : "border-2 border-violet-400 ring-1 ring-violet-400/40 shadow-[0_0_0_1px_rgba(0,0,0,0.35)]"
         }`}
       />
-      <span className="pointer-events-none absolute -top-5 left-0 z-[21] rounded bg-zinc-950/90 px-1.5 py-0.5 text-[9px] font-medium text-zinc-200">
+      <span className="pointer-events-none absolute -top-5 left-0 z-[21] whitespace-nowrap rounded bg-zinc-950/90 px-1.5 py-0.5 text-[9px] font-medium text-zinc-200">
         {label}
         {locked ? " · zamknuto" : ""}
       </span>
@@ -119,6 +125,26 @@ function ResizeHandle({
   );
 }
 
+function RotationHandle({
+  onPointerDown,
+}: {
+  onPointerDown: (e: React.PointerEvent) => void;
+}) {
+  return (
+    <span
+      data-rotate-handle
+      role="presentation"
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        onPointerDown(e);
+      }}
+      className="absolute -top-8 left-1/2 z-[23] h-4 w-4 -translate-x-1/2 cursor-grab rounded-full border-2 border-white bg-emerald-500 shadow-md active:cursor-grabbing"
+      title="Otáčet vrstvu"
+    />
+  );
+}
+
 interface InteractiveLayerProps {
   layer: ClassicBannerResolvedLayer;
   selected: boolean;
@@ -127,6 +153,7 @@ interface InteractiveLayerProps {
   canvasScale: number;
   onSelect: () => void;
   onRectChange: (rect: ClassicBannerLayoutRect) => void;
+  onRotationChange: (rotationDeg: number) => void;
   pointerEvents: "auto" | "none";
   children: React.ReactNode;
 }
@@ -139,12 +166,14 @@ function InteractiveLayer({
   canvasScale,
   onSelect,
   onRectChange,
+  onRotationChange,
   pointerEvents,
   children,
 }: InteractiveLayerProps) {
-  const { rect, locked, slotId } = layer;
+  const { rect, locked, slotId, rotationDeg } = layer;
   const canInteract = !locked && pointerEvents === "auto";
   const suppressClickRef = useRef(false);
+  const layerRef = useRef<HTMLDivElement>(null);
 
   const startDrag = useCallback(
     (e: React.PointerEvent, mode: "move" | Corner) => {
@@ -258,19 +287,68 @@ function InteractiveLayer({
     [bannerHeight, bannerWidth, canInteract, canvasScale, onRectChange, onSelect, pointerEvents, rect, slotId],
   );
 
+  const startRotate = useCallback(
+    (e: React.PointerEvent) => {
+      if (!canInteract) return;
+      e.preventDefault();
+      e.stopPropagation();
+      onSelect();
+
+      const target = e.currentTarget as HTMLElement;
+      try {
+        target.setPointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
+
+      const layerEl = layerRef.current;
+      if (!layerEl) return;
+      const box = layerEl.getBoundingClientRect();
+      const centerX = box.left + box.width / 2;
+      const centerY = box.top + box.height / 2;
+      const startAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX);
+      const startRotation = rotationDeg;
+      suppressClickRef.current = false;
+
+      function onMove(ev: PointerEvent) {
+        suppressClickRef.current = true;
+        const angle = Math.atan2(ev.clientY - centerY, ev.clientX - centerX);
+        const deltaDeg = ((angle - startAngle) * 180) / Math.PI;
+        onRotationChange(clampClassicBannerRotation(startRotation + deltaDeg));
+      }
+
+      function onUp(ev: PointerEvent) {
+        try {
+          target.releasePointerCapture(ev.pointerId);
+        } catch {
+          // ignore
+        }
+        target.removeEventListener("pointermove", onMove);
+        target.removeEventListener("pointerup", onUp);
+        target.removeEventListener("pointercancel", onUp);
+      }
+
+      target.addEventListener("pointermove", onMove);
+      target.addEventListener("pointerup", onUp);
+      target.addEventListener("pointercancel", onUp);
+    },
+    [canInteract, onRotationChange, onSelect, rotationDeg],
+  );
+
   return (
     <div
+      ref={layerRef}
       className={`absolute touch-none select-none ${
         locked ? "cursor-not-allowed" : canInteract ? "cursor-move" : pointerEvents === "auto" ? "cursor-pointer" : ""
       }`}
       style={{
-        ...layerStyle(rect, layer.zIndex),
+        ...layerTransformStyle(rect, layer.zIndex, rotationDeg),
         pointerEvents,
       }}
       onPointerDown={(e) => {
         if (pointerEvents !== "auto") return;
         if (e.button !== 0) return;
-        if ((e.target as HTMLElement).closest("[data-resize-handle]")) return;
+        if ((e.target as HTMLElement).closest("[data-resize-handle], [data-rotate-handle]")) return;
         startDrag(e, "move");
       }}
       onClick={(e) => {
@@ -284,20 +362,23 @@ function InteractiveLayer({
         onSelect();
       }}
     >
-      <div className="relative h-full w-full pointer-events-none">{children}</div>
+      <div className="relative h-full w-full overflow-hidden pointer-events-none">{children}</div>
       <SelectionOverlay
         visible={selected}
         locked={locked}
         label={CLASSIC_SLOT_CZECH_NAMES[slotId]}
       />
       {canInteract && selected ? (
-        (["tl", "tr", "bl", "br"] as Corner[]).map((corner) => (
-          <ResizeHandle
-            key={corner}
-            corner={corner}
-            onPointerDown={(e, c) => startDrag(e, c)}
-          />
-        ))
+        <>
+          <RotationHandle onPointerDown={startRotate} />
+          {(["tl", "tr", "bl", "br"] as Corner[]).map((corner) => (
+            <ResizeHandle
+              key={corner}
+              corner={corner}
+              onPointerDown={(e, c) => startDrag(e, c)}
+            />
+          ))}
+        </>
       ) : null}
     </div>
   );
@@ -317,7 +398,10 @@ export function ClassicBannerPreview({
   const { width, height } = variant;
   const { content, designTokens } = data;
   const viewportRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const viewZoomRef = useRef(viewZoom);
+  const layoutRef = useRef(resolveClassicBannerFinalLayout(data, variant));
+  const selectedSlotIdRef = useRef(selectedSlotId);
   const [imageUrls, setImageUrls] =
     useState<Record<ClassicBannerImageSlot, string | null>>(EMPTY_IMAGE_URLS);
 
@@ -329,6 +413,14 @@ export function ClassicBannerPreview({
     () => resolveClassicBannerFinalLayout(data, variant),
     [data, variant],
   );
+
+  useEffect(() => {
+    layoutRef.current = layout;
+  }, [layout]);
+
+  useEffect(() => {
+    selectedSlotIdRef.current = selectedSlotId;
+  }, [selectedSlotId]);
 
   const canvasLayers = useMemo(
     () => layout.layers.filter((layer) => layer.visible),
@@ -355,6 +447,91 @@ export function ClassicBannerPreview({
   const frameWidth = width * totalScale;
   const frameHeight = height * totalScale;
 
+  const getFocalBannerPoint = useCallback(
+    (clientX?: number, clientY?: number): { x: number; y: number } => {
+      const frame = frameRef.current;
+      const currentZoom = viewZoomRef.current;
+      const scale = fitScale * currentZoom;
+
+      if (frame && clientX !== undefined && clientY !== undefined) {
+        const rect = frame.getBoundingClientRect();
+        if (
+          clientX >= rect.left &&
+          clientX <= rect.right &&
+          clientY >= rect.top &&
+          clientY <= rect.bottom
+        ) {
+          return {
+            x: (clientX - rect.left) / scale,
+            y: (clientY - rect.top) / scale,
+          };
+        }
+      }
+
+      const currentLayout = layoutRef.current;
+      const slotId = selectedSlotIdRef.current;
+      if (slotId) {
+        const layer = currentLayout.layerBySlot[slotId];
+        if (layer?.visible) {
+          return {
+            x: ((layer.rect.left + layer.rect.width / 2) / 100) * width,
+            y: ((layer.rect.top + layer.rect.height / 2) / 100) * height,
+          };
+        }
+      }
+
+      return { x: width / 2, y: height / 2 };
+    },
+    [fitScale, width, height],
+  );
+
+  const applyZoom = useCallback(
+    (nextZoom: number, clientX?: number, clientY?: number) => {
+      const viewport = viewportRef.current;
+      const frame = frameRef.current;
+      const oldZoom = viewZoomRef.current;
+      const clamped = clampZoom(nextZoom);
+      if (clamped === oldZoom) return;
+
+      if (!viewport || !frame) {
+        onViewZoomChange(clamped);
+        return;
+      }
+
+      const oldScale = fitScale * oldZoom;
+      const focal = getFocalBannerPoint(clientX, clientY);
+      const focalInFrameOldX = focal.x * oldScale;
+      const focalInFrameOldY = focal.y * oldScale;
+
+      let anchorClientX = clientX;
+      let anchorClientY = clientY;
+      if (anchorClientX === undefined || anchorClientY === undefined) {
+        const frameRect = frame.getBoundingClientRect();
+        anchorClientX = frameRect.left + focalInFrameOldX;
+        anchorClientY = frameRect.top + focalInFrameOldY;
+      }
+
+      const ratioX = oldScale > 0 ? focal.x / width : 0.5;
+      const ratioY = oldScale > 0 ? focal.y / height : 0.5;
+
+      onViewZoomChange(clamped);
+
+      requestAnimationFrame(() => {
+        const nextFrame = frameRef.current;
+        const nextViewport = viewportRef.current;
+        if (!nextFrame || !nextViewport) return;
+        const nextFrameWidth = width * fitScale * clamped;
+        const nextFrameHeight = height * fitScale * clamped;
+        const nextViewportRect = nextViewport.getBoundingClientRect();
+        const pointerX = anchorClientX! - nextViewportRect.left;
+        const pointerY = anchorClientY! - nextViewportRect.top;
+        nextViewport.scrollLeft = ratioX * nextFrameWidth - pointerX;
+        nextViewport.scrollTop = ratioY * nextFrameHeight - pointerY;
+      });
+    },
+    [fitScale, getFocalBannerPoint, height, onViewZoomChange, width],
+  );
+
   const handleFitToView = useCallback(() => {
     const viewport = viewportRef.current;
     if (!viewport) {
@@ -366,6 +543,12 @@ export function ClassicBannerPreview({
     const availableH = Math.max(viewport.clientHeight - padding, 120);
     const fit = Math.min(availableW / (width * fitScale), availableH / (height * fitScale), 1);
     onViewZoomChange(clampZoom(fit));
+    requestAnimationFrame(() => {
+      const nextViewport = viewportRef.current;
+      if (!nextViewport) return;
+      nextViewport.scrollLeft = Math.max(0, (nextViewport.scrollWidth - nextViewport.clientWidth) / 2);
+      nextViewport.scrollTop = Math.max(0, (nextViewport.scrollHeight - nextViewport.clientHeight) / 2);
+    });
   }, [fitScale, height, onViewZoomChange, width]);
 
   const handleWheel = useCallback(
@@ -373,9 +556,9 @@ export function ClassicBannerPreview({
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
       const delta = e.deltaY > 0 ? -0.08 : 0.08;
-      onViewZoomChange(clampZoom(viewZoomRef.current + delta));
+      applyZoom(viewZoomRef.current + delta, e.clientX, e.clientY);
     },
-    [onViewZoomChange],
+    [applyZoom],
   );
 
   useEffect(() => {
@@ -384,6 +567,10 @@ export function ClassicBannerPreview({
     el.addEventListener("wheel", handleWheel, { passive: false });
     return () => el.removeEventListener("wheel", handleWheel);
   }, [handleWheel]);
+
+  function patchLayer(slotId: ClassicEditableSlotId, patch: Partial<ClassicBannerLayerOverride>) {
+    onLayerOverride(slotId, patch);
+  }
 
   function renderLayerContent(slotId: ClassicEditableSlotId) {
     switch (slotId) {
@@ -478,6 +665,28 @@ export function ClassicBannerPreview({
     }
   }
 
+  function layerPointerEvents(layer: ClassicBannerResolvedLayer): "auto" | "none" {
+    if (layer.slotId === "background" && selectedSlotId !== "background") {
+      return "none";
+    }
+    return "auto";
+  }
+
+  function layerContentWrapper(slotId: ClassicEditableSlotId, children: React.ReactNode) {
+    if (slotId === "hero") {
+      return <div className="flex h-full w-full items-center justify-center">{children}</div>;
+    }
+    if (slotId === "logo" || slotId === "background") {
+      return <div className="flex h-full w-full items-start justify-start">{children}</div>;
+    }
+    if (slotId === "cta") {
+      return <div className="flex h-full w-full items-end">{children}</div>;
+    }
+    if (slotId === "badge") {
+      return <div className="flex h-full w-full items-start justify-end">{children}</div>;
+    }
+    return children;
+  }
 
   return (
     <div className="flex h-full min-h-0 w-full max-w-full flex-col">
@@ -485,7 +694,9 @@ export function ClassicBannerPreview({
         <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
           <ClassicCanvasToolbar
             zoom={viewZoom}
-            onZoomChange={onViewZoomChange}
+            onZoomOut={() => applyZoom(viewZoom - ZOOM_STEP)}
+            onZoomIn={() => applyZoom(viewZoom + ZOOM_STEP)}
+            onZoomReset={() => applyZoom(1)}
             onFitToView={handleFitToView}
           />
           <p className="shrink-0 text-center font-mono text-xs text-zinc-400 sm:text-right">
@@ -497,8 +708,26 @@ export function ClassicBannerPreview({
       <div
         ref={viewportRef}
         className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-6"
+        onPointerDown={(e) => {
+          if (e.button !== 0) return;
+          const frame = frameRef.current;
+          if (!frame) {
+            onSelectSlot(null);
+            return;
+          }
+          const rect = frame.getBoundingClientRect();
+          const inside =
+            e.clientX >= rect.left &&
+            e.clientX <= rect.right &&
+            e.clientY >= rect.top &&
+            e.clientY <= rect.bottom;
+          if (!inside) {
+            onSelectSlot(null);
+          }
+        }}
       >
         <div
+          ref={frameRef}
           className="relative shrink-0 overflow-hidden rounded-lg border border-zinc-700/80 bg-zinc-900 shadow-xl"
           style={{ width: frameWidth, height: frameHeight }}
         >
@@ -512,112 +741,32 @@ export function ClassicBannerPreview({
             role="img"
             aria-label={`Náhled banneru ${width}×${height}`}
           >
-          {/* Base fill — not selectable */}
-          <div
-            className="absolute inset-0"
-            style={{
-              backgroundColor: designTokens.primaryColor,
-              zIndex: layout.zIndex.background,
-              pointerEvents: "none",
-            }}
-          />
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundColor: designTokens.primaryColor,
+                zIndex: -1,
+                pointerEvents: "none",
+              }}
+            />
 
-          {/* Deselect hit area — behind interactive layers */}
-          <div
-            className="absolute inset-0"
-            style={{ zIndex: -1 }}
-            aria-hidden
-            onPointerDown={(e) => {
-              if (e.button !== 0) return;
-              e.stopPropagation();
-              onSelectSlot(null);
-            }}
-          />
+            <div
+              className="absolute inset-0"
+              style={{ zIndex: 0 }}
+              aria-hidden
+              onPointerDown={(e) => {
+                if (e.button !== 0) return;
+                e.stopPropagation();
+                const bg = layout.layerBySlot.background;
+                if (bg.visible) {
+                  onSelectSlot("background");
+                } else {
+                  onSelectSlot(null);
+                }
+              }}
+            />
 
-          {canvasLayers.map((layer) => {
-            const isBackground = layer.slotId === "background";
-            const pointerEvents: "auto" | "none" =
-              isBackground && selectedSlotId !== "background" ? "none" : "auto";
-
-            if (layer.slotId === "hero") {
-              return (
-                <InteractiveLayer
-                  key={layer.slotId}
-                  layer={layer}
-                  selected={selectedSlotId === layer.slotId}
-                  bannerWidth={width}
-                  bannerHeight={height}
-                  canvasScale={totalScale}
-                  onSelect={() => onSelectSlot(layer.slotId)}
-                  onRectChange={(rect) => onLayerOverride(layer.slotId, { rect })}
-                  pointerEvents={pointerEvents}
-                >
-                  <div className="flex h-full w-full items-center justify-center">
-                    {renderLayerContent(layer.slotId)}
-                  </div>
-                </InteractiveLayer>
-              );
-            }
-
-            if (layer.slotId === "logo") {
-              return (
-                <InteractiveLayer
-                  key={layer.slotId}
-                  layer={layer}
-                  selected={selectedSlotId === layer.slotId}
-                  bannerWidth={width}
-                  bannerHeight={height}
-                  canvasScale={totalScale}
-                  onSelect={() => onSelectSlot(layer.slotId)}
-                  onRectChange={(rect) => onLayerOverride(layer.slotId, { rect })}
-                  pointerEvents={pointerEvents}
-                >
-                  <div className="flex h-full w-full items-start justify-start">
-                    {renderLayerContent(layer.slotId)}
-                  </div>
-                </InteractiveLayer>
-              );
-            }
-
-            if (layer.slotId === "cta") {
-              return (
-                <InteractiveLayer
-                  key={layer.slotId}
-                  layer={layer}
-                  selected={selectedSlotId === layer.slotId}
-                  bannerWidth={width}
-                  bannerHeight={height}
-                  canvasScale={totalScale}
-                  onSelect={() => onSelectSlot(layer.slotId)}
-                  onRectChange={(rect) => onLayerOverride(layer.slotId, { rect })}
-                  pointerEvents={pointerEvents}
-                >
-                  <div className="flex h-full w-full items-end">{renderLayerContent(layer.slotId)}</div>
-                </InteractiveLayer>
-              );
-            }
-
-            if (layer.slotId === "badge") {
-              return (
-                <InteractiveLayer
-                  key={layer.slotId}
-                  layer={layer}
-                  selected={selectedSlotId === layer.slotId}
-                  bannerWidth={width}
-                  bannerHeight={height}
-                  canvasScale={totalScale}
-                  onSelect={() => onSelectSlot(layer.slotId)}
-                  onRectChange={(rect) => onLayerOverride(layer.slotId, { rect })}
-                  pointerEvents={pointerEvents}
-                >
-                  <div className="flex h-full w-full items-start justify-end">
-                    {renderLayerContent(layer.slotId)}
-                  </div>
-                </InteractiveLayer>
-              );
-            }
-
-            return (
+            {canvasLayers.map((layer) => (
               <InteractiveLayer
                 key={layer.slotId}
                 layer={layer}
@@ -626,13 +775,13 @@ export function ClassicBannerPreview({
                 bannerHeight={height}
                 canvasScale={totalScale}
                 onSelect={() => onSelectSlot(layer.slotId)}
-                onRectChange={(rect) => onLayerOverride(layer.slotId, { rect })}
-                pointerEvents={pointerEvents}
+                onRectChange={(rect) => patchLayer(layer.slotId, { rect })}
+                onRotationChange={(rotationDeg) => patchLayer(layer.slotId, { rotationDeg })}
+                pointerEvents={layerPointerEvents(layer)}
               >
-                {renderLayerContent(layer.slotId)}
+                {layerContentWrapper(layer.slotId, renderLayerContent(layer.slotId))}
               </InteractiveLayer>
-            );
-          })}
+            ))}
           </div>
         </div>
       </div>

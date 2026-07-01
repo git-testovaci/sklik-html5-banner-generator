@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import {
   resolveClassicBannerFinalLayout,
+  type ClassicBannerResolvedLayer,
 } from "@/lib/classic-banner/classic-banner-overrides";
 import type { ClassicBannerLayoutRect } from "@/lib/classic-banner/classic-banner-layout";
 import {
@@ -174,6 +175,30 @@ function wrapTextLines(
   }
 
   return lines.slice(0, maxLines);
+}
+
+function drawInRotatedBox(
+  ctx: CanvasRenderingContext2D,
+  box: PixelRect,
+  rotationDeg: number,
+  draw: (ctx: CanvasRenderingContext2D, box: PixelRect) => void,
+): void {
+  if (Math.abs(rotationDeg) < 0.01) {
+    draw(ctx, box);
+    return;
+  }
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate((rotationDeg * Math.PI) / 180);
+  draw(ctx, {
+    x: -box.width / 2,
+    y: -box.height / 2,
+    width: box.width,
+    height: box.height,
+  });
+  ctx.restore();
 }
 
 function drawHeadlineText(
@@ -479,85 +504,88 @@ export async function exportClassicBannerVariantToPng(
   ctx.fillStyle = designTokens.primaryColor;
   ctx.fillRect(0, 0, width, height);
 
-  const heroBox = rectToPixels(layout.hero, width, height);
-  const headlineBox = rectToPixels(layout.headline, width, height);
-  const sloganBox = rectToPixels(layout.slogan, width, height);
-  const logoBox = rectToPixels(layout.logo, width, height);
-  const ctaBox = rectToPixels(layout.cta, width, height);
-  const badgeBox = rectToPixels(layout.badge, width, height);
-  const backgroundBox = rectToPixels(layerBySlot.background.rect, width, height);
-
-  const drawBySlot: Record<ClassicEditableSlotId, () => void> = {
-    background: () => {
+  const drawBySlot: Record<
+    ClassicEditableSlotId,
+    (layer: ClassicBannerResolvedLayer, box: PixelRect) => void
+  > = {
+    background: (layer, backgroundBox) => {
       if (backgroundImg && showBackground) {
-        drawImageCover(
-          ctx,
-          backgroundImg,
-          backgroundBox.x,
-          backgroundBox.y,
-          backgroundBox.width,
-          backgroundBox.height,
-        );
+        drawInRotatedBox(ctx, backgroundBox, layer.rotationDeg, (drawCtx, box) => {
+          drawImageCover(drawCtx, backgroundImg, box.x, box.y, box.width, box.height);
+        });
       }
     },
-    hero: () => {
+    hero: (layer, heroBox) => {
       if (showHero && heroImg && heroBox.width > 0 && heroBox.height > 0) {
-        drawImageContainCenter(ctx, heroImg, heroBox.x, heroBox.y, heroBox.width, heroBox.height);
+        drawInRotatedBox(ctx, heroBox, layer.rotationDeg, (drawCtx, box) => {
+          drawImageContainCenter(drawCtx, heroImg, box.x, box.y, box.width, box.height);
+        });
       }
     },
-    headline: () => {
+    headline: (layer, headlineBox) => {
       if (showHeadline && content.headline.trim()) {
-        drawHeadlineText(
-          ctx,
-          content.headline,
-          headlineBox,
-          designTokens,
-          layout.headlineFontSize,
-          layout.headlineMaxLines,
-        );
+        drawInRotatedBox(ctx, headlineBox, layer.rotationDeg, (drawCtx, box) => {
+          drawHeadlineText(
+            drawCtx,
+            content.headline,
+            box,
+            designTokens,
+            layout.headlineFontSize,
+            layout.headlineMaxLines,
+          );
+        });
       }
     },
-    slogan: () => {
+    slogan: (layer, sloganBox) => {
       if (showSlogan) {
-        drawSloganText(ctx, content.slogan, sloganBox, designTokens, layout.sloganFontSize);
+        drawInRotatedBox(ctx, sloganBox, layer.rotationDeg, (drawCtx, box) => {
+          drawSloganText(drawCtx, content.slogan, box, designTokens, layout.sloganFontSize);
+        });
       }
     },
-    logo: () => {
+    logo: (layer, logoBox) => {
       if (showLogo && logoImg && logoBox.width > 0 && logoBox.height > 0) {
-        drawImageContainTopLeft(
-          ctx,
-          logoImg,
-          logoBox.x,
-          logoBox.y,
-          logoBox.width,
-          logoBox.height,
-          layout.logoMaxHeight,
-        );
+        drawInRotatedBox(ctx, logoBox, layer.rotationDeg, (drawCtx, box) => {
+          drawImageContainTopLeft(
+            drawCtx,
+            logoImg,
+            box.x,
+            box.y,
+            box.width,
+            box.height,
+            layout.logoMaxHeight,
+          );
+        });
       }
     },
-    cta: () => {
+    cta: (layer, ctaBox) => {
       if (showCta) {
-        drawCtaButton(
-          ctx,
-          content.ctaText,
-          ctaBox,
-          designTokens,
-          layout.ctaFontSize,
-          layout.ctaPaddingX,
-          layout.ctaPaddingY,
-        );
+        drawInRotatedBox(ctx, ctaBox, layer.rotationDeg, (drawCtx, box) => {
+          drawCtaButton(
+            drawCtx,
+            content.ctaText,
+            box,
+            designTokens,
+            layout.ctaFontSize,
+            layout.ctaPaddingX,
+            layout.ctaPaddingY,
+          );
+        });
       }
     },
-    badge: () => {
+    badge: (layer, badgeBox) => {
       if (showBadge && badgeBox.width > 0 && badgeBox.height > 0) {
-        drawBadgePill(ctx, content.badgeText, badgeBox, designTokens, layout.badgeFontSize);
+        drawInRotatedBox(ctx, badgeBox, layer.rotationDeg, (drawCtx, box) => {
+          drawBadgePill(drawCtx, content.badgeText, box, designTokens, layout.badgeFontSize);
+        });
       }
     },
   };
 
   for (const layer of [...layout.layers].sort((a, b) => a.zIndex - b.zIndex)) {
     if (!layer.visible) continue;
-    drawBySlot[layer.slotId]();
+    const box = rectToPixels(layer.rect, width, height);
+    drawBySlot[layer.slotId](layer, box);
   }
 
   const blob = await canvasToPngBlob(canvas);
