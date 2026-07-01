@@ -7,6 +7,8 @@ import { hasClassicBannerImageSource } from "@/lib/classic-banner/classic-banner
 import { isClassicBannerSlotVisible } from "@/lib/classic-banner/classic-banner-update";
 import {
   CLASSIC_EDITABLE_SLOTS,
+  CLASSIC_RESIZE_CORNER_OPPOSITE,
+  type ClassicBannerResizeCorner,
 } from "@/lib/classic-banner/classic-banner-selection";
 import type {
   ClassicBannerLayerOverride,
@@ -114,6 +116,147 @@ export function layerRectCenter(rect: ClassicBannerLayoutRect): { x: number; y: 
     x: rect.left + rect.width / 2,
     y: rect.top + rect.height / 2,
   };
+}
+
+function rectCornerPoint(
+  rect: ClassicBannerLayoutRect,
+  corner: ClassicBannerResizeCorner,
+): { x: number; y: number } {
+  switch (corner) {
+    case "tl":
+      return { x: rect.left, y: rect.top };
+    case "tr":
+      return { x: rect.left + rect.width, y: rect.top };
+    case "bl":
+      return { x: rect.left, y: rect.top + rect.height };
+    case "br":
+      return { x: rect.left + rect.width, y: rect.top + rect.height };
+  }
+}
+
+function minRectSizeForSlot(slotId: ClassicEditableSlotId): { minWidth: number; minHeight: number } {
+  if (slotId === "background") {
+    return {
+      minWidth: CLASSIC_BACKGROUND_MIN_SIZE,
+      minHeight: CLASSIC_BACKGROUND_MIN_SIZE,
+    };
+  }
+  return { minWidth: MIN_RECT_PERCENT, minHeight: MIN_RECT_PERCENT };
+}
+
+function maxRectSizeForAnchor(
+  slotId: ClassicEditableSlotId,
+  anchorCorner: ClassicBannerResizeCorner,
+  anchorX: number,
+  anchorY: number,
+): { maxWidth: number; maxHeight: number } {
+  if (slotId === "background") {
+    const maxW = CLASSIC_BACKGROUND_RECT_MAX_WIDTH;
+    const maxH = CLASSIC_BACKGROUND_RECT_MAX_HEIGHT;
+    switch (anchorCorner) {
+      case "tl":
+        return { maxWidth: maxW, maxHeight: maxH };
+      case "br":
+        return {
+          maxWidth: Math.min(maxW, anchorX - CLASSIC_BACKGROUND_RECT_MIN_LEFT),
+          maxHeight: Math.min(maxH, anchorY - CLASSIC_BACKGROUND_RECT_MIN_TOP),
+        };
+      case "tr":
+        return {
+          maxWidth: Math.min(maxW, anchorX - CLASSIC_BACKGROUND_RECT_MIN_LEFT),
+          maxHeight: maxH,
+        };
+      case "bl":
+        return {
+          maxWidth: maxW,
+          maxHeight: Math.min(maxH, anchorY - CLASSIC_BACKGROUND_RECT_MIN_TOP),
+        };
+    }
+  }
+
+  switch (anchorCorner) {
+    case "tl":
+      return { maxWidth: 100 - anchorX, maxHeight: 100 - anchorY };
+    case "br":
+      return { maxWidth: anchorX, maxHeight: anchorY };
+    case "tr":
+      return { maxWidth: anchorX, maxHeight: 100 - anchorY };
+    case "bl":
+      return { maxWidth: 100 - anchorX, maxHeight: anchorY };
+  }
+}
+
+function rectFromAnchorAndSize(
+  anchorCorner: ClassicBannerResizeCorner,
+  anchorX: number,
+  anchorY: number,
+  width: number,
+  height: number,
+): ClassicBannerLayoutRect {
+  switch (anchorCorner) {
+    case "tl":
+      return { left: anchorX, top: anchorY, width, height };
+    case "br":
+      return { left: anchorX - width, top: anchorY - height, width, height };
+    case "tr":
+      return { left: anchorX - width, top: anchorY, width, height };
+    case "bl":
+      return { left: anchorX, top: anchorY - height, width, height };
+  }
+}
+
+/** Resize a layer rect by dragging one corner while keeping the opposite corner fixed. */
+export function resizeClassicBannerRectFromCorner(params: {
+  rect: ClassicBannerLayoutRect;
+  corner: ClassicBannerResizeCorner;
+  deltaXPercent: number;
+  deltaYPercent: number;
+  preserveAspect: boolean;
+  aspectRatio?: number;
+  slotId: ClassicEditableSlotId;
+}): ClassicBannerLayoutRect {
+  const {
+    rect,
+    corner,
+    deltaXPercent,
+    deltaYPercent,
+    preserveAspect,
+    aspectRatio,
+    slotId,
+  } = params;
+
+  const anchorCorner = CLASSIC_RESIZE_CORNER_OPPOSITE[corner];
+  const anchor = rectCornerPoint(rect, anchorCorner);
+  const draggedStart = rectCornerPoint(rect, corner);
+
+  const dragX = draggedStart.x + deltaXPercent;
+  const dragY = draggedStart.y + deltaYPercent;
+
+  let width = Math.abs(dragX - anchor.x);
+  let height = Math.abs(dragY - anchor.y);
+
+  if (preserveAspect && aspectRatio !== undefined && aspectRatio > 0) {
+    const pointerRatio = width / Math.max(height, 0.001);
+    if (pointerRatio > aspectRatio) {
+      width = height * aspectRatio;
+    } else {
+      height = width / aspectRatio;
+    }
+  }
+
+  const { minWidth, minHeight } = minRectSizeForSlot(slotId);
+  width = Math.max(width, minWidth);
+  height = Math.max(height, minHeight);
+
+  const { maxWidth, maxHeight } = maxRectSizeForAnchor(slotId, anchorCorner, anchor.x, anchor.y);
+  width = Math.min(width, maxWidth);
+  height = Math.min(height, maxHeight);
+
+  let next = rectFromAnchorAndSize(anchorCorner, anchor.x, anchor.y, width, height);
+  next = clampClassicBannerLayerRect(slotId, next);
+
+  const reanchored = rectFromAnchorAndSize(anchorCorner, anchor.x, anchor.y, next.width, next.height);
+  return clampClassicBannerLayerRect(slotId, reanchored);
 }
 
 function rectFromComputed(

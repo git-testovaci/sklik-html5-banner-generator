@@ -28,6 +28,18 @@ export const CLASSIC_ASPECT_RATIO_SLOTS: ReadonlySet<ClassicEditableSlotId> = ne
   "hero",
 ]);
 
+export type ClassicBannerResizeCorner = "tl" | "tr" | "bl" | "br";
+
+export const CLASSIC_RESIZE_CORNER_OPPOSITE: Record<
+  ClassicBannerResizeCorner,
+  ClassicBannerResizeCorner
+> = {
+  tl: "br",
+  tr: "bl",
+  bl: "tr",
+  br: "tl",
+};
+
 export function isClassicEditableSlotId(value: string): value is ClassicEditableSlotId {
   return (CLASSIC_EDITABLE_SLOTS as readonly string[]).includes(value);
 }

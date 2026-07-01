@@ -5,6 +5,7 @@ import {
   clampClassicBannerLayerRect,
   clampClassicBannerRotation,
   classicBannerSlotHasRectOverride,
+  resizeClassicBannerRectFromCorner,
   resolveClassicBannerFinalLayout,
   type ClassicBannerResolvedLayer,
 } from "@/lib/classic-banner/classic-banner-overrides";
@@ -25,6 +26,7 @@ import {
 import {
   CLASSIC_ASPECT_RATIO_SLOTS,
   CLASSIC_SLOT_CZECH_NAMES,
+  type ClassicBannerResizeCorner,
 } from "@/lib/classic-banner/classic-banner-selection";
 import type { BannerAsset } from "@/types/assets";
 import type {
@@ -35,7 +37,7 @@ import type {
 } from "@/types/classic-banner";
 import { ClassicCanvasToolbar, ZOOM_STEP, clampZoom } from "./ClassicCanvasToolbar";
 
-type Corner = "tl" | "tr" | "bl" | "br";
+type Corner = ClassicBannerResizeCorner;
 
 interface ClassicBannerPreviewProps {
   variant: ClassicBannerSizeVariant;
@@ -300,38 +302,17 @@ function InteractiveLayer({
           return;
         }
 
-        const next = { ...origin };
-
-        if (mode === "br") {
-          next.width = origin.width + dxPct;
-          next.height = origin.height + dyPct;
-        } else if (mode === "bl") {
-          next.left = origin.left + dxPct;
-          next.width = origin.width - dxPct;
-          next.height = origin.height + dyPct;
-        } else if (mode === "tr") {
-          next.top = origin.top + dyPct;
-          next.width = origin.width + dxPct;
-          next.height = origin.height - dyPct;
-        } else if (mode === "tl") {
-          next.left = origin.left + dxPct;
-          next.top = origin.top + dyPct;
-          next.width = origin.width - dxPct;
-          next.height = origin.height - dyPct;
-        }
-
-        if (preserveAspect) {
-          const w = Math.max(next.width, 2);
-          next.height = w / aspect;
-          if (mode === "tl" || mode === "bl") {
-            next.top = origin.top + origin.height - next.height;
-          }
-          if (mode === "tl" || mode === "tr") {
-            next.left = origin.left + origin.width - next.width;
-          }
-        }
-
-        onRectChange(clampClassicBannerLayerRect(slotId, next));
+        onRectChange(
+          resizeClassicBannerRectFromCorner({
+            rect: origin,
+            corner: mode,
+            deltaXPercent: dxPct,
+            deltaYPercent: dyPct,
+            preserveAspect,
+            aspectRatio: aspect,
+            slotId,
+          }),
+        );
       }
 
       function onUp(ev: PointerEvent) {
