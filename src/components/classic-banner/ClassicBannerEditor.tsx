@@ -11,18 +11,34 @@ import {
 } from "@/lib/classic-banner/classic-banner-export";
 import { CLASSIC_BANNER_MASTER_SIZE_ID } from "@/lib/classic-banner/classic-banner-sizes";
 import {
+  classicBannerEditorSnapshotsEqual,
   classicBannerEditorStateEqual,
+  cloneClassicBannerEditorSnapshot,
   mergeClassicBannerIntoProject,
   prepareClassicBannerData,
+  type ClassicBannerEditorSnapshot,
 } from "@/lib/classic-banner/classic-banner-update";
 import { getClassicBannerRecommendations } from "@/lib/classic-banner/classic-banner-recommendations";
 import { patchClassicBannerLayerOverride, resolveClassicBannerFinalLayout } from "@/lib/classic-banner/classic-banner-overrides";
+import {
+  applyHistoryUpdate,
+  createEmptyHistoryStacks,
+  isEditableKeyboardTarget,
+  redoHistoryStack,
+  undoHistoryStack,
+  type HistoryStacks,
+} from "@/lib/editor/editor-history";
 import { downloadBlob } from "@/lib/export/download-blob";
 import { getStoredProjectById, upsertProject } from "@/lib/project-storage";
-import type { ClassicBannerProjectData, ClassicEditableSlotId } from "@/types/classic-banner";
+import type {
+  ClassicBannerEditorChangeOptions,
+  ClassicBannerProjectData,
+  ClassicEditableSlotId,
+} from "@/types/classic-banner";
 import type { BannerAsset } from "@/types/assets";
 import type { BannerProject } from "@/types/project";
 import { ProjectStatusBadge } from "@/components/dashboard/ProjectStatusBadge";
+import { EditorUndoRedoButtons } from "@/components/editor/EditorTopBar";
 import { ClassicBannerInspector } from "./ClassicBannerInspector";
 import { ClassicBannerPreview } from "./ClassicBannerPreview";
 import { ClassicBannerWarnings } from "./ClassicBannerWarnings";
@@ -75,6 +91,116 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
   const selectedSizeIdRef = useRef(selectedSizeId);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autosavePendingRef = useRef(false);
+  const historyRef = useRef<HistoryStacks<ClassicBannerEditorSnapshot>>(createEmptyHistoryStacks());
+  const historyCoalesceRef = useRef(false);
+  const historyCoalesceAtRef = useRef(0);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  const syncHistoryAvailability = useCallback(() => {
+    setCanUndo(historyRef.current.past.length > 0);
+    setCanRedo(historyRef.current.future.length > 0);
+  }, []);
+
+  const getSnapshot = useCallback((): ClassicBannerEditorSnapshot => {
+    return {
+      classicBanner: classicBannerRef.current,
+      assets: assetsRef.current,
+    };
+  }, []);
+
+  const repairSelectionAfterSnapshot = useCallback((snapshot: ClassicBannerEditorSnapshot) => {
+    if (!selectedSlotId) return;
+    const variant =
+      snapshot.classicBanner.variants.find((item) => item.sizeId === selectedSizeIdRef.current) ??
+      snapshot.classicBanner.variants.find(
+        (item) => item.sizeId === snapshot.classicBanner.masterSizeId,
+      ) ??
+      snapshot.classicBanner.variants[0];
+    if (!variant) {
+      setSelectedSlotId(null);
+      return;
+    }
+    const layer = resolveClassicBannerFinalLayout(snapshot.classicBanner, variant).layerBySlot[
+      selectedSlotId
+    ];
+    if (!layer || !layer.visible) {
+      setSelectedSlotId(null);
+    }
+  }, [selectedSlotId]);
+
+  const applyEditorSnapshot = useCallback(
+    (
+      nextSnapshot: ClassicBannerEditorSnapshot,
+      options?: ClassicBannerEditorChangeOptions,
+    ) => {
+      const prev = getSnapshot();
+      const next: ClassicBannerEditorSnapshot = {
+        classicBanner: prepareClassicBannerData(nextSnapshot.classicBanner),
+        assets: nextSnapshot.assets,
+      };
+
+      if (classicBannerEditorSnapshotsEqual(prev, next)) {
+        return;
+      }
+
+      const historyResult = applyHistoryUpdate(
+        historyRef.current,
+        prev,
+        next,
+        classicBannerEditorSnapshotsEqual,
+        cloneClassicBannerEditorSnapshot,
+        {
+          mode: options?.history,
+          coalesceActive: historyCoalesceRef.current,
+          lastCoalesceAt: historyCoalesceAtRef.current,
+        },
+      );
+      historyRef.current = historyResult.stacks;
+      historyCoalesceRef.current = historyResult.coalesceActive;
+      historyCoalesceAtRef.current = historyResult.lastCoalesceAt;
+      syncHistoryAvailability();
+
+      classicBannerRef.current = next.classicBanner;
+      assetsRef.current = next.assets;
+      setClassicBanner(next.classicBanner);
+      setAssets(next.assets);
+      setSaveStatus("idle");
+      setSaveError(null);
+      repairSelectionAfterSnapshot(next);
+    },
+    [getSnapshot, repairSelectionAfterSnapshot, syncHistoryAvailability],
+  );
+
+  const handleClassicBannerChange = useCallback(
+    (next: ClassicBannerProjectData, options?: ClassicBannerEditorChangeOptions) => {
+      applyEditorSnapshot(
+        {
+          classicBanner: next,
+          assets: assetsRef.current,
+        },
+        options,
+      );
+    },
+    [applyEditorSnapshot],
+  );
+
+  const handleCombinedChange = useCallback(
+    (
+      classicBannerNext: ClassicBannerProjectData,
+      assetsNext: BannerAsset[],
+      options?: ClassicBannerEditorChangeOptions,
+    ) => {
+      applyEditorSnapshot(
+        {
+          classicBanner: classicBannerNext,
+          assets: assetsNext,
+        },
+        options,
+      );
+    },
+    [applyEditorSnapshot],
+  );
 
   useEffect(() => {
     classicBannerRef.current = classicBanner;
@@ -104,35 +230,73 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
     persistClassicBannerProject(project, ready, project.assets ?? []);
   }, [project]);
 
-  function handleClassicBannerChange(next: ClassicBannerProjectData) {
-    const prepared = prepareClassicBannerData(next);
-    setClassicBanner(prepared);
-    if (selectedSlotId) {
-      const variant =
-        prepared.variants.find((item) => item.sizeId === selectedSizeIdRef.current) ??
-        prepared.variants.find((item) => item.sizeId === prepared.masterSizeId) ??
-        prepared.variants[0];
-      if (variant) {
-        const layer = resolveClassicBannerFinalLayout(prepared, variant).layerBySlot[selectedSlotId];
-        if (layer && !layer.visible) {
-          setSelectedSlotId(null);
-        }
-      }
-    }
-  }
-
   function handleLayerOverride(
     slotId: ClassicEditableSlotId,
     patch: Parameters<typeof patchClassicBannerLayerOverride>[3],
+    options?: ClassicBannerEditorChangeOptions,
   ) {
-    setClassicBanner((prev) => {
-      const next = prepareClassicBannerData(
-        patchClassicBannerLayerOverride(prev, selectedSizeIdRef.current, slotId, patch),
-      );
-      classicBannerRef.current = next;
-      return next;
-    });
+    const next = prepareClassicBannerData(
+      patchClassicBannerLayerOverride(
+        classicBannerRef.current,
+        selectedSizeIdRef.current,
+        slotId,
+        patch,
+      ),
+    );
+    applyEditorSnapshot(
+      {
+        classicBanner: next,
+        assets: assetsRef.current,
+      },
+      { history: options?.history ?? "replace" },
+    );
   }
+
+  const handleUndo = useCallback(() => {
+    const present = getSnapshot();
+    const result = undoHistoryStack(
+      historyRef.current,
+      present,
+      cloneClassicBannerEditorSnapshot,
+      cloneClassicBannerEditorSnapshot,
+    );
+    if (!result) return;
+
+    historyRef.current = result.stacks;
+    historyCoalesceRef.current = false;
+    historyCoalesceAtRef.current = 0;
+    classicBannerRef.current = result.state.classicBanner;
+    assetsRef.current = result.state.assets;
+    setClassicBanner(result.state.classicBanner);
+    setAssets(result.state.assets);
+    setSaveStatus("idle");
+    setSaveError(null);
+    repairSelectionAfterSnapshot(result.state);
+    syncHistoryAvailability();
+  }, [getSnapshot, repairSelectionAfterSnapshot, syncHistoryAvailability]);
+
+  const handleRedo = useCallback(() => {
+    const present = getSnapshot();
+    const result = redoHistoryStack(
+      historyRef.current,
+      present,
+      cloneClassicBannerEditorSnapshot,
+      cloneClassicBannerEditorSnapshot,
+    );
+    if (!result) return;
+
+    historyRef.current = result.stacks;
+    historyCoalesceRef.current = false;
+    historyCoalesceAtRef.current = 0;
+    classicBannerRef.current = result.state.classicBanner;
+    assetsRef.current = result.state.assets;
+    setClassicBanner(result.state.classicBanner);
+    setAssets(result.state.assets);
+    setSaveStatus("idle");
+    setSaveError(null);
+    repairSelectionAfterSnapshot(result.state);
+    syncHistoryAvailability();
+  }, [getSnapshot, repairSelectionAfterSnapshot, syncHistoryAvailability]);
 
   function handleSelectVariant(sizeId: string) {
     setSelectedSlotId(null);
@@ -266,6 +430,33 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
       window.removeEventListener("pagehide", onPageHide);
     };
   }, [flushPersistPending]);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (isEditableKeyboardTarget(e.target)) return;
+
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+
+      if (e.key === "z" || e.key === "Z") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+        return;
+      }
+
+      if (e.key === "y" || e.key === "Y") {
+        e.preventDefault();
+        handleRedo();
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleRedo, handleUndo]);
 
   function handleSave() {
     clearAutosaveTimer();
@@ -417,6 +608,12 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
                 {exportMessage}
               </span>
             ) : null}
+            <EditorUndoRedoButtons
+              canUndo={canUndo}
+              canRedo={canRedo}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
+            />
             <button
               type="button"
               onClick={() => void handleExportPng()}
@@ -489,7 +686,7 @@ export function ClassicBannerEditor({ project }: ClassicBannerEditorProps) {
             selectedVariant={selectedVariant}
             selectedSlotId={selectedSlotId}
             onChange={handleClassicBannerChange}
-            onAssetsChange={setAssets}
+            onCombinedChange={handleCombinedChange}
           />
         </aside>
       </div>

@@ -15,6 +15,8 @@ import {
 import { prepareClassicBannerData } from "@/lib/classic-banner/classic-banner-update";
 import type {
   ClassicBannerLayerOverride,
+  ClassicBannerEditorChangeOptions,
+  ClassicBannerOnChange,
   ClassicBannerProjectData,
   ClassicBannerSizeVariant,
   ClassicEditableSlotId,
@@ -25,7 +27,7 @@ interface ClassicLayerInspectorProps {
   data: ClassicBannerProjectData;
   variant: ClassicBannerSizeVariant;
   selectedSlotId: ClassicEditableSlotId | null;
-  onChange: (next: ClassicBannerProjectData) => void;
+  onChange: ClassicBannerOnChange;
 }
 
 function NumberField({
@@ -182,16 +184,16 @@ export function ClassicLayerInspector({
   const sizeId = variant.sizeId;
   const reorderState = getClassicLayerReorderState(finalLayout, selectedSlotId);
 
-  function emit(next: ClassicBannerProjectData) {
-    onChange(prepareClassicBannerData(next));
+  function emit(next: ClassicBannerProjectData, options?: ClassicBannerEditorChangeOptions) {
+    onChange(prepareClassicBannerData(next), options);
   }
 
-  function patch(patch: Partial<ClassicBannerLayerOverride>) {
-    emit(patchClassicBannerLayerOverride(data, sizeId, selectedSlotId!, patch));
+  function patch(patch: Partial<ClassicBannerLayerOverride>, options?: ClassicBannerEditorChangeOptions) {
+    emit(patchClassicBannerLayerOverride(data, sizeId, selectedSlotId!, patch), options);
   }
 
   function handleReorder(action: Parameters<typeof reorderClassicBannerLayer>[3]) {
-    emit(reorderClassicBannerLayer(data, variant, selectedSlotId!, action));
+    emit(reorderClassicBannerLayer(data, variant, selectedSlotId!, action), { history: "push" });
   }
 
   function updateRect(field: "left" | "top" | "width" | "height", value: number) {
@@ -203,7 +205,7 @@ export function ClassicLayerInspector({
         width: field === "width" ? value : layer.rect.width,
         height: field === "height" ? value : layer.rect.height,
       },
-    });
+    }, { history: "replace" });
   }
 
   return (
@@ -229,7 +231,7 @@ export function ClassicLayerInspector({
           <input
             type="checkbox"
             checked={layer.visible}
-            onChange={(e) => patch({ visible: e.target.checked })}
+            onChange={(e) => patch({ visible: e.target.checked }, { history: "push" })}
             className="h-4 w-4 rounded border-zinc-600 bg-zinc-900 text-violet-600"
           />
         </label>
@@ -238,7 +240,7 @@ export function ClassicLayerInspector({
           <input
             type="checkbox"
             checked={layer.locked}
-            onChange={(e) => patch({ locked: e.target.checked })}
+            onChange={(e) => patch({ locked: e.target.checked }, { history: "push" })}
             className="h-4 w-4 rounded border-zinc-600 bg-zinc-900 text-violet-600"
           />
         </label>
@@ -289,21 +291,21 @@ export function ClassicLayerInspector({
       <div className="mt-3 flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={() => emit(resetClassicBannerLayerOverride(data, sizeId, selectedSlotId))}
+          onClick={() => emit(resetClassicBannerLayerOverride(data, sizeId, selectedSlotId), { history: "push" })}
           className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
         >
           Reset vrstvy
         </button>
         <button
           type="button"
-          onClick={() => emit(resetClassicBannerVariantOverrides(data, sizeId))}
+          onClick={() => emit(resetClassicBannerVariantOverrides(data, sizeId), { history: "push" })}
           className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
         >
           Reset rozměru
         </button>
         <button
           type="button"
-          onClick={() => emit(resetAllClassicBannerVariantOverrides(data))}
+          onClick={() => emit(resetAllClassicBannerVariantOverrides(data), { history: "push" })}
           className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
         >
           Reset všech

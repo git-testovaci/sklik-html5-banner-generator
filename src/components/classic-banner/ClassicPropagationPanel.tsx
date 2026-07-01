@@ -18,6 +18,7 @@ import {
 } from "@/lib/classic-banner/classic-banner-propagation";
 import { prepareClassicBannerData } from "@/lib/classic-banner/classic-banner-update";
 import type {
+  ClassicBannerOnChange,
   ClassicBannerProjectData,
   ClassicBannerSizeVariant,
   ClassicEditableSlotId,
@@ -27,7 +28,7 @@ interface ClassicPropagationPanelProps {
   data: ClassicBannerProjectData;
   variant: ClassicBannerSizeVariant;
   selectedSlotId: ClassicEditableSlotId | null;
-  onChange: (next: ClassicBannerProjectData) => void;
+  onChange: ClassicBannerOnChange;
 }
 
 const TARGET_MODE_LABELS: Record<ClassicBannerPropagationTargetMode, string> = {
@@ -201,7 +202,7 @@ export function ClassicPropagationPanel({
 
   function handlePropagate() {
     const result = propagateClassicBannerOverrides(data, variant.sizeId, propagationOptions);
-    onChange(prepareClassicBannerData(result.data));
+    onChange(prepareClassicBannerData(result.data), { history: "push" });
     showStatus(
       result.message,
       result.updatedTargetCount === 0 && result.skippedSlotCount === 0,
@@ -231,7 +232,7 @@ export function ClassicPropagationPanel({
         targetMode === "selected-sizes" ? effectiveSelectedSizeIds : undefined,
       slots: slotScope,
     });
-    onChange(prepareClassicBannerData(result.data));
+    onChange(prepareClassicBannerData(result.data), { history: "push" });
     showStatus(result.message, result.resetVariantCount === 0);
   }
 

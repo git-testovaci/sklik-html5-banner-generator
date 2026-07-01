@@ -20,6 +20,45 @@ interface EditorTopBarProps {
   onRedo?: () => void;
 }
 
+export function EditorUndoRedoButtons({
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo,
+}: {
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
+}) {
+  if (!onUndo || !onRedo) return null;
+
+  return (
+    <div className="flex items-center rounded-lg border border-zinc-800/80 bg-zinc-900/50">
+      <button
+        type="button"
+        onClick={onUndo}
+        disabled={!canUndo}
+        title="Vrátit zpět (Ctrl+Z)"
+        aria-label="Vrátit zpět"
+        className="rounded-l-lg px-2.5 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800/60 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        Zpět
+      </button>
+      <button
+        type="button"
+        onClick={onRedo}
+        disabled={!canRedo}
+        title="Provést znovu (Ctrl+Shift+Z)"
+        aria-label="Provést znovu"
+        className="rounded-r-lg border-l border-zinc-800/80 px-2.5 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800/60 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        Znovu
+      </button>
+    </div>
+  );
+}
+
 export function EditorTopBar({
   state,
   hasUnsavedChanges,
@@ -75,28 +114,12 @@ export function EditorTopBar({
             <span className="text-sm font-medium text-red-400" role="alert">{saveError}</span>
           ) : null}
           {onUndo && onRedo ? (
-            <div className="flex items-center rounded-lg border border-zinc-800/80 bg-zinc-900/50">
-              <button
-                type="button"
-                onClick={onUndo}
-                disabled={!canUndo}
-                title="Vrátit zpět (Ctrl+Z)"
-                aria-label="Vrátit zpět"
-                className="rounded-l-lg px-2.5 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800/60 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Zpět
-              </button>
-              <button
-                type="button"
-                onClick={onRedo}
-                disabled={!canRedo}
-                title="Provést znovu (Ctrl+Shift+Z)"
-                aria-label="Provést znovu"
-                className="rounded-r-lg border-l border-zinc-800/80 px-2.5 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800/60 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Znovu
-              </button>
-            </div>
+            <EditorUndoRedoButtons
+              canUndo={canUndo}
+              canRedo={canRedo}
+              onUndo={onUndo}
+              onRedo={onRedo}
+            />
           ) : null}
           <Link
             href={previewPath}

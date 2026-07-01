@@ -10,6 +10,7 @@ import {
   type ClassicLayerReorderAction,
 } from "@/lib/classic-banner/classic-banner-overrides";
 import type {
+  ClassicBannerOnChange,
   ClassicBannerProjectData,
   ClassicBannerSizeVariant,
   ClassicEditableSlotId,
@@ -21,7 +22,7 @@ interface ClassicLayerListProps {
   variant: ClassicBannerSizeVariant;
   selectedSlotId: ClassicEditableSlotId | null;
   onSelectSlot: (slotId: ClassicEditableSlotId) => void;
-  onChange: (next: ClassicBannerProjectData) => void;
+  onChange: ClassicBannerOnChange;
 }
 
 export function ClassicLayerList({
@@ -35,7 +36,7 @@ export function ClassicLayerList({
   const ordered = [...finalLayout.layers].sort((a, b) => b.zIndex - a.zIndex);
 
   function reorder(slotId: ClassicEditableSlotId, action: ClassicLayerReorderAction) {
-    onChange(reorderClassicBannerLayer(data, variant, slotId, action));
+    onChange(reorderClassicBannerLayer(data, variant, slotId, action), { history: "push" });
   }
 
   return (

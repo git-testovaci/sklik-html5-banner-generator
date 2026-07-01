@@ -1,5 +1,8 @@
 /** Canonical classic static banner model — single source of truth for slot/variant types. */
 
+import type { BannerAsset } from "@/types/assets";
+import type { EditorHistoryMode } from "@/types/editor";
+
 export type ClassicBannerSlotId =
   | "background"
   | "logo"
@@ -119,6 +122,20 @@ export interface ClassicBannerLayerOverride {
 export type ClassicBannerVariantOverrides = Partial<
   Record<ClassicEditableSlotId, ClassicBannerLayerOverride>
 >;
+
+export type ClassicBannerEditorChangeOptions = {
+  history?: EditorHistoryMode;
+};
+
+export type ClassicBannerOnChange = (
+  next: ClassicBannerProjectData,
+  options?: ClassicBannerEditorChangeOptions,
+) => void;
+
+export type ClassicBannerAssetsOnChange = (
+  assets: BannerAsset[],
+  options?: ClassicBannerEditorChangeOptions,
+) => void;
 
 export type ClassicBannerPropagationTransformMode = "copy-percent" | "family-aware";
 

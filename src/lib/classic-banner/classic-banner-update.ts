@@ -145,3 +145,24 @@ export function classicBannerEditorStateEqual(
 ): boolean {
   return classicBannerDataEqual(classicBanner, otherClassicBanner) && assetsEqual(assets, otherAssets);
 }
+
+export interface ClassicBannerEditorSnapshot {
+  classicBanner: ClassicBannerProjectData;
+  assets: BannerAsset[];
+}
+
+export function cloneClassicBannerEditorSnapshot(
+  snapshot: ClassicBannerEditorSnapshot,
+): ClassicBannerEditorSnapshot {
+  return {
+    classicBanner: prepareClassicBannerData(structuredClone(snapshot.classicBanner)),
+    assets: structuredClone(snapshot.assets),
+  };
+}
+
+export function classicBannerEditorSnapshotsEqual(
+  a: ClassicBannerEditorSnapshot,
+  b: ClassicBannerEditorSnapshot,
+): boolean {
+  return classicBannerEditorStateEqual(a.classicBanner, a.assets, b.classicBanner, b.assets);
+}

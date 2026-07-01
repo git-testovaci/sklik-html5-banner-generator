@@ -20,6 +20,8 @@ import { formatFileSize } from "@/lib/assets/image-utils";
 import type { BannerAsset } from "@/types/assets";
 import type {
   ClassicBannerDesignTokens,
+  ClassicBannerEditorChangeOptions,
+  ClassicBannerOnChange,
   ClassicBannerProjectData,
   ClassicBannerSizeVariant,
   ClassicBannerSlotId,
@@ -35,8 +37,12 @@ interface ClassicBannerInspectorProps {
   assets: BannerAsset[];
   selectedVariant?: ClassicBannerSizeVariant;
   selectedSlotId?: ClassicEditableSlotId | null;
-  onChange: (next: ClassicBannerProjectData) => void;
-  onAssetsChange: (assets: BannerAsset[]) => void;
+  onChange: ClassicBannerOnChange;
+  onCombinedChange: (
+    classicBanner: ClassicBannerProjectData,
+    assets: BannerAsset[],
+    options?: ClassicBannerEditorChangeOptions,
+  ) => void;
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -256,7 +262,7 @@ export function ClassicBannerInspector({
   selectedVariant,
   selectedSlotId = null,
   onChange,
-  onAssetsChange,
+  onCombinedChange,
 }: ClassicBannerInspectorProps) {
   const { content, designTokens } = data;
   const [uploadingSlot, setUploadingSlot] = useState<ClassicBannerImageSlot | null>(null);
@@ -268,20 +274,26 @@ export function ClassicBannerInspector({
     [data, selectedVariant],
   );
 
-  function emit(next: ClassicBannerProjectData) {
-    onChange(prepareClassicBannerData(next));
+  function emit(next: ClassicBannerProjectData, options?: ClassicBannerEditorChangeOptions) {
+    onChange(prepareClassicBannerData(next), options);
   }
 
-  function updateContent(patch: Partial<typeof content>) {
-    emit(patchClassicBannerContent(data, patch));
+  function updateContent(
+    patch: Partial<typeof content>,
+    options?: ClassicBannerEditorChangeOptions,
+  ) {
+    emit(patchClassicBannerContent(data, patch), options);
   }
 
-  function updateTokens(patch: Partial<ClassicBannerDesignTokens>) {
-    emit(patchClassicBannerDesignTokens(data, patch));
+  function updateTokens(
+    patch: Partial<ClassicBannerDesignTokens>,
+    options?: ClassicBannerEditorChangeOptions,
+  ) {
+    emit(patchClassicBannerDesignTokens(data, patch), options);
   }
 
   function toggleSlot(slotId: ClassicBannerSlotId, enabled: boolean) {
-    emit(setClassicBannerSlotVisible(data, slotId, enabled));
+    emit(setClassicBannerSlotVisible(data, slotId, enabled), { history: "push" });
   }
 
   async function handleUpload(slot: ClassicBannerImageSlot, file: File) {
@@ -293,8 +305,11 @@ export function ClassicBannerInspector({
         setUploadErrors((prev) => ({ ...prev, [slot]: result.message }));
         return;
       }
-      onAssetsChange(result.assets);
-      emit(patchClassicBannerContent(data, result.contentPatch));
+      onCombinedChange(
+        patchClassicBannerContent(data, result.contentPatch),
+        result.assets,
+        { history: "push" },
+      );
     } finally {
       setUploadingSlot(null);
     }
@@ -302,8 +317,11 @@ export function ClassicBannerInspector({
 
   async function handleClearLocal(slot: ClassicBannerImageSlot) {
     const result = await clearClassicBannerAsset(slot, assets, content);
-    onAssetsChange(result.assets);
-    emit(patchClassicBannerContent(data, result.contentPatch));
+    onCombinedChange(
+      patchClassicBannerContent(data, result.contentPatch),
+      result.assets,
+      { history: "push" },
+    );
   }
 
   function assetForSlot(slot: ClassicBannerImageSlot): BannerAsset | undefined {
@@ -360,7 +378,7 @@ export function ClassicBannerInspector({
               asset={assetForSlot(slot)}
               uploading={uploadingSlot === slot}
               uploadError={uploadErrors[slot]}
-              onUrlChange={(value) => updateContent({ [IMAGE_URL_FIELD[slot]]: value })}
+              onUrlChange={(value) => updateContent({ [IMAGE_URL_FIELD[slot]]: value }, { history: "replace" })}
               onUpload={(file) => void handleUpload(slot, file)}
               onClearLocal={() => void handleClearLocal(slot)}
             />
@@ -385,26 +403,26 @@ export function ClassicBannerInspector({
             id="classic-headline"
             label="Nadpis"
             value={content.headline}
-            onChange={(headline) => updateContent({ headline })}
+            onChange={(headline) => updateContent({ headline }, { history: "replace" })}
             multiline
           />
           <TextField
             id="classic-slogan"
             label="Slogan"
             value={content.slogan}
-            onChange={(slogan) => updateContent({ slogan })}
+            onChange={(slogan) => updateContent({ slogan }, { history: "replace" })}
           />
           <TextField
             id="classic-cta"
             label="Výzva k akci"
             value={content.ctaText}
-            onChange={(ctaText) => updateContent({ ctaText })}
+            onChange={(ctaText) => updateContent({ ctaText }, { history: "replace" })}
           />
           <TextField
             id="classic-badge"
             label="Text štítku"
             value={content.badgeText}
-            onChange={(badgeText) => updateContent({ badgeText })}
+            onChange={(badgeText) => updateContent({ badgeText }, { history: "replace" })}
           />
         </section>
 
@@ -421,9 +439,12 @@ export function ClassicBannerInspector({
               id="classic-logo-position"
               value={designTokens.logoPositionPreset}
               onChange={(e) =>
-                updateTokens({
-                  logoPositionPreset: e.target.value as ClassicBannerDesignTokens["logoPositionPreset"],
-                })
+                updateTokens(
+                  {
+                    logoPositionPreset: e.target.value as ClassicBannerDesignTokens["logoPositionPreset"],
+                  },
+                  { history: "push" },
+                )
               }
               className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100"
             >
@@ -436,7 +457,7 @@ export function ClassicBannerInspector({
             id="classic-font-family"
             label="Rodina písma"
             value={designTokens.fontFamily}
-            onChange={(fontFamily) => updateTokens({ fontFamily })}
+            onChange={(fontFamily) => updateTokens({ fontFamily }, { history: "replace" })}
           />
         </section>
 
@@ -446,43 +467,43 @@ export function ClassicBannerInspector({
             id="classic-primary"
             label="Primární / pozadí"
             value={designTokens.primaryColor}
-            onChange={(primaryColor) => updateTokens({ primaryColor })}
+            onChange={(primaryColor) => updateTokens({ primaryColor }, { history: "replace" })}
           />
           <ColorField
             id="classic-accent"
             label="Akcent"
             value={designTokens.accentColor}
-            onChange={(accentColor) => updateTokens({ accentColor })}
+            onChange={(accentColor) => updateTokens({ accentColor }, { history: "replace" })}
           />
           <ColorField
             id="classic-text"
             label="Text"
             value={designTokens.textColor}
-            onChange={(textColor) => updateTokens({ textColor })}
+            onChange={(textColor) => updateTokens({ textColor }, { history: "replace" })}
           />
           <ColorField
             id="classic-cta-bg"
             label="CTA pozadí"
             value={designTokens.ctaBackgroundColor}
-            onChange={(ctaBackgroundColor) => updateTokens({ ctaBackgroundColor })}
+            onChange={(ctaBackgroundColor) => updateTokens({ ctaBackgroundColor }, { history: "replace" })}
           />
           <ColorField
             id="classic-cta-text"
             label="CTA text"
             value={designTokens.ctaTextColor}
-            onChange={(ctaTextColor) => updateTokens({ ctaTextColor })}
+            onChange={(ctaTextColor) => updateTokens({ ctaTextColor }, { history: "replace" })}
           />
           <ColorField
             id="classic-badge-bg"
             label="Štítek pozadí"
             value={designTokens.badgeBackgroundColor}
-            onChange={(badgeBackgroundColor) => updateTokens({ badgeBackgroundColor })}
+            onChange={(badgeBackgroundColor) => updateTokens({ badgeBackgroundColor }, { history: "replace" })}
           />
           <ColorField
             id="classic-badge-text"
             label="Štítek text"
             value={designTokens.badgeTextColor}
-            onChange={(badgeTextColor) => updateTokens({ badgeTextColor })}
+            onChange={(badgeTextColor) => updateTokens({ badgeTextColor }, { history: "replace" })}
           />
         </section>
       </div>
