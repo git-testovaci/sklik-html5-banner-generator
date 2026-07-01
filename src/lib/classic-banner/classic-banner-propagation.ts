@@ -136,7 +136,164 @@ function formatPropagationMessage(
   return parts.join(" ");
 }
 
-/** Slots on the source variant that would be propagated (respects optional slot filter). */
+export interface ClassicBannerPropagationPreview {
+  sourceSizeId: string;
+  slotIds: ClassicEditableSlotId[];
+  targetCount: number;
+  overwriteExisting: boolean;
+  potentialSkipCount: number;
+  potentialApplyCount: number;
+}
+
+function countPropagationOutcome(
+  data: ClassicBannerProjectData,
+  sourceSizeId: string,
+  sourceOverrides: ClassicBannerVariantOverrides,
+  slotsToPropagate: ClassicEditableSlotId[],
+  targets: ClassicBannerSizeVariant[],
+  overwrite: boolean,
+): { potentialSkipCount: number; potentialApplyCount: number } {
+  let potentialSkipCount = 0;
+  let potentialApplyCount = 0;
+
+  for (const target of targets) {
+    const targetOverrides = data.variantOverrides?.[target.sizeId] ?? {};
+    for (const slotId of slotsToPropagate) {
+      if (!layerHasManualOverride(sourceOverrides[slotId])) continue;
+      const existing = targetOverrides[slotId];
+      if (!overwrite && layerHasManualOverride(existing)) {
+        potentialSkipCount += 1;
+      } else {
+        potentialApplyCount += 1;
+      }
+    }
+  }
+
+  return { potentialSkipCount, potentialApplyCount };
+}
+
+/** Pre-apply summary for propagation UI. */
+export function previewClassicBannerPropagation(
+  data: ClassicBannerProjectData,
+  sourceSizeId: string,
+  options: ClassicBannerPropagationOptions,
+): ClassicBannerPropagationPreview | null {
+  const sourceVariant = resolveSourceVariant(data, sourceSizeId);
+  if (!sourceVariant) return null;
+
+  const slotsToPropagate = resolveSlotsToPropagate(data, sourceSizeId, options.slots);
+  const targets = filterTargets(
+    data,
+    sourceVariant,
+    options.targetMode,
+    options.selectedSizeIds,
+  );
+  const overwrite = options.overwriteExisting ?? false;
+  const sourceOverrides = data.variantOverrides?.[sourceSizeId] ?? {};
+  const { potentialSkipCount, potentialApplyCount } = countPropagationOutcome(
+    data,
+    sourceSizeId,
+    sourceOverrides,
+    slotsToPropagate,
+    targets,
+    overwrite,
+  );
+
+  return {
+    sourceSizeId,
+    slotIds: slotsToPropagate,
+    targetCount: targets.length,
+    overwriteExisting: overwrite,
+    potentialSkipCount,
+    potentialApplyCount,
+  };
+}
+
+export interface ClassicBannerResetSimilarOptions {
+  targetMode?: ClassicBannerPropagationTargetMode;
+  selectedSizeIds?: string[];
+  slots?: ClassicEditableSlotId[];
+}
+
+export interface ClassicBannerResetSimilarResult {
+  data: ClassicBannerProjectData;
+  resetVariantCount: number;
+  resetSlotCount: number;
+  message: string;
+}
+
+/** Remove manual overrides from target variants (never touches source). */
+export function resetClassicBannerSimilarOverrides(
+  data: ClassicBannerProjectData,
+  sourceSizeId: string,
+  options: ClassicBannerResetSimilarOptions = {},
+): ClassicBannerResetSimilarResult {
+  const sourceVariant = resolveSourceVariant(data, sourceSizeId);
+  if (!sourceVariant) {
+    return {
+      data,
+      resetVariantCount: 0,
+      resetSlotCount: 0,
+      message: "Zdrojový rozměr nebyl nalezen.",
+    };
+  }
+
+  const targetMode = options.targetMode ?? "same-family";
+  const targets = filterTargets(data, sourceVariant, targetMode, options.selectedSizeIds);
+  if (targets.length === 0) {
+    return {
+      data,
+      resetVariantCount: 0,
+      resetSlotCount: 0,
+      message: "Nebyly nalezeny žádné cílové rozměry.",
+    };
+  }
+
+  const slotsFilter = options.slots;
+  let next = data;
+  let resetVariantCount = 0;
+  let resetSlotCount = 0;
+
+  for (const target of targets) {
+    const targetSizeId = target.sizeId;
+    const sizeOverrides = { ...(next.variantOverrides?.[targetSizeId] ?? {}) };
+    if (Object.keys(sizeOverrides).length === 0) continue;
+
+    let variantChanged = false;
+
+    if (slotsFilter && slotsFilter.length > 0) {
+      for (const slotId of slotsFilter) {
+        if (!sizeOverrides[slotId]) continue;
+        delete sizeOverrides[slotId];
+        resetSlotCount += 1;
+        variantChanged = true;
+      }
+    } else {
+      const removed = Object.keys(sizeOverrides).length;
+      if (removed > 0) {
+        resetSlotCount += removed;
+        variantChanged = true;
+        next = applyVariantOverridesMap(next, targetSizeId, {});
+        continue;
+      }
+    }
+
+    if (variantChanged) {
+      next = applyVariantOverridesMap(next, targetSizeId, sizeOverrides);
+      resetVariantCount += 1;
+    }
+  }
+
+  const message =
+    resetVariantCount > 0
+      ? resetVariantCount === 1
+        ? "Ruční úpravy resetovány na 1 cílovém rozměru."
+        : `Ruční úpravy resetovány na ${resetVariantCount} cílových rozměrech.`
+      : "Na cílových rozměrech nebyly žádné ruční úpravy k resetu.";
+
+  return { data: next, resetVariantCount, resetSlotCount, message };
+}
+
 export function getClassicBannerSourcePropagationSlots(
   data: ClassicBannerProjectData,
   sourceSizeId: string,

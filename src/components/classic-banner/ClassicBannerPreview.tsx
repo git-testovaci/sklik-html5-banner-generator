@@ -99,18 +99,22 @@ function ResizeHandle({
   onPointerDown: (e: React.PointerEvent, corner: Corner) => void;
 }) {
   const position: Record<Corner, string> = {
-    tl: "-left-1.5 -top-1.5 cursor-nwse-resize",
-    tr: "-right-1.5 -top-1.5 cursor-nesw-resize",
-    bl: "-left-1.5 -bottom-1.5 cursor-nesw-resize",
-    br: "-right-1.5 -bottom-1.5 cursor-nwse-resize",
+    tl: "-left-2 -top-2 cursor-nwse-resize",
+    tr: "-right-2 -top-2 cursor-nesw-resize",
+    bl: "-left-2 -bottom-2 cursor-nesw-resize",
+    br: "-right-2 -bottom-2 cursor-nwse-resize",
   };
 
   return (
     <span
       data-resize-handle
       role="presentation"
-      onPointerDown={(e) => onPointerDown(e, corner)}
-      className={`absolute z-[22] h-3 w-3 rounded-sm border border-white bg-violet-500 shadow ${position[corner]}`}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        onPointerDown(e, corner);
+      }}
+      className={`absolute z-[22] h-4 w-4 rounded-sm border-2 border-white bg-violet-500 shadow-md ${position[corner]}`}
     />
   );
 }
@@ -140,6 +144,7 @@ function InteractiveLayer({
 }: InteractiveLayerProps) {
   const { rect, locked, slotId } = layer;
   const canInteract = !locked && pointerEvents === "auto";
+  const suppressClickRef = useRef(false);
 
   const startDrag = useCallback(
     (e: React.PointerEvent, mode: "move" | Corner) => {
@@ -167,6 +172,7 @@ function InteractiveLayer({
       const origin = { ...rect };
       const preserveAspect = CLASSIC_ASPECT_RATIO_SLOTS.has(slotId) && !e.shiftKey;
       const aspect = origin.width / Math.max(origin.height, 0.01);
+      suppressClickRef.current = false;
 
       function toPercentDelta(dx: number, dy: number) {
         return {
@@ -178,6 +184,9 @@ function InteractiveLayer({
       function onMove(ev: PointerEvent) {
         const dx = ev.clientX - startClientX;
         const dy = ev.clientY - startClientY;
+        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+          suppressClickRef.current = true;
+        }
         const { dxPct, dyPct } = toPercentDelta(dx, dy);
 
         if (mode === "move") {
@@ -259,10 +268,16 @@ function InteractiveLayer({
       }}
       onClick={(e) => {
         if (pointerEvents !== "auto") return;
+        if (suppressClickRef.current) {
+          suppressClickRef.current = false;
+          e.stopPropagation();
+          return;
+        }
         e.stopPropagation();
         onSelect();
       }}
     >
+      <div className="relative h-full w-full pointer-events-none">{children}</div>
       <SelectionOverlay
         visible={selected}
         locked={locked}
@@ -277,7 +292,6 @@ function InteractiveLayer({
           />
         ))
       ) : null}
-      <div className="relative h-full w-full">{children}</div>
     </div>
   );
 }
@@ -338,7 +352,7 @@ export function ClassicBannerPreview({
   }, [fitScale, height, onViewZoomChange, width]);
 
   const handleWheel = useCallback(
-    (e: React.WheelEvent) => {
+    (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
       const delta = e.deltaY > 0 ? -0.08 : 0.08;
@@ -346,6 +360,13 @@ export function ClassicBannerPreview({
     },
     [onViewZoomChange, viewZoom],
   );
+
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, [handleWheel]);
 
   function renderLayerContent(slotId: ClassicEditableSlotId) {
     switch (slotId) {
@@ -446,7 +467,6 @@ export function ClassicBannerPreview({
     <div
       ref={viewportRef}
       className="flex w-full max-w-full flex-col items-center gap-3"
-      onWheel={handleWheel}
     >
       <ClassicCanvasToolbar
         zoom={viewZoom}
@@ -457,9 +477,6 @@ export function ClassicBannerPreview({
       <div
         className="relative overflow-hidden rounded-lg border border-zinc-700/80 bg-zinc-900 shadow-xl"
         style={{ width: frameWidth, height: frameHeight }}
-        onPointerDown={(e) => {
-          if (e.target === e.currentTarget) onSelectSlot(null);
-        }}
       >
         <div
           className="relative origin-top-left"
@@ -470,9 +487,6 @@ export function ClassicBannerPreview({
           }}
           role="img"
           aria-label={`Náhled banneru ${width}×${height}`}
-          onPointerDown={(e) => {
-            if (e.target === e.currentTarget) onSelectSlot(null);
-          }}
         >
           {/* Base fill — not selectable */}
           <div
@@ -481,6 +495,17 @@ export function ClassicBannerPreview({
               backgroundColor: designTokens.primaryColor,
               zIndex: layout.zIndex.background,
               pointerEvents: "none",
+            }}
+          />
+
+          {/* Deselect hit area for empty canvas clicks */}
+          <div
+            className="absolute inset-0"
+            style={{ zIndex: 0 }}
+            aria-hidden
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              onSelectSlot(null);
             }}
           />
 
