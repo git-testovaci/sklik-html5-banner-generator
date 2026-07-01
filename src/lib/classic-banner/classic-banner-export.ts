@@ -5,6 +5,10 @@ import {
 } from "@/lib/classic-banner/classic-banner-overrides";
 import type { ClassicBannerLayoutRect } from "@/lib/classic-banner/classic-banner-layout";
 import {
+  computeClassicImageRenderedRect,
+  getClassicImageSlotFitOptions,
+} from "@/lib/classic-banner/classic-banner-image-fit";
+import {
   loadClassicBannerImageForCanvas,
 } from "@/lib/classic-banner/classic-banner-image-sources";
 import { CLASSIC_BANNER_SIZES, getClassicBannerSizeById } from "@/lib/classic-banner/classic-banner-sizes";
@@ -64,60 +68,66 @@ function rectToPixels(
   };
 }
 
-function drawImageCover(
+function drawImageInLocalBox(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
+  box: PixelRect,
+  fit: "contain" | "cover",
 ): void {
-  const boxRatio = w / h;
-  const imgRatio = img.width / img.height;
-  let sx = 0;
-  let sy = 0;
-  let sw = img.width;
-  let sh = img.height;
+  if (fit === "cover") {
+    const boxRatio = box.width / box.height;
+    const imgRatio = img.width / img.height;
+    let sx = 0;
+    let sy = 0;
+    let sw = img.width;
+    let sh = img.height;
 
-  if (imgRatio > boxRatio) {
-    sw = img.height * boxRatio;
-    sx = (img.width - sw) / 2;
-  } else {
-    sh = img.width / boxRatio;
-    sy = (img.height - sh) / 2;
+    if (imgRatio > boxRatio) {
+      sw = img.height * boxRatio;
+      sx = (img.width - sw) / 2;
+    } else {
+      sh = img.width / boxRatio;
+      sy = (img.height - sh) / 2;
+    }
+
+    ctx.drawImage(img, sx, sy, sw, sh, box.x, box.y, box.width, box.height);
+    return;
   }
 
-  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  ctx.drawImage(img, 0, 0, img.width, img.height, box.x, box.y, box.width, box.height);
 }
 
-function drawImageContainTopLeft(
+function drawClassicImageLayer(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  maxHeight?: number,
+  layer: ClassicBannerResolvedLayer,
+  slotId: ClassicEditableSlotId,
+  canvasWidth: number,
+  canvasHeight: number,
+  logoMaxHeight: number,
 ): void {
-  const boxH = maxHeight ? Math.min(h, maxHeight) : h;
-  const scale = Math.min(w / img.width, boxH / img.height, 1);
-  const dw = img.width * scale;
-  const dh = img.height * scale;
-  ctx.drawImage(img, x, y, dw, dh);
-}
+  const fitOpts = getClassicImageSlotFitOptions(slotId, logoMaxHeight);
+  if (!fitOpts) return;
 
-function drawImageContainCenter(
-  ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-): void {
-  const scale = Math.min(w / img.width, h / img.height, 1);
-  const dw = img.width * scale;
-  const dh = img.height * scale;
-  ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+  const renderedRect =
+    fitOpts.fit === "contain"
+      ? computeClassicImageRenderedRect({
+          layerRect: layer.rect,
+          imageWidth: img.naturalWidth,
+          imageHeight: img.naturalHeight,
+          fit: fitOpts.fit,
+          bannerWidth: canvasWidth,
+          bannerHeight: canvasHeight,
+          maxHeightPx: fitOpts.maxHeightPx,
+          align: fitOpts.align,
+          allowUpscale: fitOpts.allowUpscale,
+        })
+      : layer.rect;
+
+  const pixelBox = rectToPixels(renderedRect, canvasWidth, canvasHeight);
+  drawInRotatedBox(ctx, pixelBox, layer.rotationDeg, (drawCtx, box) => {
+    drawImageInLocalBox(drawCtx, img, box, fitOpts.fit);
+  });
 }
 
 function roundRectPath(
@@ -508,18 +518,22 @@ export async function exportClassicBannerVariantToPng(
     ClassicEditableSlotId,
     (layer: ClassicBannerResolvedLayer, box: PixelRect) => void
   > = {
-    background: (layer, backgroundBox) => {
+    background: (layer) => {
       if (backgroundImg && showBackground) {
-        drawInRotatedBox(ctx, backgroundBox, layer.rotationDeg, (drawCtx, box) => {
-          drawImageCover(drawCtx, backgroundImg, box.x, box.y, box.width, box.height);
-        });
+        drawClassicImageLayer(
+          ctx,
+          backgroundImg,
+          layer,
+          "background",
+          width,
+          height,
+          layout.logoMaxHeight,
+        );
       }
     },
-    hero: (layer, heroBox) => {
-      if (showHero && heroImg && heroBox.width > 0 && heroBox.height > 0) {
-        drawInRotatedBox(ctx, heroBox, layer.rotationDeg, (drawCtx, box) => {
-          drawImageContainCenter(drawCtx, heroImg, box.x, box.y, box.width, box.height);
-        });
+    hero: (layer) => {
+      if (showHero && heroImg && layer.rect.width > 0 && layer.rect.height > 0) {
+        drawClassicImageLayer(ctx, heroImg, layer, "hero", width, height, layout.logoMaxHeight);
       }
     },
     headline: (layer, headlineBox) => {
@@ -543,19 +557,9 @@ export async function exportClassicBannerVariantToPng(
         });
       }
     },
-    logo: (layer, logoBox) => {
-      if (showLogo && logoImg && logoBox.width > 0 && logoBox.height > 0) {
-        drawInRotatedBox(ctx, logoBox, layer.rotationDeg, (drawCtx, box) => {
-          drawImageContainTopLeft(
-            drawCtx,
-            logoImg,
-            box.x,
-            box.y,
-            box.width,
-            box.height,
-            layout.logoMaxHeight,
-          );
-        });
+    logo: (layer) => {
+      if (showLogo && logoImg && layer.rect.width > 0 && layer.rect.height > 0) {
+        drawClassicImageLayer(ctx, logoImg, layer, "logo", width, height, layout.logoMaxHeight);
       }
     },
     cta: (layer, ctaBox) => {

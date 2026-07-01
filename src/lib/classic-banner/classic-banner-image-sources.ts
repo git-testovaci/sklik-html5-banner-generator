@@ -77,6 +77,70 @@ export function hasClassicBannerImageSource(
   return classicBannerImageSourceKind(content, slot) !== "none";
 }
 
+export interface ClassicBannerImageDimensions {
+  width: number;
+  height: number;
+}
+
+/** Read intrinsic dimensions from uploaded asset metadata when available. */
+export function getClassicBannerImageDimensionsFromAssets(
+  content: ClassicBannerContent,
+  slot: ClassicBannerImageSlot,
+  assets: readonly BannerAsset[],
+): ClassicBannerImageDimensions | null {
+  const assetId = getClassicImageAssetId(content, slot);
+  if (!assetId) return null;
+  const asset = assets.find((item) => item.id === assetId);
+  if (!asset || asset.width <= 0 || asset.height <= 0) return null;
+  return { width: asset.width, height: asset.height };
+}
+
+function loadImageDimensionsFromUrl(url: string): Promise<ClassicBannerImageDimensions | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.decoding = "async";
+    img.onload = () => {
+      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+        resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      } else {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
+/** Resolve intrinsic dimensions — local asset metadata first, then URL probe. */
+export async function resolveClassicBannerImageDimensions(
+  content: ClassicBannerContent,
+  slot: ClassicBannerImageSlot,
+  assets: readonly BannerAsset[],
+): Promise<ClassicBannerImageDimensions | null> {
+  const fromAsset = getClassicBannerImageDimensionsFromAssets(content, slot, assets);
+  if (fromAsset) return fromAsset;
+
+  const resolved = await resolveClassicBannerImageUrl(content, slot, assets);
+  if (!resolved.url) return null;
+  return loadImageDimensionsFromUrl(resolved.url);
+}
+
+/** Resolve all classic image slot dimensions for preview/editor. */
+export async function resolveClassicBannerImageDimensionsMap(
+  content: ClassicBannerContent,
+  assets: readonly BannerAsset[],
+): Promise<Record<ClassicBannerImageSlot, ClassicBannerImageDimensions | null>> {
+  const slots: ClassicBannerImageSlot[] = ["background", "logo", "hero"];
+  const resolved = await Promise.all(
+    slots.map((slot) => resolveClassicBannerImageDimensions(content, slot, assets)),
+  );
+  return {
+    background: resolved[0]!,
+    logo: resolved[1]!,
+    hero: resolved[2]!,
+  };
+}
+
 function loadImageElement(src: string, crossOrigin: boolean): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image();
