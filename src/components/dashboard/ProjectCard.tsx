@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { formatBannerSize } from "@/lib/banner-sizes";
+import { isClassicBannerProject } from "@/lib/classic-banner/classic-banner-model";
 import { isImportCreatedProjectId } from "@/lib/project-factory";
 import type { BannerProject } from "@/types/project";
 import { ProjectStatusBadge } from "./ProjectStatusBadge";
@@ -30,7 +31,9 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
     project.status !== "draft" && project.shareId.length > 0;
   const sizeLabel = formatBannerSize(project.width, project.height);
   const isFromImport = isImportCreatedProjectId(project.id);
+  const isClassic = isClassicBannerProject(project);
   const sceneCount = project.scenes?.length ?? 0;
+  const variantCount = project.classicBanner?.variants.length ?? 0;
 
   function handleDelete() {
     const confirmed = window.confirm(
@@ -54,6 +57,11 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
                 Z importu
               </span>
             ) : null}
+            {isClassic ? (
+              <span className="shrink-0 rounded-full bg-violet-950/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-violet-300 ring-1 ring-violet-800/50">
+                Klasický
+              </span>
+            ) : null}
           </div>
           <p className="mt-1 font-mono text-sm text-zinc-500">{sizeLabel}</p>
         </div>
@@ -72,6 +80,9 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
         {sceneCount > 1 ? (
           <p className="text-sky-400/90">{sceneCount} scén · storyboard</p>
         ) : null}
+        {isClassic && variantCount > 0 ? (
+          <p className="text-violet-400/90">{variantCount} variant · klasický banner</p>
+        ) : null}
         <p className="text-zinc-500">
           {canPreview ? (
             <>Veřejný náhled k dispozici</>
@@ -87,7 +98,7 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
           href={`/editor/${project.id}`}
           className="inline-flex items-center rounded-lg bg-violet-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-violet-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500"
         >
-          Otevřít editor
+          {isClassic ? "Otevřít přehled" : "Otevřít editor"}
         </Link>
 
         {canPreview ? (

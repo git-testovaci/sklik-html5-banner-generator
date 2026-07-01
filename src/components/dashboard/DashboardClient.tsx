@@ -13,6 +13,7 @@ import {
 import type { DashboardStats } from "@/types/project";
 import { DashboardHeader } from "./DashboardHeader";
 import { EmptyProjectsState } from "./EmptyProjectsState";
+import { NewClassicProjectDialog } from "./NewClassicProjectDialog";
 import { NewProjectDialog } from "./NewProjectDialog";
 import { ProjectCard } from "./ProjectCard";
 
@@ -61,7 +62,8 @@ export function DashboardClient() {
   const router = useRouter();
   const isClient = useIsClient();
   const projects = useStoredProjects();
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [html5DialogOpen, setHtml5DialogOpen] = useState(false);
+  const [classicDialogOpen, setClassicDialogOpen] = useState(false);
 
   const stats = computeDashboardStats(projects);
 
@@ -104,7 +106,10 @@ export function DashboardClient() {
 
   return (
     <div className="flex min-h-full flex-col">
-      <DashboardHeader onNewBanner={() => setDialogOpen(true)} />
+      <DashboardHeader
+        onNewHtml5Banner={() => setHtml5DialogOpen(true)}
+        onNewClassicBanner={() => setClassicDialogOpen(true)}
+      />
 
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
         <LocalStorageNotice />
@@ -152,7 +157,10 @@ export function DashboardClient() {
           </div>
 
           {projects.length === 0 ? (
-            <EmptyProjectsState onCreateClick={() => setDialogOpen(true)} />
+            <EmptyProjectsState
+              onCreateHtml5={() => setHtml5DialogOpen(true)}
+              onCreateClassic={() => setClassicDialogOpen(true)}
+            />
           ) : (
             <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {projects.map((project) => (
@@ -166,8 +174,13 @@ export function DashboardClient() {
       </main>
 
       <NewProjectDialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
+        open={html5DialogOpen}
+        onClose={() => setHtml5DialogOpen(false)}
+        onCreated={handleCreated}
+      />
+      <NewClassicProjectDialog
+        open={classicDialogOpen}
+        onClose={() => setClassicDialogOpen(false)}
         onCreated={handleCreated}
       />
     </div>

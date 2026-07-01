@@ -90,7 +90,7 @@ export function NewProjectDialog({
     >
       <form onSubmit={handleSubmit} className="p-6">
         <div className="mb-6">
-          <h2 className="text-lg font-semibold text-zinc-100">Nový banner</h2>
+          <h2 className="text-lg font-semibold text-zinc-100">Nový HTML5 banner</h2>
           <p className="mt-1 text-sm text-zinc-500">
             Vytvořte koncept a otevřete editor. Po vytvoření vyberte profesionální šablonu
             nebo přidejte vrstvy na plátně. Projekt se uloží lokálně v tomto prohlížeči.

@@ -1,3 +1,4 @@
+import type { ClassicBannerProjectData } from "./classic-banner";
 import type { BannerAsset, BannerAssetPlacement, TextLayerPlacement } from "./assets";
 import type {
   BannerLayer,
@@ -11,10 +12,14 @@ import type { BannerAnimation } from "./editor";
 
 export type ProjectStatus = "draft" | "shared" | "exported";
 
+export type ProjectKind = "html5-banner" | "classic-banner";
+
 export interface BannerProject {
   id: string;
   name: string;
   status: ProjectStatus;
+  /** Omitted on legacy projects — treated as html5-banner when loading. */
+  projectKind?: ProjectKind;
   width: number;
   height: number;
   headline: string;
@@ -41,6 +46,8 @@ export interface BannerProject {
   layerEffects?: LayerEffect[];
   layerKeyframes?: LayerKeyframe[];
   activeSceneId?: string;
+  /** Classic static banner payload — present when projectKind is classic-banner. */
+  classicBanner?: ClassicBannerProjectData;
 }
 
 export interface DashboardStats {

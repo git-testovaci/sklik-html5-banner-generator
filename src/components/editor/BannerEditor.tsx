@@ -74,6 +74,8 @@ import { ValidationExportPanel } from "./ValidationExportPanel";
 import { WorkflowGuidanceBox } from "./WorkflowGuidance";
 import { EditorTopBar } from "./EditorTopBar";
 import { getValidationSummary } from "@/lib/validation-rules";
+import { isClassicBannerProject } from "@/lib/classic-banner/classic-banner-model";
+import { ClassicBannerPlaceholder } from "@/components/classic-banner/ClassicBannerPlaceholder";
 
 type LeftTab = "assets" | "templates";
 
@@ -953,6 +955,10 @@ export function BannerEditor({ projectId }: BannerEditorProps) {
         </Link>
       </div>
     );
+  }
+
+  if (isClassicBannerProject(project)) {
+    return <ClassicBannerPlaceholder project={project} />;
   }
 
   return (

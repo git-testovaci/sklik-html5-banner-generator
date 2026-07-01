@@ -2,6 +2,11 @@ import { generateShareId } from "@/lib/share-links";
 import { createCleanAirDemoProject } from "@/lib/project-factory";
 import { MOCK_PROJECTS } from "@/lib/mock-projects";
 import {
+  migrateClassicBannerData,
+  parseProjectKind,
+} from "@/lib/classic-banner/classic-banner-model";
+import { createDefaultClassicBannerData } from "@/lib/classic-banner/classic-banner-defaults";
+import {
   defaultStudioPlacements,
   defaultTimeline,
   layerAnimationsFromLegacy,
@@ -125,10 +130,18 @@ function migrateProject(value: unknown): BannerProject | null {
     ? (record.layerAnimations as LayerAnimation[])
     : layerAnimationsFromLegacy(animation);
 
+  const projectKind = parseProjectKind(record.projectKind);
+  const classicBanner =
+    projectKind === "classic-banner"
+      ? migrateClassicBannerData(record.classicBanner) ??
+        createDefaultClassicBannerData()
+      : migrateClassicBannerData(record.classicBanner);
+
   return {
     id: record.id,
     name: record.name,
     status: isValidStatus(record.status) ? record.status : "draft",
+    projectKind,
     width,
     height,
     headline: record.headline,
@@ -182,6 +195,7 @@ function migrateProject(value: unknown): BannerProject | null {
       : undefined,
     activeSceneId:
       typeof record.activeSceneId === "string" ? record.activeSceneId : undefined,
+    classicBanner,
   };
 }
 

@@ -3,10 +3,14 @@
 import Link from "next/link";
 
 interface DashboardHeaderProps {
-  onNewBanner: () => void;
+  onNewHtml5Banner: () => void;
+  onNewClassicBanner: () => void;
 }
 
-export function DashboardHeader({ onNewBanner }: DashboardHeaderProps) {
+export function DashboardHeader({
+  onNewHtml5Banner,
+  onNewClassicBanner,
+}: DashboardHeaderProps) {
   return (
     <header className="border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-sm">
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-6 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
@@ -27,7 +31,28 @@ export function DashboardHeader({ onNewBanner }: DashboardHeaderProps) {
           </Link>
           <button
             type="button"
-            onClick={onNewBanner}
+            onClick={onNewClassicBanner}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-violet-700/80 bg-violet-950/40 px-5 py-2.5 text-sm font-medium text-violet-100 transition-colors hover:border-violet-600 hover:bg-violet-950/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500"
+          >
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 4.5v15m7.5-7.5h-15"
+              />
+            </svg>
+            Nový klasický banner
+          </button>
+          <button
+            type="button"
+            onClick={onNewHtml5Banner}
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-violet-950/30 transition-colors hover:bg-violet-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500"
           >
             <svg
@@ -44,7 +69,7 @@ export function DashboardHeader({ onNewBanner }: DashboardHeaderProps) {
                 d="M12 4.5v15m7.5-7.5h-15"
               />
             </svg>
-            Nový banner
+            Nový HTML5 banner
           </button>
         </div>
       </div>
