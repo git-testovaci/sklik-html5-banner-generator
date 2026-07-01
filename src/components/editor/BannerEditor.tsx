@@ -75,7 +75,7 @@ import { WorkflowGuidanceBox } from "./WorkflowGuidance";
 import { EditorTopBar } from "./EditorTopBar";
 import { getValidationSummary } from "@/lib/validation-rules";
 import { isClassicBannerProject } from "@/lib/classic-banner/classic-banner-model";
-import { ClassicBannerPlaceholder } from "@/components/classic-banner/ClassicBannerPlaceholder";
+import { ClassicBannerEditor } from "@/components/classic-banner/ClassicBannerEditor";
 
 type LeftTab = "assets" | "templates";
 
@@ -958,7 +958,7 @@ export function BannerEditor({ projectId }: BannerEditorProps) {
   }
 
   if (isClassicBannerProject(project)) {
-    return <ClassicBannerPlaceholder project={project} />;
+    return <ClassicBannerEditor key={project.id} project={project} />;
   }
 
   return (
