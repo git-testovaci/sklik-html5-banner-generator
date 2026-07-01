@@ -120,6 +120,8 @@ export type ClassicBannerVariantOverrides = Partial<
   Record<ClassicEditableSlotId, ClassicBannerLayerOverride>
 >;
 
+export type ClassicBannerPropagationTransformMode = "copy-percent" | "family-aware";
+
 export interface ClassicBannerProjectData {
   masterSizeId: string;
   content: ClassicBannerContent;
